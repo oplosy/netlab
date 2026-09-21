@@ -14,9 +14,9 @@ values are minimums because WSL2 kernel patch releases and host sizing vary.
 | Requirement | Policy |
 |---|---|
 | WSL2 kernel | `>= 5.15.0` |
-| Docker Engine | `27.5.1` |
-| Docker CLI | `27.5.1` |
-| Containerlab | `0.68.0` |
+| Docker Engine | `29.6.2` |
+| Docker CLI | `29.6.2` |
+| Containerlab | `0.77.0` |
 | CPU | 4 vCPU minimum |
 | Memory | 8 GiB minimum |
 | Free disk | 40 GiB on repository and Docker filesystems |
@@ -24,6 +24,11 @@ values are minimums because WSL2 kernel patch releases and host sizing vary.
 Container image references are locked by IMG-020 before any image build or lab
 deployment. Image tags must resolve to immutable digests; `latest`, `stable`,
 and other floating tags are prohibited.
+
+The ADR-0011 Python toolchain is declared in `pyproject.toml` for Python
+3.12 and resolved in `uv.lock`. Use `uv run --locked` for Python tooling;
+the environment preflight itself has no Python or uv dependency and never
+installs packages.
 
 ## Run the check
 
@@ -48,6 +53,15 @@ Preflight passed. No host software or runtime state was changed.
 The exact check count can grow when policy adds a prerequisite. Every failed
 check includes an `action:` line. A non-zero result must be resolved before
 `make lab-up` or other runtime commands.
+
+For the unloaded-module capability path, run:
+
+```sh
+make preflight-self-check
+```
+
+This only verifies the reviewed `modinfo` fallback and reads module metadata;
+it does not load a module.
 
 ## Common failures
 

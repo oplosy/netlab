@@ -11,3 +11,4 @@ MK_FRAGMENTS := $(wildcard mk/*.mk)
 help:
 	@printf '%s\n' 'netlab targets:'
 	@printf '%s\n' '  make preflight  Read-only WSL2/toolchain/resource checks'
+	@printf '%s\n' '  make preflight-self-check  Read-only preflight implementation checks'

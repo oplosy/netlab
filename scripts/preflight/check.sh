@@ -110,15 +110,19 @@ elif [[ -r /boot/config-${kernel_release} ]]; then
 fi
 kernel_feature_available() {
   local feature=$1 module=${2:-}
-  if [[ -n ${CONFIG_TEXT} ]]; then
-    grep -Eq "^${feature}=([ym])$" <<<"${CONFIG_TEXT}"
+  if [[ -n ${CONFIG_TEXT} ]] && grep -Eq "^${feature}=([ym])$" <<<"${CONFIG_TEXT}"; then
+    return 0
   elif [[ -n ${module} && -d /sys/module/${module} ]]; then
+    return 0
+  elif [[ -n ${module} ]] && command -v modinfo >/dev/null 2>&1 &&
+    modinfo "${module}" >/dev/null 2>&1; then
+    # A built-in or available module need not be loaded in this namespace.
+    # modinfo is read-only; preflight never calls modprobe or insmod.
     return 0
   elif [[ ${feature} == CONFIG_NET_NS && -e /proc/self/ns/net ]]; then
     return 0
-  else
-    return 1
   fi
+  return 1
 }
 declare -A FEATURE_MODULES=(
   [CONFIG_NET_NS]='' [CONFIG_VETH]='veth' [CONFIG_BRIDGE]='bridge'
@@ -133,8 +137,8 @@ while IFS= read -r feature; do
   if kernel_feature_available "${feature}" "${module}"; then
     pass "Kernel feature ${feature}" 'available (no module was loaded)'
   else
-    detail='not visible in kernel config or /sys/module'
-    [[ -n ${CONFIG_TEXT} ]] && detail='not enabled in the kernel configuration'
+    detail='not enabled in kernel config and unavailable via /sys/module or modinfo'
+    [[ -n ${CONFIG_TEXT} ]] && detail='not enabled in kernel config and unavailable via /sys/module or modinfo'
     fail "Kernel feature ${feature}" "${detail}" \
       'use a WSL2 kernel with the required feature enabled; preflight never loads it'
   fi
