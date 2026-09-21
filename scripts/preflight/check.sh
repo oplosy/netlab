@@ -68,7 +68,10 @@ if command -v docker >/dev/null 2>&1; then
   docker_server_version=$(printf '%s' "${docker_server_version}" | extract_version)
   check_exact_version 'Docker Engine' "${docker_server_version}" "${DOCKER_ENGINE_VERSION}" \
     'install the pinned Docker Engine inside WSL2'
-  docker_client_version=$(docker version --format '{{.Client.Version}}' 2>/dev/null || true)
+  # docker version requires a reachable daemon even for the client field.
+  # Read the CLI's own version first so a daemon outage is reported as a
+  # daemon outage, not as a missing CLI.
+  docker_client_version=$(docker --version 2>/dev/null || true)
   docker_client_version=$(printf '%s' "${docker_client_version}" | extract_version)
   check_exact_version 'Docker CLI' "${docker_client_version}" "${DOCKER_CLI_VERSION}" \
     'install the pinned Docker CLI inside WSL2'
@@ -76,6 +79,9 @@ if command -v docker >/dev/null 2>&1; then
   if [[ -n ${docker_root} && -d ${docker_root} ]]; then
     pass 'Docker daemon reachability' "root ${docker_root}"
   else
+    # Some Docker wrappers print diagnostics to stdout. Never pass that text
+    # to df as though it were a filesystem path.
+    docker_root=''
     fail 'Docker daemon reachability' 'docker info failed or returned no usable Docker root' \
       'start Docker Engine inside WSL2 and ensure the current user can access its socket'
   fi
