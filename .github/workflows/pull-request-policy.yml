@@ -1,0 +1,38 @@
+name: Pull Request Policy
+
+on:
+  pull_request:
+    branches:
+      - main
+  merge_group:
+    types: [checks_requested]
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: policy
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Reject committed local-only files
+        shell: bash
+        run: |
+          set -euo pipefail
+          forbidden='(^|/)(\.env|\.env\.[^/]+)$|(^|/)(secrets|artifacts/runs)/|\.(key|pem)$'
+          if git ls-files | grep -E "$forbidden"; then
+            echo 'A local secret or generated runtime path is tracked.' >&2
+            exit 1
+          fi
+
+      - name: Validate governance files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s CODEOWNERS
+          test -s .editorconfig
+          test -s .github/pull_request_template.md
+          test -s .github/repository-policy.yml
