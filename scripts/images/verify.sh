@@ -38,6 +38,14 @@ grep -Fq 'charon-systemd=${STRONGSWAN_VERSION}' "${network_dockerfile}" && pass 
 grep -Fq "dpkg-query -W -f='\${Version}' charon-systemd" "${network_dockerfile}" && pass 'component manifest records charon-systemd' || fail 'component manifest does not record charon-systemd'
 grep -Fq '/usr/sbin/charon-systemd' "${REPO_ROOT}/images/network-node/entrypoint.sh" && pass 'charon-systemd uses the Noble binary path' || fail 'charon-systemd binary path is incorrect'
 if grep -Eq '(^|[[:space:]])strongswan=\$\{STRONGSWAN_VERSION\}([[:space:]]|$)' "${network_dockerfile}"; then fail 'strongswan metapackage must not be installed'; else pass 'strongswan metapackage is excluded'; fi
+grep -Fq 'edge|distribution|router|access' "${REPO_ROOT}/images/network-node/entrypoint.sh" && pass 'router role is accepted' || fail 'router role validation missing'
+grep -Fq 'router)' "${REPO_ROOT}/images/network-node/entrypoint.sh" && pass 'router starts FRR and nftables path' || fail 'router startup path missing'
+grep -Fq 'router)' "${REPO_ROOT}/images/network-node/healthcheck.sh" && pass 'router health path is present' || fail 'router health path missing'
+grep -Fq 'has_keepalived_config' "${REPO_ROOT}/images/network-node/entrypoint.sh" && pass 'Keepalived startup is conditional on meaningful config' || fail 'conditional Keepalived startup missing'
+grep -Fq 'if has_keepalived_config; then pgrep -x keepalived' "${REPO_ROOT}/images/network-node/healthcheck.sh" && pass 'Keepalived health is conditional on meaningful config' || fail 'conditional Keepalived health missing'
+grep -Fq "[^#[:space:]]" "${REPO_ROOT}/images/network-node/entrypoint.sh" && pass 'non-comment Keepalived config is treated as required' || fail 'Keepalived config meaningful-content check missing'
+grep -Fq 'Keepalived config absent or empty' "${REPO_ROOT}/images/network-node/entrypoint.sh" && pass 'distribution skeleton skips absent Keepalived config' || fail 'distribution skeleton skip evidence missing'
+if grep -Eq 'router\).*keepalived|router\).*charon-systemd' "${REPO_ROOT}/images/network-node/entrypoint.sh"; then fail 'router role has forbidden Keepalived/strongSwan startup'; else pass 'router role excludes Keepalived and strongSwan'; fi
 [[ -x ${REPO_ROOT}/images/network-node/entrypoint.sh ]] && pass 'network startup is executable' || fail 'network startup is not executable'
 [[ -x ${REPO_ROOT}/images/network-node/healthcheck.sh ]] && pass 'network healthcheck is executable' || fail 'network healthcheck is not executable'
 

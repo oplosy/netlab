@@ -8,6 +8,10 @@ test -s /run/netlab/ovs-datapath.json
 ovs-vsctl --timeout=2 br-exists "${OVS_BRIDGE}"
 test -s /usr/share/netlab/component-versions
 pgrep -x ovs-vswitchd >/dev/null
+has_keepalived_config() {
+  [[ -s /etc/keepalived/keepalived.conf ]] \
+    && grep -Eq '^[[:space:]]*[^#[:space:]]' /etc/keepalived/keepalived.conf
+}
 case "${ROLE}" in
   access) : ;;
   edge)
@@ -18,7 +22,11 @@ case "${ROLE}" in
     ;;
   distribution)
     pgrep -x zebra >/dev/null
-    pgrep -x keepalived >/dev/null
+    nft list ruleset >/dev/null
+    if has_keepalived_config; then pgrep -x keepalived >/dev/null; fi
+    ;;
+  router)
+    pgrep -x zebra >/dev/null
     nft list ruleset >/dev/null
     ;;
   *) exit 64 ;;
