@@ -8,10 +8,13 @@ the Docker build records the installed `dpkg` versions in
 labels. No `latest`, `stable`, or unqualified base image is permitted.
 
 Because the minimal Ubuntu base does not provide a CA bundle, each Dockerfile
-temporarily uses the same signed snapshot over HTTP to install only
-`ca-certificates`, then switches to HTTPS before the normal package
-transaction. APT still verifies the signed Ubuntu Release metadata and package
-signatures during the HTTP bootstrap; no moving default archive is consulted.
+uses the same pinned HTTPS snapshot from the first transaction. Only the two
+bootstrap APT commands (`update` and installation of `ca-certificates`) scope
+`Acquire::https::Verify-Peer=false`; this permits the initial certificate-less
+connection without trusting an alternate archive. APT still verifies signed
+Ubuntu Release metadata and package hashes, and the normal update after CA
+installation uses certificate validation. No `trusted=yes`, unauthenticated
+mode, or moving default archive is consulted.
 
 ## Locked inputs
 
