@@ -24,15 +24,17 @@ for image in network-node client service; do
   if grep -Eiq '^FROM .*(latest|stable|edge)([^a-zA-Z0-9]|$)' "${dockerfile}"; then fail "${image} uses a floating FROM tag"; fi
   grep -Fq "UBUNTU_SNAPSHOT}" "${dockerfile}" && pass "${image} uses the locked apt snapshot" || fail "${image} does not use UBUNTU_SNAPSHOT"
   remove_line=$(grep -nF 'rm -f /etc/apt/sources.list.d/ubuntu.sources' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
-  http_source_line=$(grep -nF 'http://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT}' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
-  first_update_line=$(grep -nF 'apt-get update' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
-  bootstrap_line=$(grep -nF 'apt-get install --no-install-recommends --yes ca-certificates' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
-  https_source_line=$(grep -nF 'https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT}' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
-  normal_update_line=$(grep -nF 'apt-get update' "${dockerfile}" | tail -n1 | cut -d: -f1 || true)
-  if [[ ${remove_line} =~ ^[0-9]+$ && ${http_source_line} =~ ^[0-9]+$ && ${first_update_line} =~ ^[0-9]+$ && ${bootstrap_line} =~ ^[0-9]+$ && ${https_source_line} =~ ^[0-9]+$ && ${normal_update_line} =~ ^[0-9]+$ && ${remove_line} -lt ${http_source_line} && ${http_source_line} -lt ${first_update_line} && ${first_update_line} -lt ${bootstrap_line} && ${bootstrap_line} -lt ${https_source_line} && ${https_source_line} -lt ${normal_update_line} ]]; then
-    pass "${image} bootstraps CA from the pinned HTTP snapshot before HTTPS"
+  source_line=$(grep -nF 'https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT}' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
+  bootstrap_update_line=$(grep -nF 'apt-get -o Acquire::https::Verify-Peer=false update' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
+  bootstrap_install_line=$(grep -nF 'apt-get -o Acquire::https::Verify-Peer=false install --no-install-recommends --yes ca-certificates' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
+  normal_update_line=$(grep -nF 'apt-get update' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
+  verify_peer_count=$(grep -Fc 'Acquire::https::Verify-Peer=false' "${dockerfile}" || true)
+  forbidden_source=0
+  if grep -Eiq 'http://snapshot\.ubuntu\.com|archive\.ubuntu\.com|security\.ubuntu\.com|trusted=yes|allow-unauthenticated' "${dockerfile}"; then forbidden_source=1; fi
+  if [[ ${remove_line} =~ ^[0-9]+$ && ${source_line} =~ ^[0-9]+$ && ${bootstrap_update_line} =~ ^[0-9]+$ && ${bootstrap_install_line} =~ ^[0-9]+$ && ${normal_update_line} =~ ^[0-9]+$ && ${remove_line} -lt ${source_line} && ${source_line} -lt ${bootstrap_update_line} && ${bootstrap_update_line} -lt ${bootstrap_install_line} && ${bootstrap_install_line} -lt ${normal_update_line} && ${verify_peer_count} -eq 2 && ${forbidden_source} -eq 0 ]]; then
+    pass "${image} scopes TLS peer bypass to pinned CA bootstrap only"
   else
-    fail "${image} must use pinned HTTP snapshot CA bootstrap before HTTPS snapshot"
+    fail "${image} must use pinned HTTPS snapshot with scoped CA bootstrap TLS bypass"
   fi
 done
 

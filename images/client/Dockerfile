@@ -9,11 +9,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN rm -f /etc/apt/sources.list.d/ubuntu.sources \
     && printf '%s\n' \
-       "deb [check-valid-until=no] http://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble main universe" \
-       "deb [check-valid-until=no] http://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble-updates main universe" \
+       "deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble main universe" \
+       "deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble-updates main universe" \
        > /etc/apt/sources.list.d/netlab-snapshot.list \
-    && apt-get update \
-    && apt-get install --no-install-recommends --yes ca-certificates \
+    && apt-get -o Acquire::https::Verify-Peer=false update \
+    && apt-get -o Acquire::https::Verify-Peer=false install --no-install-recommends --yes ca-certificates \
     && rm -f /etc/apt/sources.list.d/netlab-snapshot.list \
     && printf '%s\n' \
        "deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble main universe" \
