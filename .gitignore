@@ -1,0 +1,30 @@
+# Local secrets and generated credentials
+.env
+.env.local
+secrets/
+*.key
+*.pem
+!*.example.pem
+
+# Containerlab and runtime state
+clab-*/
+.containerlab/
+artifacts/runs/
+
+# Python and Ansible caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ansible/
+*.retry
+.venv/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Worktrees must live outside the repository, but ignore accidental local use.
+.worktrees/
