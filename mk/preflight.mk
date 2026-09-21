@@ -6,3 +6,4 @@ preflight:
 
 preflight-self-check:
 	@bash scripts/preflight/self-check-modinfo.sh
+	@bash scripts/preflight/self-check-uv.sh

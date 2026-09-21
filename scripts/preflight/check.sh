@@ -63,6 +63,16 @@ else
   fi
 fi
 
+if command -v uv >/dev/null 2>&1; then
+  uv_version=$(uv --version 2>/dev/null || true)
+  uv_version=$(printf '%s' "${uv_version}" | extract_version)
+  check_exact_version 'uv' "${uv_version}" "${UV_VERSION}" \
+    'install the pinned uv release inside WSL2; see docs/runbooks/environment.md'
+else
+  fail 'uv command' 'uv is not installed or not on PATH' \
+    'install the pinned uv release inside WSL2; see docs/runbooks/environment.md'
+fi
+
 if command -v docker >/dev/null 2>&1; then
   docker_server_version=$(docker version --format '{{.Server.Version}}' 2>/dev/null || true)
   docker_server_version=$(printf '%s' "${docker_server_version}" | extract_version)
