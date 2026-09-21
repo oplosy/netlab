@@ -8,7 +8,7 @@ OVS_BRIDGE=${OVS_BRIDGE:-netlab-br0}
 RUN_DIR=/run/netlab
 
 case "${ROLE}" in
-  edge|distribution|access) ;;
+  edge|distribution|router|access) ;;
   *) printf 'unsupported NETLAB_NODE_ROLE=%s\n' "${ROLE}" >&2; exit 64 ;;
 esac
 case "${OVS_DATAPATH_MODE}" in
@@ -60,6 +60,10 @@ start_background_required() {
     exit 1
   }
 }
+has_keepalived_config() {
+  [[ -s /etc/keepalived/keepalived.conf ]] \
+    && grep -Eq '^[[:space:]]*[^#[:space:]]' /etc/keepalived/keepalived.conf
+}
 
 case "${ROLE}" in
   edge)
@@ -72,7 +76,16 @@ case "${ROLE}" in
   distribution)
     [[ -x /usr/lib/frr/frrinit.sh ]] || { echo 'frrinit.sh is missing' >&2; exit 127; }
     /usr/lib/frr/frrinit.sh start
-    start_background_required keepalived keepalived --dont-fork --log-console
+    if has_keepalived_config; then
+      start_background_required keepalived keepalived --dont-fork --log-console
+    else
+      printf 'Keepalived config absent or empty; distribution skeleton continues without VRRP\n'
+    fi
+    if [[ -f /etc/nftables.conf ]]; then nft -f /etc/nftables.conf; else nft list ruleset >/dev/null; fi
+    ;;
+  router)
+    [[ -x /usr/lib/frr/frrinit.sh ]] || { echo 'frrinit.sh is missing' >&2; exit 127; }
+    /usr/lib/frr/frrinit.sh start
     if [[ -f /etc/nftables.conf ]]; then nft -f /etc/nftables.conf; else nft list ruleset >/dev/null; fi
     ;;
   access) : ;;

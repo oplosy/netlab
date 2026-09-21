@@ -86,11 +86,17 @@ claim clean-build evidence when Docker is unavailable.
 ## Roles and health checks
 
 `netlab/network-node:0.1.0` supports `NETLAB_NODE_ROLE=edge`,
-`distribution`, and `access`. The edge role starts FRR, `charon-systemd`,
-nftables, and OVS; distribution starts FRR, Keepalived, nftables, and OVS;
+`distribution`, `router`, and `access`. The edge role starts FRR,
+`charon-systemd`, nftables, and OVS; distribution starts FRR and nftables and
+starts Keepalived only when a meaningful `/etc/keepalived/keepalived.conf`
+exists; router starts FRR, nftables, and OVS without strongSwan or Keepalived;
 access starts OVS only. Startup is fail-fast when a required binary or daemon
 cannot start. The health check verifies the OVS bridge and datapath, then the
-role-specific FRR, strongSwan, Keepalived, and nftables state.
+role-specific FRR, strongSwan, Keepalived, and nftables state. A distribution
+skeleton with no VRRP configuration remains healthy until L3 configuration is
+rendered. An absent, empty, or comment-only Keepalived file is skipped; any
+non-comment content makes Keepalived required, so an invalid present config
+fails fast instead of being silently ignored.
 
 OVS selection is explicit and never silently falls back:
 
