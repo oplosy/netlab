@@ -1,0 +1,696 @@
+schema_version: 1
+
+project:
+  name: multi-site-enterprise-network-lab
+  base_branch: main
+  worktree_root: ../netlab-worktrees
+  max_parallel_workers: 3
+
+roles:
+  orchestrator:
+    profile: planner-medium
+    recommended_model: gpt-5.6-sol
+    recommended_reasoning: medium
+    owns:
+      - dependency scheduling
+      - worker dispatch
+      - review and independent verification
+      - integration branches
+      - phase pull requests
+  worker:
+    profile: implementer-high
+    recommended_model: gpt-5.6-luna
+    recommended_reasoning: high
+    owns:
+      - one task branch
+      - one isolated worktree
+      - task-scoped implementation and evidence
+
+git_policy:
+  direct_main_push: forbidden
+  task_branch_pattern: "<type>/<task-id-lower>-<slug>"
+  integration_branch_pattern: "integration/<phase>"
+  commit_pattern: "<type>(<task-id>): <summary>"
+  merge_to_main: pull_request_only
+  worker_merge_target: phase_integration_branch
+
+global_context:
+  - AGENTS.md
+  - docs/architecture/overview.md
+  - docs/architecture/addressing.md
+  - docs/architecture/security-and-observability.md
+  - docs/adr/README.md
+  - docs/plans/orchestration.md
+
+tasks:
+  - id: GOV-001
+    phase: phase-0
+    title: Bootstrap main and repository protections
+    type: chore
+    status: blocked
+    blocker: "Remote main has no commit; repository-owner bootstrap action is required."
+    depends_on: []
+    parallel_group: bootstrap
+    allowed_paths:
+      - .github/**
+      - CODEOWNERS
+      - .editorconfig
+    deliverables:
+      - "A real protected main branch"
+      - "Pull-request and status-check policy"
+      - "CODEOWNERS and repository metadata"
+    acceptance:
+      - "A direct push to main is rejected"
+      - "A feature branch can open a pull request to main"
+    verify:
+      - "Record GitHub branch protection readback"
+      - "Record a non-mutating repository/default-branch check"
+    commit: "chore(GOV-001): establish repository guardrails"
+
+  - id: ENV-010
+    phase: phase-0
+    title: Add environment preflight and version policy
+    type: chore
+    status: planned
+    depends_on: [GOV-001]
+    parallel_group: foundation-a
+    allowed_paths:
+      - scripts/preflight/**
+      - docs/runbooks/environment.md
+      - versions.env
+      - Makefile
+    deliverables:
+      - "Read-only WSL2, Docker, Containerlab, kernel, and resource preflight"
+      - "Pinned tool version policy and version lock"
+      - "Environment runbook"
+    acceptance:
+      - "Preflight returns zero on a supported host"
+      - "Each missing prerequisite produces an actionable nonzero result"
+      - "The preflight does not install or remove host software"
+    verify:
+      - "make preflight"
+    commit: "chore(ENV-010): add lab environment preflight"
+
+  - id: IMG-020
+    phase: phase-0
+    title: Build reproducible lab node images
+    type: build
+    status: planned
+    depends_on: [GOV-001, ENV-010]
+    parallel_group: foundation-b
+    allowed_paths:
+      - images/**
+      - scripts/images/**
+      - docs/runbooks/images.md
+      - versions.env
+      - Makefile
+    deliverables:
+      - "Pinned network-node, client, and service image definitions"
+      - "Role-specific startup and health checks"
+      - "Resolved image digest report"
+    acceptance:
+      - "Two consecutive clean builds produce the expected component versions"
+      - "No image uses a floating tag"
+      - "OVS datapath selection is explicit and evidenced"
+    verify:
+      - "make images"
+      - "make verify-images"
+    commit: "build(IMG-020): add reproducible lab images"
+
+  - id: DAT-030
+    phase: phase-0
+    title: Define authoritative inventory and schema
+    type: feat
+    status: planned
+    depends_on: [GOV-001]
+    parallel_group: foundation-a
+    allowed_paths:
+      - inventory/**
+      - schemas/**
+      - scripts/validate/**
+      - tests/unit/inventory/**
+      - Makefile
+    deliverables:
+      - "Site, node, link, VLAN, prefix, ASN, and service intent data"
+      - "Machine-readable schema"
+      - "Validation and unit tests"
+    acceptance:
+      - "Duplicate IPs and ASNs fail when uniqueness is required"
+      - "Overlapping prefixes and invalid peer references fail"
+      - "All values match the accepted addressing ADR"
+    verify:
+      - "make validate-inventory"
+      - "make test-unit"
+    commit: "feat(DAT-030): define authoritative network inventory"
+
+  - id: TOP-040
+    phase: phase-0
+    title: Create the Phase 1 topology skeleton
+    type: feat
+    status: planned
+    depends_on: [ENV-010, IMG-020, DAT-030]
+    parallel_group: foundation-c
+    allowed_paths:
+      - lab/**
+      - scripts/lifecycle/**
+      - tests/smoke/topology/**
+      - Makefile
+    deliverables:
+      - "HQ, Branch 1, ISP 1, clients, and operations nodes"
+      - "Deterministic interface and OOB addressing"
+      - "Deploy, inspect, and destroy commands"
+    acceptance:
+      - "All declared nodes become healthy"
+      - "Management IP masquerading is disabled"
+      - "Destroy leaves no project container, bridge, or namespace"
+    verify:
+      - "make lab-up"
+      - "make smoke"
+      - "make lab-down"
+      - "make verify-clean"
+    commit: "feat(TOP-040): add phase one topology skeleton"
+
+  - id: L2-110
+    phase: phase-1
+    title: Implement site VLAN, LACP, and RSTP behavior
+    type: feat
+    status: planned
+    depends_on: [TOP-040]
+    parallel_group: network-a
+    allowed_paths:
+      - config/switching/**
+      - automation/roles/switching/**
+      - tests/integration/l2/**
+      - evidence/specs/l2/**
+    deliverables:
+      - "VLAN access and trunk policy"
+      - "Two-member LACP bundles"
+      - "Deterministic RSTP root policy"
+      - "Failure measurement tests"
+    acceptance:
+      - "VLAN isolation passes"
+      - "A port channel never spans distribution nodes"
+      - "LACP member failure interruption is at most 1 second"
+      - "RSTP active-path failure interruption is at most 5 seconds"
+    verify:
+      - "make test-l2"
+    commit: "feat(L2-110): implement resilient site switching"
+
+  - id: L3-120
+    phase: phase-1
+    title: Implement SVIs, VRRP, and routed edge links
+    type: feat
+    status: planned
+    depends_on: [L2-110]
+    parallel_group: network-b
+    allowed_paths:
+      - config/gateway/**
+      - automation/roles/gateway/**
+      - tests/integration/l3/**
+      - evidence/specs/l3/**
+    deliverables:
+      - "Site SVIs and .1 virtual gateways"
+      - "VRRP master/standby policy"
+      - "Routed distribution-to-edge links"
+      - "DHCP relay hooks"
+    acceptance:
+      - "Clients use the VRRP virtual IP"
+      - "Gateway ownership moves after master failure"
+      - "VRRP preference is aligned with RSTP root preference"
+    verify:
+      - "make test-l3"
+    commit: "feat(L3-120): add redundant site gateways"
+
+  - id: OSPF-130
+    phase: phase-1
+    title: Implement OSPF areas, summaries, and BFD
+    type: feat
+    status: planned
+    depends_on: [L3-120]
+    parallel_group: network-c
+    allowed_paths:
+      - config/routing/ospf/**
+      - automation/roles/ospf/**
+      - tests/integration/ospf/**
+      - evidence/specs/ospf/**
+    deliverables:
+      - "Areas 0, 10, and 20"
+      - "Normal site areas with visible remote-site summaries"
+      - "Site /16 summaries and conditional Internet defaults"
+      - "BFD-backed routed adjacency tests"
+    acceptance:
+      - "No adjacency forms on a passive interface"
+      - "Area 0 receives site summaries instead of VLAN specifics"
+      - "Routed-link failure interruption is at most 3 seconds"
+      - "Partial site failure does not create an unexplained black hole"
+    verify:
+      - "make test-ospf"
+    commit: "feat(OSPF-130): add multi-area enterprise routing"
+
+  - id: WAN-140
+    phase: phase-1
+    title: Implement ISP simulation and eBGP policy
+    type: feat
+    status: planned
+    depends_on: [TOP-040]
+    parallel_group: network-a
+    allowed_paths:
+      - config/routing/bgp/**
+      - config/isp/**
+      - automation/roles/bgp/**
+      - tests/integration/bgp/**
+      - evidence/specs/bgp/**
+    deliverables:
+      - "ISP 1 and simulated Internet routing"
+      - "Site eBGP sessions"
+      - "Exact import/export filters and maximum-prefix policy"
+    acceptance:
+      - "Each site imports only a default route"
+      - "ISP 1 learns no RFC1918 enterprise prefix"
+      - "Injected unauthorized advertisements are rejected"
+    verify:
+      - "make test-bgp"
+    commit: "feat(WAN-140): add simulated ISP and BGP policy"
+
+  - id: VPN-150
+    phase: phase-1
+    title: Implement the IKEv2 XFRM overlay
+    type: feat
+    status: planned
+    depends_on: [OSPF-130, WAN-140]
+    parallel_group: network-d
+    allowed_paths:
+      - config/ipsec/**
+      - scripts/pki/**
+      - automation/roles/ipsec/**
+      - tests/integration/ipsec/**
+      - evidence/specs/ipsec/**
+    deliverables:
+      - "Local lab CA and certificate generation"
+      - "strongSwan swanctl and XFRM configuration"
+      - "MTU/MSS, rekey, and recovery tests"
+    acceptance:
+      - "No generated private key or certificate is tracked"
+      - "OSPF Area 0 forms over the encrypted XFRM link"
+      - "Underlay capture contains ESP and no plaintext enterprise packet"
+      - "Rekey does not exceed the convergence objective"
+    verify:
+      - "make test-ipsec"
+    commit: "feat(VPN-150): add certificate-based site overlay"
+
+  - id: SVC-160
+    phase: phase-1
+    title: Implement enterprise infrastructure services
+    type: feat
+    status: planned
+    depends_on: [L3-120, TOP-040]
+    parallel_group: services-a
+    allowed_paths:
+      - services/dhcp/**
+      - services/dns/**
+      - services/ntp/**
+      - services/aaa/**
+      - automation/roles/services/**
+      - tests/integration/services/**
+    deliverables:
+      - "Kea DHCP, BIND 9, chrony, and FreeRADIUS"
+      - "Site/VLAN-specific leases and internal zones"
+      - "Central AAA plus local break-glass procedure"
+    acceptance:
+      - "Clients receive the correct subnet, gateway, DNS, and NTP data"
+      - "Internal and simulated Internet names resolve"
+      - "Central AAA and fallback behavior are both exercised"
+    verify:
+      - "make test-services"
+    commit: "feat(SVC-160): add core network services"
+
+  - id: SEC-170
+    phase: phase-1
+    title: Enforce segmentation, control-plane policy, and guest NAT
+    type: feat
+    status: planned
+    depends_on: [L3-120, WAN-140, SVC-160]
+    parallel_group: security-a
+    allowed_paths:
+      - config/security/**
+      - automation/roles/security/**
+      - tests/security/**
+      - evidence/specs/security/**
+    deliverables:
+      - "Default-deny nftables zone policy"
+      - "Guest NAT to simulated Internet"
+      - "Control-plane and management filters"
+      - "Positive and negative policy matrix"
+    acceptance:
+      - "Guest approved Internet traffic succeeds"
+      - "Guest access to server, corporate, in-band management, and OOB fails"
+      - "Unauthorized control-plane traffic fails"
+      - "Denies emit rate-limited correlated logs"
+    verify:
+      - "make test-security"
+    commit: "feat(SEC-170): enforce enterprise zone policy"
+
+  - id: OBS-180
+    phase: phase-1
+    title: Implement correlated network observability
+    type: feat
+    status: planned
+    depends_on: [TOP-040, SVC-160]
+    parallel_group: observability-a
+    allowed_paths:
+      - observability/**
+      - automation/roles/observability/**
+      - tests/integration/observability/**
+      - evidence/specs/observability/**
+    deliverables:
+      - "Prometheus, snmp_exporter, Grafana, syslog-ng, Alloy, Loki, and GoFlow2"
+      - "SNMPv3, syslog, and OVS IPFIX configuration"
+      - "Path and failure dashboards"
+    acceptance:
+      - "SNMPv3 authPriv succeeds and SNMPv2c fails"
+      - "A known flow appears with correct endpoints and interfaces"
+      - "A link event appears in both metrics and logs with matching time"
+    verify:
+      - "make test-observability"
+    commit: "feat(OBS-180): add correlated telemetry stack"
+
+  - id: TEST-190
+    phase: phase-1
+    title: Build the end-to-end evidence suite
+    type: test
+    status: planned
+    depends_on: [OSPF-130, VPN-150, SEC-170, OBS-180]
+    parallel_group: runtime-exclusive
+    runtime_lock: lab
+    allowed_paths:
+      - tests/e2e/**
+      - scripts/evidence/**
+      - evidence/templates/**
+      - Makefile
+    deliverables:
+      - "Traffic, fault, security, capture, and correlation test runner"
+      - "Timestamped machine-readable result bundle"
+      - "Threshold evaluation"
+    acceptance:
+      - "Every Phase 1 definition-of-done claim is produced by one run"
+      - "A missed quantitative threshold fails the run"
+      - "Teardown executes even after a failed test"
+    verify:
+      - "make evidence-phase-1"
+    commit: "test(TEST-190): add phase one evidence suite"
+
+  - id: DOC-195
+    phase: phase-1
+    title: Publish rebuild and operations runbooks
+    type: docs
+    status: planned
+    depends_on: [TEST-190]
+    parallel_group: phase-close
+    allowed_paths:
+      - README.md
+      - docs/runbooks/**
+      - docs/operations/**
+      - evidence/reports/phase-1.md
+      - evidence/pcaps/**
+    deliverables:
+      - "Setup, deploy, verify, troubleshoot, evidence, and teardown runbooks"
+      - "Curated Phase 1 evidence report"
+      - "Sanitized representative packet captures"
+    acceptance:
+      - "A clean environment can follow only committed instructions"
+      - "Documented expected outputs match the verified implementation"
+      - "No committed packet capture exceeds 5 MiB or exposes a secret"
+    verify:
+      - "Follow the clean rebuild runbook"
+      - "make evidence-phase-1"
+      - "make lab-down"
+      - "make verify-clean"
+    commit: "docs(DOC-195): publish phase one operations evidence"
+
+  - id: WAN-210
+    phase: phase-2
+    title: Add ISP 2 and redundant edge nodes
+    type: feat
+    status: planned
+    depends_on: [DOC-195]
+    parallel_group: phase-2-a
+    allowed_paths:
+      - inventory/**
+      - lab/**
+      - config/isp/**
+      - config/routing/bgp/**
+      - tests/integration/bgp/**
+    acceptance:
+      - "Both providers establish filtered eBGP sessions"
+      - "Phase 1 behavior remains green before failover policy is enabled"
+    verify:
+      - "make test-bgp"
+    commit: "feat(WAN-210): add second provider and edge path"
+
+  - id: WAN-220
+    phase: phase-2
+    title: Add deterministic dual-provider BGP policy
+    type: feat
+    status: planned
+    depends_on: [WAN-210]
+    parallel_group: phase-2-b
+    allowed_paths:
+      - config/routing/bgp/**
+      - automation/roles/bgp/**
+      - tests/integration/bgp/**
+      - evidence/specs/bgp/**
+    acceptance:
+      - "Primary and backup paths match documented policy"
+      - "Prefix leaks and excessive advertisements are rejected"
+    verify:
+      - "make test-bgp-multihoming"
+    commit: "feat(WAN-220): enforce dual-provider route policy"
+
+  - id: WAN-230
+    phase: phase-2
+    title: Add redundant encrypted overlay paths
+    type: feat
+    status: planned
+    depends_on: [WAN-220]
+    parallel_group: phase-2-c
+    allowed_paths:
+      - config/ipsec/**
+      - config/routing/ospf/**
+      - automation/roles/ipsec/**
+      - tests/integration/ipsec/**
+    acceptance:
+      - "Both overlay paths encrypt traffic"
+      - "OSPF cost selects the intended healthy underlay"
+    verify:
+      - "make test-ipsec-redundancy"
+    commit: "feat(WAN-230): add redundant encrypted overlays"
+
+  - id: TEST-240
+    phase: phase-2
+    title: Verify provider and edge failover
+    type: test
+    status: planned
+    depends_on: [WAN-230]
+    parallel_group: runtime-exclusive
+    runtime_lock: lab
+    allowed_paths:
+      - tests/e2e/phase-2/**
+      - scripts/evidence/**
+      - evidence/reports/phase-2.md
+    acceptance:
+      - "Provider, edge, and tunnel failures converge within 10 seconds"
+      - "Return path matches policy where symmetry is required"
+    verify:
+      - "make evidence-phase-2"
+    commit: "test(TEST-240): prove dual-provider failover"
+
+  - id: SITE-310
+    phase: phase-3
+    title: Extract a reusable branch site template
+    type: refactor
+    status: planned
+    depends_on: [TEST-240]
+    parallel_group: phase-3-a
+    allowed_paths:
+      - inventory/templates/**
+      - automation/roles/site/**
+      - tests/unit/site-template/**
+    acceptance:
+      - "Branch 1 renders without behavioral changes"
+      - "No generated runtime state is copied into the template"
+    verify:
+      - "make test-site-template"
+      - "make evidence-phase-1"
+    commit: "refactor(SITE-310): extract branch site template"
+
+  - id: SITE-320
+    phase: phase-3
+    title: Instantiate Branch 2 from data
+    type: feat
+    status: planned
+    depends_on: [SITE-310]
+    parallel_group: phase-3-b
+    allowed_paths:
+      - inventory/sites/br2/**
+      - tests/integration/br2/**
+    acceptance:
+      - "Branch 2 uses 10.30.0.0/16, Area 30, and AS 65102"
+      - "Branch 2 is produced from the shared site template"
+    verify:
+      - "make test-branch-2"
+    commit: "feat(SITE-320): add second branch from template"
+
+  - id: SITE-330
+    phase: phase-3
+    title: Verify Branch 2 routing and isolation
+    type: test
+    status: planned
+    depends_on: [SITE-320]
+    parallel_group: runtime-exclusive
+    runtime_lock: lab
+    allowed_paths:
+      - tests/e2e/phase-3/**
+      - evidence/reports/phase-3.md
+    acceptance:
+      - "Area 0 gains exactly one Branch 2 summary"
+      - "Guest and management isolation remains intact"
+      - "Branch 1 acceptance does not regress"
+    verify:
+      - "make evidence-phase-3"
+    commit: "test(SITE-330): prove second branch isolation"
+
+  - id: EDGE-410
+    phase: phase-4
+    title: Add the SecureEdge zone firewall tier
+    type: feat
+    status: planned
+    depends_on: [SITE-330]
+    parallel_group: phase-4-a
+    allowed_paths:
+      - secure-edge/firewall/**
+      - automation/roles/secure-edge/**
+      - tests/security/secure-edge/**
+    acceptance:
+      - "Inside, outside, guest, management, and service zones fail closed"
+      - "Bypass around the security tier is not routable"
+    verify:
+      - "make test-secure-edge"
+    commit: "feat(EDGE-410): add routed secure edge zones"
+
+  - id: EDGE-420
+    phase: phase-4
+    title: Add Suricata IDS and IPS behavior
+    type: feat
+    status: planned
+    depends_on: [EDGE-410]
+    parallel_group: phase-4-b
+    allowed_paths:
+      - secure-edge/suricata/**
+      - tests/security/suricata/**
+      - evidence/specs/secure-edge/**
+    acceptance:
+      - "Curated test signatures generate deterministic alerts"
+      - "Configured IPS test traffic is blocked"
+      - "Failure-mode behavior matches the documented fail-open/fail-closed policy"
+    verify:
+      - "make test-suricata"
+    commit: "feat(EDGE-420): add deterministic IDS and IPS tests"
+
+  - id: EDGE-430
+    phase: phase-4
+    title: Correlate SecureEdge decisions with network evidence
+    type: test
+    status: planned
+    depends_on: [EDGE-420]
+    parallel_group: runtime-exclusive
+    runtime_lock: lab
+    allowed_paths:
+      - observability/secure-edge/**
+      - tests/e2e/phase-4/**
+      - evidence/reports/phase-4.md
+    acceptance:
+      - "Firewall decision, IDS alert, packet, and IPFIX record share the run ID"
+      - "Allowed and blocked cases are both represented"
+    verify:
+      - "make evidence-phase-4"
+    commit: "test(EDGE-430): correlate secure edge evidence"
+
+  - id: AUTO-510
+    phase: phase-5
+    title: Build the NetBox intent projection
+    type: feat
+    status: planned
+    depends_on: [EDGE-430]
+    parallel_group: phase-5-a
+    allowed_paths:
+      - automation/netbox/**
+      - services/netbox/**
+      - tests/integration/netbox/**
+    acceptance:
+      - "An empty NetBox database is seeded from Git intent"
+      - "A second reconciliation is idempotent"
+      - "A NetBox-only edit is reported as drift"
+    verify:
+      - "make test-netbox-sync"
+    commit: "feat(AUTO-510): add rebuildable NetBox projection"
+
+  - id: AUTO-520
+    phase: phase-5
+    title: Generate Ansible inventory and configurations
+    type: feat
+    status: planned
+    depends_on: [AUTO-510]
+    parallel_group: phase-5-b
+    allowed_paths:
+      - automation/inventory/**
+      - automation/render/**
+      - automation/collections/**
+      - tests/unit/render/**
+    acceptance:
+      - "Generated inventory matches validated Git intent and NetBox projection"
+      - "Rendering is deterministic and identifies generated files"
+    verify:
+      - "make render"
+      - "make test-render"
+    commit: "feat(AUTO-520): generate network automation artifacts"
+
+  - id: AUTO-530
+    phase: phase-5
+    title: Add safe change, idempotence, and drift workflows
+    type: feat
+    status: planned
+    depends_on: [AUTO-520]
+    parallel_group: phase-5-c
+    allowed_paths:
+      - automation/playbooks/**
+      - automation/roles/compliance/**
+      - tests/integration/automation/**
+      - evidence/specs/automation/**
+    acceptance:
+      - "Precheck, backup, diff, apply, and postcheck stages are explicit"
+      - "A second apply reports no material change"
+      - "Intent and device drift produce a failing report"
+    verify:
+      - "make test-automation"
+      - "make test-drift"
+    commit: "feat(AUTO-530): add safe network change workflow"
+
+  - id: AUTO-540
+    phase: phase-5
+    title: Add CI and bounded topology smoke tests
+    type: ci
+    status: planned
+    depends_on: [AUTO-530]
+    parallel_group: phase-5-close
+    allowed_paths:
+      - .github/workflows/**
+      - scripts/ci/**
+      - docs/operations/ci.md
+    acceptance:
+      - "Schema, lint, unit, render, secret, and drift checks run in CI"
+      - "The topology smoke test has explicit time and resource bounds"
+      - "CI never requires committed credentials"
+    verify:
+      - "Run the documented local CI-equivalent command"
+      - "Record GitHub check readback"
+    commit: "ci(AUTO-540): enforce network lab quality gates"
