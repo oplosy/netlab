@@ -16,7 +16,7 @@ labels. No `latest`, `stable`, or unqualified base image is permitted.
 | Open vSwitch | `3.3.9-0ubuntu0.24.04.1` | [Ubuntu Noble Open vSwitch package search](https://packages.ubuntu.com/openvswitch-switch) |
 | Keepalived | `1:2.2.8-1build2` | [Ubuntu Noble Keepalived package](https://packages.ubuntu.com/en/noble/amd64/admin/keepalived) |
 | strongSwan control plane | `charon-systemd=5.9.13-2ubuntu4.24.04.4`, `strongswan-swanctl=5.9.13-2ubuntu4.24.04.4` | [Ubuntu Noble charon-systemd file list](https://packages.ubuntu.com/noble/amd64/charon-systemd/filelist), [Ubuntu Noble strongSwan package](https://packages.ubuntu.com/noble/strongswan) |
-| nftables | `1.0.9-1build1` | [Ubuntu Noble nftables package](https://packages.ubuntu.com/noble/net/nftables) |
+| nftables | `1.0.9-1ubuntu0.1` | [Ubuntu Noble nftables package](https://packages.ubuntu.com/noble/net/nftables) |
 
 The package versions above are distribution package versions, not the latest
 upstream release labels. This is intentional: the image installs from the

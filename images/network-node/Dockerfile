@@ -7,7 +7,7 @@ ARG FRR_VERSION=8.4.4-1.1ubuntu6.7
 ARG OVS_VERSION=3.3.9-0ubuntu0.24.04.1
 ARG KEEPALIVED_VERSION=1:2.2.8-1build2
 ARG STRONGSWAN_VERSION=5.9.13-2ubuntu4.24.04.4
-ARG NFTABLES_VERSION=1.0.9-1build1
+ARG NFTABLES_VERSION=1.0.9-1ubuntu0.1
 
 LABEL org.opencontainers.image.title="netlab network node" \
       org.opencontainers.image.version="0.1.0" \
