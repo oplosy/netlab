@@ -32,9 +32,12 @@ grep -Fq 'OVS_DATAPATH_MODE must be kernel or userspace' "${REPO_ROOT}/images/ne
 grep -Fq 'netlab.component.frr="${FRR_VERSION}"' "${network_dockerfile}" && grep -Fq 'frr=${FRR_VERSION}' "${network_dockerfile}" && pass 'FRR package lock matches label' || fail 'FRR label/package lock mismatch'
 grep -Fq 'netlab.component.openvswitch="${OVS_VERSION}"' "${network_dockerfile}" && grep -Fq 'openvswitch-switch=${OVS_VERSION}' "${network_dockerfile}" && pass 'OVS package lock matches label' || fail 'OVS label/package lock mismatch'
 grep -Fq 'netlab.component.keepalived="${KEEPALIVED_VERSION}"' "${network_dockerfile}" && grep -Fq 'keepalived=${KEEPALIVED_VERSION}' "${network_dockerfile}" && pass 'Keepalived package lock matches label' || fail 'Keepalived label/package lock mismatch'
-grep -Fq 'netlab.component.strongswan="${STRONGSWAN_VERSION}"' "${network_dockerfile}" && grep -Fq 'strongswan=${STRONGSWAN_VERSION}' "${network_dockerfile}" && pass 'strongSwan package lock matches label' || fail 'strongSwan label/package lock mismatch'
+grep -Fq 'netlab.component.strongswan="${STRONGSWAN_VERSION}"' "${network_dockerfile}" && grep -Eq '(^|[[:space:]])(charon-systemd|strongswan-swanctl)=\$\{STRONGSWAN_VERSION\}([[:space:]]|$)' "${network_dockerfile}" && pass 'strongSwan package lock matches label' || fail 'strongSwan label/package lock mismatch'
 grep -Fq 'netlab.component.nftables="${NFTABLES_VERSION}"' "${network_dockerfile}" && grep -Fq 'nftables=${NFTABLES_VERSION}' "${network_dockerfile}" && pass 'nftables package lock matches label' || fail 'nftables label/package lock mismatch'
 grep -Fq 'charon-systemd=${STRONGSWAN_VERSION}' "${network_dockerfile}" && pass 'charon-systemd is version-pinned' || fail 'charon-systemd package is not pinned'
+grep -Fq "dpkg-query -W -f='\${Version}' charon-systemd" "${network_dockerfile}" && pass 'component manifest records charon-systemd' || fail 'component manifest does not record charon-systemd'
+grep -Fq '/usr/sbin/charon-systemd' "${REPO_ROOT}/images/network-node/entrypoint.sh" && pass 'charon-systemd uses the Noble binary path' || fail 'charon-systemd binary path is incorrect'
+if grep -Eq '(^|[[:space:]])strongswan=\$\{STRONGSWAN_VERSION\}([[:space:]]|$)' "${network_dockerfile}"; then fail 'strongswan metapackage must not be installed'; else pass 'strongswan metapackage is excluded'; fi
 [[ -x ${REPO_ROOT}/images/network-node/entrypoint.sh ]] && pass 'network startup is executable' || fail 'network startup is not executable'
 [[ -x ${REPO_ROOT}/images/network-node/healthcheck.sh ]] && pass 'network healthcheck is executable' || fail 'network healthcheck is not executable'
 

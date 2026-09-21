@@ -65,8 +65,8 @@ case "${ROLE}" in
   edge)
     [[ -x /usr/lib/frr/frrinit.sh ]] || { echo 'frrinit.sh is missing' >&2; exit 127; }
     /usr/lib/frr/frrinit.sh start
-    [[ -x /usr/libexec/ipsec/charon-systemd ]] || { echo 'charon-systemd is missing' >&2; exit 127; }
-    start_background_required charon-systemd /usr/libexec/ipsec/charon-systemd --nofork
+    [[ -x /usr/sbin/charon-systemd ]] || { echo 'charon-systemd is missing at /usr/sbin/charon-systemd' >&2; exit 127; }
+    start_background_required charon-systemd /usr/sbin/charon-systemd --nofork
     if [[ -f /etc/nftables.conf ]]; then nft -f /etc/nftables.conf; else nft list ruleset >/dev/null; fi
     ;;
   distribution)

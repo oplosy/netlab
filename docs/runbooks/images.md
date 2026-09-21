@@ -15,7 +15,7 @@ labels. No `latest`, `stable`, or unqualified base image is permitted.
 | FRR | `10.7.0-2ubuntu1` | [Ubuntu Noble FRR package search](https://packages.ubuntu.com/search?arch=any&keywords=frr&searchon=names&suite=all) |
 | Open vSwitch | `3.3.9-0ubuntu0.24.04.1` | [Ubuntu Noble Open vSwitch package search](https://packages.ubuntu.com/openvswitch-switch) |
 | Keepalived | `1:2.2.8-1build2` | [Ubuntu Noble Keepalived package](https://packages.ubuntu.com/en/noble/amd64/admin/keepalived) |
-| strongSwan | `5.9.13-2ubuntu4.24.04.4` | [Ubuntu Noble strongSwan package](https://packages.ubuntu.com/noble/strongswan) |
+| strongSwan control plane | `charon-systemd=5.9.13-2ubuntu4.24.04.4`, `strongswan-swanctl=5.9.13-2ubuntu4.24.04.4` | [Ubuntu Noble charon-systemd file list](https://packages.ubuntu.com/noble/amd64/charon-systemd/filelist), [Ubuntu Noble strongSwan package](https://packages.ubuntu.com/noble/strongswan) |
 | nftables | `1.0.9-1build1` | [Ubuntu Noble nftables package](https://packages.ubuntu.com/noble/net/nftables) |
 
 The package versions above are distribution package versions, not the latest
@@ -26,6 +26,14 @@ must agree. For upstream release history see [FRRouting releases](https://frrout
 [Keepalived downloads](https://www.keepalived.org/download/),
 [strongSwan downloads](https://www.strongswan.org/download.html), and
 [nftables releases](https://www.nftables.org/projects/nftables/downloads.html).
+
+The network image intentionally does not install Ubuntu's `strongswan`
+metapackage: that metapackage depends on both `strongswan-charon` and
+`strongswan-starter`, which would introduce the legacy starter daemon. The
+image installs `charon-systemd` (binary `/usr/sbin/charon-systemd`) and
+`strongswan-swanctl`; their shared daemon/plugin dependencies are resolved by
+APT. The recorded `strongswan=` component version is the installed
+`charon-systemd` package version.
 
 The base digest is a registry manifest digest, not merely a tag. Verify the
 linux/amd64 mapping before changing it:

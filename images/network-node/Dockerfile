@@ -36,19 +36,19 @@ RUN rm -f /etc/apt/sources.list.d/ubuntu.sources \
        frr=${FRR_VERSION} frr-pythontools=${FRR_VERSION} \
        openvswitch-switch=${OVS_VERSION} openvswitch-common=${OVS_VERSION} \
        keepalived=${KEEPALIVED_VERSION} \
-       strongswan=${STRONGSWAN_VERSION} strongswan-swanctl=${STRONGSWAN_VERSION} charon-systemd=${STRONGSWAN_VERSION} \
+       charon-systemd=${STRONGSWAN_VERSION} strongswan-swanctl=${STRONGSWAN_VERSION} \
        nftables=${NFTABLES_VERSION} \
     && test "$(dpkg-query -W -f='${Version}' frr)" = "${FRR_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' openvswitch-switch)" = "${OVS_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' keepalived)" = "${KEEPALIVED_VERSION}" \
-    && test "$(dpkg-query -W -f='${Version}' strongswan)" = "${STRONGSWAN_VERSION}" \
+    && test "$(dpkg-query -W -f='${Version}' charon-systemd)" = "${STRONGSWAN_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' nftables)" = "${NFTABLES_VERSION}" \
     && mkdir -p /run/netlab /var/log/netlab \
     && { \
          printf 'frr=%s\n' "$(dpkg-query -W -f='${Version}' frr)"; \
          printf 'openvswitch=%s\n' "$(dpkg-query -W -f='${Version}' openvswitch-switch)"; \
          printf 'keepalived=%s\n' "$(dpkg-query -W -f='${Version}' keepalived)"; \
-         printf 'strongswan=%s\n' "$(dpkg-query -W -f='${Version}' strongswan)"; \
+         printf 'strongswan=%s\n' "$(dpkg-query -W -f='${Version}' charon-systemd)"; \
          printf 'nftables=%s\n' "$(dpkg-query -W -f='${Version}' nftables)"; \
        } > /usr/share/netlab/component-versions \
     && rm -rf /var/lib/apt/lists/*
