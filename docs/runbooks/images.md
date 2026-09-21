@@ -12,7 +12,7 @@ labels. No `latest`, `stable`, or unqualified base image is permitted.
 | Component | Exact package version | Official source |
 |---|---|---|
 | Ubuntu base | `ubuntu:24.04@sha256:a61567bd31828687156d735ea8eb01ba4e37636e225dd6a48ba94136a70d9d61` (linux/amd64 manifest) | [Docker Hub Ubuntu 24.04 layers](https://hub.docker.com/layers/library/ubuntu/24.04/images/sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254) |
-| FRR | `10.7.0-2ubuntu1` | [Ubuntu Noble FRR package search](https://packages.ubuntu.com/search?arch=any&keywords=frr&searchon=names&suite=all) |
+| FRR | `8.4.4-1.1ubuntu6.7` | [Ubuntu Noble FRR package search](https://packages.ubuntu.com/search?arch=any&keywords=frr&searchon=names&suite=all) |
 | Open vSwitch | `3.3.9-0ubuntu0.24.04.1` | [Ubuntu Noble Open vSwitch package search](https://packages.ubuntu.com/openvswitch-switch) |
 | Keepalived | `1:2.2.8-1build2` | [Ubuntu Noble Keepalived package](https://packages.ubuntu.com/en/noble/amd64/admin/keepalived) |
 | strongSwan control plane | `charon-systemd=5.9.13-2ubuntu4.24.04.4`, `strongswan-swanctl=5.9.13-2ubuntu4.24.04.4` | [Ubuntu Noble charon-systemd file list](https://packages.ubuntu.com/noble/amd64/charon-systemd/filelist), [Ubuntu Noble strongSwan package](https://packages.ubuntu.com/noble/strongswan) |
