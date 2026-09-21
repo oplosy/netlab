@@ -107,11 +107,12 @@
       "type": "object", "additionalProperties": false,
       "required": ["id", "kind", "endpoints"],
       "properties": {
-        "id": {"$ref": "#/$defs/id"}, "kind": {"enum": ["routed", "ebgp", "xfrm", "l2"]},
+        "id": {"$ref": "#/$defs/id"}, "kind": {"enum": ["routed", "ebgp", "xfrm", "l2", "access"]},
         "prefix": {"$ref": "#/$defs/id"}, "bundle": {"$ref": "#/$defs/id"},
+        "vlan": {"$ref": "#/$defs/id"},
         "endpoints": {"type": "array", "items": {"$ref": "#/$defs/endpoint"}, "minItems": 2, "maxItems": 2}
       },
-      "allOf": [{"if": {"properties": {"kind": {"const": "l2"}}}, "then": {"required": ["bundle"]}}, {"if": {"properties": {"kind": {"enum": ["routed", "ebgp", "xfrm"]}}}, "then": {"required": ["prefix"]}}]
+      "allOf": [{"if": {"properties": {"kind": {"const": "l2"}}}, "then": {"required": ["bundle"]}}, {"if": {"properties": {"kind": {"enum": ["routed", "ebgp", "xfrm"]}}}, "then": {"required": ["prefix"]}}, {"if": {"properties": {"kind": {"const": "access"}}}, "then": {"required": ["vlan"], "not": {"anyOf": [{"required": ["bundle"]}, {"required": ["prefix"]}]}}}]
     },
     "bundle": {
       "type": "object", "additionalProperties": false,

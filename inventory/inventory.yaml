@@ -50,11 +50,14 @@
       {"name": "to_hq_dist_1_member_1", "kind": "l2", "addresses": []},
       {"name": "to_hq_dist_1_member_2", "kind": "l2", "addresses": []},
       {"name": "to_hq_dist_2_member_1", "kind": "l2", "addresses": []},
-      {"name": "to_hq_dist_2_member_2", "kind": "l2", "addresses": []}
+      {"name": "to_hq_dist_2_member_2", "kind": "l2", "addresses": []},
+      {"name": "to_hq_client_users_1", "kind": "l2", "addresses": []},
+      {"name": "to_hq_server_1", "kind": "l2", "addresses": []},
+      {"name": "to_hq_client_guest_1", "kind": "l2", "addresses": []}
     ]},
-    {"id": "hq-client-users-1", "site": "hq", "role": "client", "oob": "172.31.255.34/24", "loopback": null, "interfaces": []},
-    {"id": "hq-server-1", "site": "hq", "role": "server", "oob": "172.31.255.35/24", "loopback": null, "interfaces": []},
-    {"id": "hq-client-guest-1", "site": "hq", "role": "client", "oob": "172.31.255.36/24", "loopback": null, "interfaces": []},
+    {"id": "hq-client-users-1", "site": "hq", "role": "client", "oob": "172.31.255.34/24", "loopback": null, "interfaces": [{"name": "to_hq_access_1", "kind": "l2", "addresses": []}]},
+    {"id": "hq-server-1", "site": "hq", "role": "server", "oob": "172.31.255.35/24", "loopback": null, "interfaces": [{"name": "to_hq_access_1", "kind": "l2", "addresses": []}]},
+    {"id": "hq-client-guest-1", "site": "hq", "role": "client", "oob": "172.31.255.36/24", "loopback": null, "interfaces": [{"name": "to_hq_access_1", "kind": "l2", "addresses": []}]},
     {"id": "br1-edge-1", "site": "br1", "role": "edge", "asn": 65101, "oob": "172.31.255.50/24", "loopback": "10.20.255.1/32", "interfaces": [
       {"name": "to_br1_dist_1", "kind": "routed", "addresses": ["10.20.252.0/31"]},
       {"name": "to_br1_dist_2", "kind": "routed", "addresses": ["10.20.252.2/31"]},
@@ -87,11 +90,14 @@
       {"name": "to_br1_dist_1_member_1", "kind": "l2", "addresses": []},
       {"name": "to_br1_dist_1_member_2", "kind": "l2", "addresses": []},
       {"name": "to_br1_dist_2_member_1", "kind": "l2", "addresses": []},
-      {"name": "to_br1_dist_2_member_2", "kind": "l2", "addresses": []}
+      {"name": "to_br1_dist_2_member_2", "kind": "l2", "addresses": []},
+      {"name": "to_br1_client_users_1", "kind": "l2", "addresses": []},
+      {"name": "to_br1_server_1", "kind": "l2", "addresses": []},
+      {"name": "to_br1_client_guest_1", "kind": "l2", "addresses": []}
     ]},
-    {"id": "br1-client-users-1", "site": "br1", "role": "client", "oob": "172.31.255.54/24", "loopback": null, "interfaces": []},
-    {"id": "br1-server-1", "site": "br1", "role": "server", "oob": "172.31.255.55/24", "loopback": null, "interfaces": []},
-    {"id": "br1-client-guest-1", "site": "br1", "role": "client", "oob": "172.31.255.56/24", "loopback": null, "interfaces": []},
+    {"id": "br1-client-users-1", "site": "br1", "role": "client", "oob": "172.31.255.54/24", "loopback": null, "interfaces": [{"name": "to_br1_access_1", "kind": "l2", "addresses": []}]},
+    {"id": "br1-server-1", "site": "br1", "role": "server", "oob": "172.31.255.55/24", "loopback": null, "interfaces": [{"name": "to_br1_access_1", "kind": "l2", "addresses": []}]},
+    {"id": "br1-client-guest-1", "site": "br1", "role": "client", "oob": "172.31.255.56/24", "loopback": null, "interfaces": [{"name": "to_br1_access_1", "kind": "l2", "addresses": []}]},
     {"id": "isp1-core-1", "site": null, "role": "isp", "asn": 65000, "oob": "172.31.255.20/24", "loopback": null, "interfaces": [
       {"name": "to_hq_edge_1", "kind": "routed", "addresses": ["192.0.2.1/31"]},
       {"name": "to_br1_edge_1", "kind": "routed", "addresses": ["192.0.2.3/31"]}
@@ -162,7 +168,13 @@
     {"id": "br1-dist1-access1-1", "kind": "l2", "bundle": "br1-access-1-dist-1", "endpoints": [{"node": "br1-dist-1", "interface": "to_br1_access_1_member_1"}, {"node": "br1-access-1", "interface": "to_br1_dist_1_member_1"}]},
     {"id": "br1-dist1-access1-2", "kind": "l2", "bundle": "br1-access-1-dist-1", "endpoints": [{"node": "br1-dist-1", "interface": "to_br1_access_1_member_2"}, {"node": "br1-access-1", "interface": "to_br1_dist_1_member_2"}]},
     {"id": "br1-dist2-access1-1", "kind": "l2", "bundle": "br1-access-1-dist-2", "endpoints": [{"node": "br1-dist-2", "interface": "to_br1_access_1_member_1"}, {"node": "br1-access-1", "interface": "to_br1_dist_2_member_1"}]},
-    {"id": "br1-dist2-access1-2", "kind": "l2", "bundle": "br1-access-1-dist-2", "endpoints": [{"node": "br1-dist-2", "interface": "to_br1_access_1_member_2"}, {"node": "br1-access-1", "interface": "to_br1_dist_2_member_2"}]}
+    {"id": "br1-dist2-access1-2", "kind": "l2", "bundle": "br1-access-1-dist-2", "endpoints": [{"node": "br1-dist-2", "interface": "to_br1_access_1_member_2"}, {"node": "br1-access-1", "interface": "to_br1_dist_2_member_2"}]},
+    {"id": "hq-client-users-1-access", "kind": "access", "vlan": "hq-users", "endpoints": [{"node": "hq-client-users-1", "interface": "to_hq_access_1"}, {"node": "hq-access-1", "interface": "to_hq_client_users_1"}]},
+    {"id": "hq-server-1-access", "kind": "access", "vlan": "hq-servers", "endpoints": [{"node": "hq-server-1", "interface": "to_hq_access_1"}, {"node": "hq-access-1", "interface": "to_hq_server_1"}]},
+    {"id": "hq-client-guest-1-access", "kind": "access", "vlan": "hq-guest", "endpoints": [{"node": "hq-client-guest-1", "interface": "to_hq_access_1"}, {"node": "hq-access-1", "interface": "to_hq_client_guest_1"}]},
+    {"id": "br1-client-users-1-access", "kind": "access", "vlan": "br1-users", "endpoints": [{"node": "br1-client-users-1", "interface": "to_br1_access_1"}, {"node": "br1-access-1", "interface": "to_br1_client_users_1"}]},
+    {"id": "br1-server-1-access", "kind": "access", "vlan": "br1-servers", "endpoints": [{"node": "br1-server-1", "interface": "to_br1_access_1"}, {"node": "br1-access-1", "interface": "to_br1_server_1"}]},
+    {"id": "br1-client-guest-1-access", "kind": "access", "vlan": "br1-guest", "endpoints": [{"node": "br1-client-guest-1", "interface": "to_br1_access_1"}, {"node": "br1-access-1", "interface": "to_br1_client_guest_1"}]}
   ],
   "bundles": [
     {"id": "hq-access-1-dist-1", "site": "hq", "kind": "access-uplink", "mode": "lacp", "trunk_vlans": [10, 20, 30, 99], "peer_nodes": ["hq-dist-1", "hq-access-1"]},
