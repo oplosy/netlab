@@ -7,6 +7,12 @@ the Docker build records the installed `dpkg` versions in
 `/usr/share/netlab/component-versions` and exposes the same values as image
 labels. No `latest`, `stable`, or unqualified base image is permitted.
 
+Because the minimal Ubuntu base does not provide a CA bundle, each Dockerfile
+temporarily uses the same signed snapshot over HTTP to install only
+`ca-certificates`, then switches to HTTPS before the normal package
+transaction. APT still verifies the signed Ubuntu Release metadata and package
+signatures during the HTTP bootstrap; no moving default archive is consulted.
+
 ## Locked inputs
 
 | Component | Exact package version | Official source |
@@ -120,11 +126,15 @@ deterministic `/health` endpoint on port 8080 and checks it with curl. Both
 images have Docker healthchecks and can be given an explicit command by
 Containerlab.
 
-## Current host limitation
+## Verified runtime evidence
 
-The current Windows WSL environment has no usable Docker/Containerlab runtime
-and lacks `CONFIG_XFRM_INTERFACE`. Therefore static lock, Dockerfile, script,
-and negative configuration checks can run locally, but `make images`, registry
-manifest inspection, two clean builds, and daemon health checks remain blocked
-until the dedicated WSL2 environment is available. This limitation does not
-change the committed lock or claim a build result.
+The parent integration run verified the following against the pinned image
+definitions:
+
+- all three images built successfully;
+- `make verify-images` passed;
+- network, client, and service role healthchecks passed in the 20-node topology;
+- network nodes used the explicit OVS kernel datapath (`datapath_type=system`).
+
+A second independent clean build has not yet been verified and must not be
+claimed until the parent reruns it.
