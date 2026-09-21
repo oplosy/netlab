@@ -238,6 +238,7 @@ def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) ->
 
     # Link peer and address references must resolve to declared node interfaces.
     used_link_endpoints: dict[tuple[str, str], str] = {}
+    access_links_by_node: dict[str, list[str]] = {}
     for link in links:
         link_id = link.get("id")
         endpoints = link.get("endpoints", [])
@@ -276,6 +277,32 @@ def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) ->
                     address = _parse_ip(endpoint.get("address", ""), f"link {link_id} endpoint", errors)
                     if address is not None and address not in networks[prefix_id]:
                         errors.append(f"link {link_id} endpoint {address} is outside prefix {prefix_id}")
+        if link.get("kind") == "access":
+            if "bundle" in link or "prefix" in link:
+                errors.append(f"access link {link_id} must not declare a bundle or prefix")
+            vlan_id = link.get("vlan")
+            vlan = vlan_map.get(vlan_id)
+            if vlan is None:
+                errors.append(f"access link {link_id} references unknown VLAN '{vlan_id}'")
+            endpoint_nodes = [node_map.get(endpoint.get("node")) for endpoint in endpoints]
+            valid_nodes = [node for node in endpoint_nodes if node is not None]
+            for endpoint, node in zip(endpoints, endpoint_nodes):
+                if node is None:
+                    continue
+                access_links_by_node.setdefault(node["id"], []).append(link_id)
+                interface = next((item for item in node.get("interfaces", []) if item.get("name") == endpoint.get("interface")), None)
+                if interface is not None and interface.get("kind") != "l2":
+                    errors.append(f"access link {link_id} endpoint {node['id']}:{endpoint.get('interface')} must be an L2 interface")
+            if vlan is not None and valid_nodes:
+                vlan_site = vlan.get("site")
+                if any(node.get("site") != vlan_site for node in valid_nodes):
+                    errors.append(f"access link {link_id} endpoints must belong to VLAN site '{vlan_site}'")
+            endpoint_roles = [node.get("role") for node in valid_nodes]
+            if endpoint_roles.count("access") != 1:
+                errors.append(f"access link {link_id} must have exactly one access-switch endpoint")
+            non_access_roles = [role for role in endpoint_roles if role != "access"]
+            if len(non_access_roles) != 1 or non_access_roles[0] not in {"client", "server"}:
+                errors.append(f"access link {link_id} endpoint must have client or server role")
 
     links_by_bundle: dict[str, list[dict[str, Any]]] = {bundle_id: [] for bundle_id in bundle_map}
     for link in links:
@@ -339,6 +366,18 @@ def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) ->
             for transport in intent.get("transports", []):
                 if transport.get("port") in {1812, 1813} and transport.get("protocol") != "udp":
                     errors.append(f"service intent {intent.get('id')} RADIUS port {transport.get('port')} must use UDP")
+
+    for node_id, node in node_map.items():
+        if node.get("site") not in {"hq", "br1"}:
+            continue
+        if node.get("role") in {"client", "server"}:
+            count = len(access_links_by_node.get(node_id, []))
+            if count != 1:
+                errors.append(f"endpoint node {node_id} must have exactly one access link, got {count}")
+        if node.get("role") == "access":
+            count = len(access_links_by_node.get(node_id, []))
+            if count != 3:
+                errors.append(f"access switch {node_id} must have exactly three endpoint access links, got {count}")
 
     # The site aggregates and VLAN records are duplicated intentionally across
     # the hierarchy, but their canonical prefix IDs must still resolve.

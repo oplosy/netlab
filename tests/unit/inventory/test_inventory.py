@@ -61,6 +61,18 @@ class InventoryTests(unittest.TestCase):
         errors = validate_inventory(changed)
         self.assertTrue(any("RADIUS port 1812 must use UDP" in error for error in errors))
 
+    def test_access_link_requires_same_site_vlan(self) -> None:
+        changed = copy.deepcopy(self.inventory)
+        next(link for link in changed["links"] if link["id"] == "hq-client-users-1-access")["vlan"] = "br1-users"
+        errors = validate_inventory(changed)
+        self.assertTrue(any("access link hq-client-users-1-access endpoints must belong to VLAN site 'br1'" in error for error in errors))
+
+    def test_endpoint_must_have_one_access_link(self) -> None:
+        changed = copy.deepcopy(self.inventory)
+        changed["links"] = [link for link in changed["links"] if link["id"] != "br1-client-guest-1-access"]
+        errors = validate_inventory(changed)
+        self.assertTrue(any("endpoint node br1-client-guest-1 must have exactly one access link, got 0" in error for error in errors))
+
     def test_addressing_plan_values_are_enforced(self) -> None:
         changed = copy.deepcopy(self.inventory)
         next(site for site in changed["sites"] if site["id"] == "br1")["aggregate"] = "10.30.0.0/16"
