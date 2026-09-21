@@ -99,8 +99,7 @@ tasks:
     phase: phase-0
     title: Build reproducible lab node images
     type: build
-    status: blocked
-    blocker: "Definitions and static checks are integrated; clean image builds and runtime verification require the dedicated WSL2 Docker/Containerlab host."
+    status: complete
     depends_on: [GOV-001, ENV-010]
     parallel_group: foundation-b
     allowed_paths:
@@ -152,8 +151,7 @@ tasks:
     phase: phase-0
     title: Create the Phase 1 topology skeleton
     type: feat
-    status: blocked
-    blocker: "Topology rendering and static smoke checks are integrated; deploy, node-health, teardown, and orphan checks require the dedicated WSL2 Docker/Containerlab host."
+    status: complete
     depends_on: [ENV-010, IMG-020, DAT-030]
     parallel_group: foundation-c
     allowed_paths:
