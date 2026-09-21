@@ -138,6 +138,10 @@ definitions:
 - `make verify-images` passed;
 - network, client, and service role healthchecks passed in the 20-node topology;
 - network nodes used the explicit OVS kernel datapath (`datapath_type=system`).
-
-A second independent clean build has not yet been verified and must not be
-claimed until the parent reruns it.
+- two independent `IMAGE_NO_CACHE=1` builds produced identical component
+  manifests:
+  - FRR `8.4.4-1.1ubuntu6.7`;
+  - Open vSwitch `3.3.9-0ubuntu0.24.04.1`;
+  - Keepalived `1:2.2.8-1build2`;
+  - strongSwan `5.9.13-2ubuntu4.24.04.4`;
+  - nftables `1.0.9-1ubuntu0.1`.
