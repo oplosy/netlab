@@ -17,6 +17,10 @@ nftables implements stateful policy. Each chain has a default-deny terminal
 rule and rate-limited logging for new denied flows. Security tests must assert
 both permits and denies.
 
+The distribution pair enforces inter-VLAN and management segmentation. The site
+edge enforces outside policy, IKE/ESP admission, and guest source NAT. Policy is
+not duplicated at arbitrary intermediate interfaces.
+
 ## Control-plane protection
 
 - SSH, SNMPv3, and administrative HTTP endpoints listen on OOB addresses.

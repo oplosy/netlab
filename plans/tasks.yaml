@@ -79,6 +79,7 @@ tasks:
       - docs/runbooks/environment.md
       - versions.env
       - Makefile
+      - mk/preflight.mk
     deliverables:
       - "Read-only WSL2, Docker, Containerlab, kernel, and resource preflight"
       - "Pinned tool version policy and version lock"
@@ -103,7 +104,7 @@ tasks:
       - scripts/images/**
       - docs/runbooks/images.md
       - versions.env
-      - Makefile
+      - mk/images.mk
     deliverables:
       - "Pinned network-node, client, and service image definitions"
       - "Role-specific startup and health checks"
@@ -129,7 +130,7 @@ tasks:
       - schemas/**
       - scripts/validate/**
       - tests/unit/inventory/**
-      - Makefile
+      - mk/inventory.mk
     deliverables:
       - "Site, node, link, VLAN, prefix, ASN, and service intent data"
       - "Machine-readable schema"
@@ -154,7 +155,7 @@ tasks:
       - lab/**
       - scripts/lifecycle/**
       - tests/smoke/topology/**
-      - Makefile
+      - mk/topology.mk
     deliverables:
       - "HQ, Branch 1, ISP 1, clients, and operations nodes"
       - "Deterministic interface and OOB addressing"
@@ -226,8 +227,8 @@ tasks:
     title: Implement OSPF areas, summaries, and BFD
     type: feat
     status: planned
-    depends_on: [L3-120]
-    parallel_group: network-c
+    depends_on: [L3-120, VPN-150]
+    parallel_group: network-d
     allowed_paths:
       - config/routing/ospf/**
       - automation/roles/ospf/**
@@ -277,8 +278,8 @@ tasks:
     title: Implement the IKEv2 XFRM overlay
     type: feat
     status: planned
-    depends_on: [OSPF-130, WAN-140]
-    parallel_group: network-d
+    depends_on: [L3-120, WAN-140]
+    parallel_group: network-c
     allowed_paths:
       - config/ipsec/**
       - scripts/pki/**
@@ -291,7 +292,7 @@ tasks:
       - "MTU/MSS, rekey, and recovery tests"
     acceptance:
       - "No generated private key or certificate is tracked"
-      - "OSPF Area 0 forms over the encrypted XFRM link"
+      - "XFRM peer addresses communicate only after IPsec is established"
       - "Underlay capture contains ESP and no plaintext enterprise packet"
       - "Rekey does not exceed the convergence objective"
     verify:
@@ -329,7 +330,7 @@ tasks:
     title: Enforce segmentation, control-plane policy, and guest NAT
     type: feat
     status: planned
-    depends_on: [L3-120, WAN-140, SVC-160]
+    depends_on: [OSPF-130, WAN-140, SVC-160]
     parallel_group: security-a
     allowed_paths:
       - config/security/**
@@ -386,7 +387,7 @@ tasks:
       - tests/e2e/**
       - scripts/evidence/**
       - evidence/templates/**
-      - Makefile
+      - mk/evidence.mk
     deliverables:
       - "Traffic, fault, security, capture, and correlation test runner"
       - "Timestamped machine-readable result bundle"

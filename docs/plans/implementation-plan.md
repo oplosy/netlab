@@ -28,6 +28,7 @@ in `plans/tasks.yaml` for machine consumption.
 ### ENV-010 — WSL and toolchain preflight
 
 - Deliver: version policy, preflight script, environment runbook, lock file
+- Deliver: root Makefile that includes task-owned `mk/*.mk` fragments
 - Accept: script detects WSL2, Docker, Containerlab, required kernel features,
   CPU/RAM/disk minimums, and gives actionable failures
 - Exclude: installing or removing host software without explicit approval
@@ -46,7 +47,7 @@ in `plans/tasks.yaml` for machine consumption.
 - Deliver versioned site/node/link/VLAN/prefix/ASN/service data plus schema
 - Accept: duplicate IPs, overlapping subnets, invalid peer references, and
   out-of-range allocations fail validation
-- Parallel: may run with IMG-020 after GOV-001
+- Parallel: may run with ENV-010 after GOV-001 and continue alongside IMG-020
 
 ### TOP-040 — Containerlab topology skeleton
 
@@ -73,14 +74,6 @@ in `plans/tasks.yaml` for machine consumption.
 - Accept: clients use `.1`; master failure moves the virtual gateway; user,
   server, guest, and management routes remain isolated as designed
 
-### OSPF-130 — Multi-area routing and summaries
-
-- Depends on: L3-120
-- Deliver Areas 0/10/20, passive defaults, BFD, site summaries, and conditional
-  default origination
-- Accept: no unwanted adjacency exists; Area 0 sees only site summaries; routed
-  link failure converges within 3 seconds; partial-summary black holes are tested
-
 ### WAN-140 — Simulated ISP and eBGP policy
 
 - Depends on: TOP-040
@@ -92,11 +85,20 @@ in `plans/tasks.yaml` for machine consumption.
 
 ### VPN-150 — IKEv2 XFRM overlay
 
-- Depends on: OSPF-130, WAN-140
+- Depends on: L3-120, WAN-140
 - Deliver lab PKI generation, site certificates, strongSwan configuration, XFRM
   links, MTU/MSS setting, and rekey/recovery tests
-- Accept: OSPF forms only after IPsec is established; underlay capture shows ESP
-  and no plaintext enterprise payload; rekey preserves service within objective
+- Accept: XFRM peer addresses communicate only after IPsec is established;
+  underlay capture shows ESP and no plaintext enterprise payload; rekey
+  preserves the XFRM path within objective
+
+### OSPF-130 — Multi-area routing and summaries
+
+- Depends on: L3-120, VPN-150
+- Deliver Areas 0/10/20, passive defaults, BFD, site summaries, and conditional
+  default origination
+- Accept: no unwanted adjacency exists; Area 0 sees only site summaries; routed
+  link failure converges within 3 seconds; partial-summary black holes are tested
 
 ### SVC-160 — Core infrastructure services
 
@@ -108,7 +110,7 @@ in `plans/tasks.yaml` for machine consumption.
 
 ### SEC-170 — Segmentation, control plane, and NAT
 
-- Depends on: L3-120, WAN-140, SVC-160
+- Depends on: OSPF-130, WAN-140, SVC-160
 - Deliver nftables zone policy, guest NAT, routing-protocol interface filters,
   management ACLs, and negative test matrix
 - Accept: guests reach allowed simulated Internet services but cannot reach any

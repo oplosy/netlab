@@ -15,6 +15,7 @@ ADR, but existing files are not edited to erase decision history.
 | [0008](0008-management-and-security.md) | Separate OOB management and default-deny zones | Accepted |
 | [0009](0009-observability-stack.md) | Correlated metrics, logs, flows, and captures | Accepted |
 | [0010](0010-source-of-truth-and-orchestration.md) | Git intent, Ansible execution, agent worktrees | Accepted |
+| [0011](0011-development-and-test-toolchain.md) | Python, Ansible, Make, pytest, and GitHub Actions | Accepted |
 
 ## Status values
 

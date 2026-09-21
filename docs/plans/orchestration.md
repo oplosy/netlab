@@ -80,6 +80,8 @@ git worktree add ../netlab-worktrees/l2-110 feat/l2-110-site-switching
 The worker commits only on its task branch. The orchestrator reviews the commit,
 reruns verification in the task worktree, and merges it into the integration
 branch with a non-fast-forward merge so the task boundary remains visible.
+The phase pull request also uses a merge commit rather than squash merge, so
+accepted task commits remain visible on `main`.
 
 Do not execute these examples blindly. Resolve the current absolute paths and
 verify the target branch and worktree before any create, move, or removal
@@ -160,6 +162,8 @@ The orchestrator independently checks:
 - current limitations are documented
 - integration branch is pushed and a PR targets `main`
 - CI and review state are reported accurately
+- merged task branches and worktrees are removed only after the merge commit and
+  clean state are verified
 
 ## Empty-repository bootstrap
 

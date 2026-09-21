@@ -23,10 +23,13 @@ Within a site:
 - RSTP resolves loops among logical bundles
 - VRRP provides the first-hop virtual address
 - RSTP root and VRRP master preferences are aligned
+- DHCP relay runs only on the active VRRP gateway, controlled by a keepalived
+  state hook, so one client broadcast is not relayed twice
 
 Phase 1 intentionally has a single edge at each site and one ISP. Tests may
 claim link and distribution-path resilience, but not edge or provider
-resilience.
+resilience. Each site also has one access node, and core services have one
+instance; their availability is not redundant in Phase 1.
 
 ## Consequences
 
