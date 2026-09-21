@@ -4,7 +4,7 @@
   "title": "Authoritative network inventory",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "metadata", "asns", "sites", "nodes", "vlans", "prefixes", "links", "service_intents"],
+  "required": ["schema_version", "metadata", "asns", "sites", "nodes", "vlans", "prefixes", "links", "bundles", "service_intents"],
   "properties": {
     "schema_version": {"const": 1},
     "metadata": {"$ref": "#/$defs/metadata"},
@@ -14,6 +14,7 @@
     "vlans": {"type": "array", "items": {"$ref": "#/$defs/vlan"}, "minItems": 1},
     "prefixes": {"type": "array", "items": {"$ref": "#/$defs/prefix"}, "minItems": 1},
     "links": {"type": "array", "items": {"$ref": "#/$defs/link"}, "minItems": 1},
+    "bundles": {"type": "array", "items": {"$ref": "#/$defs/bundle"}, "minItems": 1},
     "service_intents": {"type": "array", "items": {"$ref": "#/$defs/service_intent"}, "minItems": 1}
   },
   "$defs": {
@@ -111,6 +112,16 @@
         "endpoints": {"type": "array", "items": {"$ref": "#/$defs/endpoint"}, "minItems": 2, "maxItems": 2}
       },
       "allOf": [{"if": {"properties": {"kind": {"const": "l2"}}}, "then": {"required": ["bundle"]}}, {"if": {"properties": {"kind": {"enum": ["routed", "ebgp", "xfrm"]}}}, "then": {"required": ["prefix"]}}]
+    },
+    "bundle": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "site", "kind", "mode", "trunk_vlans", "peer_nodes"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "site": {"$ref": "#/$defs/id"},
+        "kind": {"enum": ["access-uplink", "distribution-peer"]}, "mode": {"const": "lacp"},
+        "trunk_vlans": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 4094}, "minItems": 1},
+        "peer_nodes": {"type": "array", "items": {"$ref": "#/$defs/id"}, "minItems": 2, "maxItems": 2}
+      }
     },
     "transport": {
       "type": "object", "additionalProperties": false, "required": ["protocol", "port"],

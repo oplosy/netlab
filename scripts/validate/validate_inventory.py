@@ -70,7 +70,7 @@ def _check_schema(data: dict[str, Any], schema_path: Path, errors: list[str]) ->
 def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) -> list[str]:
     """Return all validation errors; an empty list means the inventory is valid."""
     errors: list[str] = []
-    required = {"schema_version", "metadata", "asns", "sites", "nodes", "vlans", "prefixes", "links", "service_intents"}
+    required = {"schema_version", "metadata", "asns", "sites", "nodes", "vlans", "prefixes", "links", "bundles", "service_intents"}
     missing = required - set(data) if isinstance(data, dict) else required
     if not isinstance(data, dict):
         return ["inventory root must be an object"]
@@ -86,9 +86,10 @@ def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) ->
     vlans = data["vlans"]
     prefixes = data["prefixes"]
     links = data["links"]
+    bundles = data["bundles"]
     intents = data["service_intents"]
-    if not all(isinstance(value, list) for value in (asns, sites, nodes, vlans, prefixes, links, intents)):
-        errors.append("asns, sites, nodes, vlans, prefixes, links, and service_intents must be arrays")
+    if not all(isinstance(value, list) for value in (asns, sites, nodes, vlans, prefixes, links, bundles, intents)):
+        errors.append("asns, sites, nodes, vlans, prefixes, links, bundles, and service_intents must be arrays")
         return errors
 
     asn_map: dict[int, dict[str, Any]] = {}
@@ -118,6 +119,7 @@ def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) ->
     vlan_map = _unique(vlans, "id", "VLAN", errors)
     prefix_map = _unique(prefixes, "id", "prefix", errors)
     _unique(links, "id", "link", errors)
+    bundle_map = _unique(bundles, "id", "bundle", errors)
     _unique(intents, "id", "service intent", errors)
 
     expected_sites = {
@@ -275,6 +277,54 @@ def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) ->
                     if address is not None and address not in networks[prefix_id]:
                         errors.append(f"link {link_id} endpoint {address} is outside prefix {prefix_id}")
 
+    links_by_bundle: dict[str, list[dict[str, Any]]] = {bundle_id: [] for bundle_id in bundle_map}
+    for link in links:
+        if link.get("kind") != "l2":
+            continue
+        bundle_id = link.get("bundle")
+        if bundle_id not in bundle_map:
+            errors.append(f"L2 link {link.get('id')} references unknown bundle '{bundle_id}'")
+            continue
+        links_by_bundle[bundle_id].append(link)
+    expected_trunk_vlans = {10, 20, 30, 99}
+    for bundle_id, bundle in bundle_map.items():
+        member_links = links_by_bundle[bundle_id]
+        if len(member_links) != 2:
+            errors.append(f"bundle {bundle_id} must have exactly two physical L2 member links, got {len(member_links)}")
+        if bundle.get("mode") != "lacp":
+            errors.append(f"bundle {bundle_id} must use LACP")
+        if set(bundle.get("trunk_vlans", [])) != expected_trunk_vlans:
+            errors.append(f"bundle {bundle_id} trunk VLANs must be {sorted(expected_trunk_vlans)}")
+        peer_nodes = set(bundle.get("peer_nodes", []))
+        if len(peer_nodes) != 2:
+            errors.append(f"bundle {bundle_id} must name exactly two peer nodes")
+        for link in member_links:
+            endpoint_nodes = {endpoint.get("node") for endpoint in link.get("endpoints", [])}
+            if endpoint_nodes != peer_nodes:
+                errors.append(f"bundle {bundle_id} link {link.get('id')} does not connect its declared peer nodes")
+            for endpoint in link.get("endpoints", []):
+                node = node_map.get(endpoint.get("node"))
+                interface = next((item for item in (node or {}).get("interfaces", []) if item.get("name") == endpoint.get("interface")), None)
+                if interface is not None and interface.get("kind") != "l2":
+                    errors.append(f"bundle {bundle_id} endpoint {endpoint.get('node')}:{endpoint.get('interface')} must be an L2 interface")
+
+    # Distribution peers are an L2/LACP trunk, never a routed /31. This
+    # catches a regression even if someone leaves a stale routed link behind.
+    for site_id in ("hq", "br1"):
+        expected_peer_nodes = {f"{site_id}-dist-1", f"{site_id}-dist-2"}
+        peer_bundles = [bundle for bundle in bundle_map.values() if bundle.get("site") == site_id and bundle.get("kind") == "distribution-peer"]
+        if len(peer_bundles) != 1:
+            errors.append(f"site {site_id} must declare exactly one distribution-peer bundle")
+            continue
+        peer_bundle = peer_bundles[0]
+        if set(peer_bundle.get("peer_nodes", [])) != expected_peer_nodes:
+            errors.append(f"distribution peer bundle {peer_bundle.get('id')} must connect {sorted(expected_peer_nodes)}")
+        pair_links = [link for link in links if {endpoint.get("node") for endpoint in link.get("endpoints", [])} == expected_peer_nodes]
+        if any(link.get("kind") != "l2" for link in pair_links):
+            errors.append(f"distribution peers for {site_id} must not use routed links")
+        if len(pair_links) != 2:
+            errors.append(f"distribution peers for {site_id} must have exactly two physical links")
+
     for intent in intents:
         node_id = intent.get("node")
         node = node_map.get(node_id)
@@ -285,6 +335,10 @@ def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) ->
         for site in intent.get("source_sites", []):
             if site not in site_map:
                 errors.append(f"service intent {intent.get('id')} references unknown site '{site}'")
+        if intent.get("service") == "aaa":
+            for transport in intent.get("transports", []):
+                if transport.get("port") in {1812, 1813} and transport.get("protocol") != "udp":
+                    errors.append(f"service intent {intent.get('id')} RADIUS port {transport.get('port')} must use UDP")
 
     # The site aggregates and VLAN records are duplicated intentionally across
     # the hierarchy, but their canonical prefix IDs must still resolve.

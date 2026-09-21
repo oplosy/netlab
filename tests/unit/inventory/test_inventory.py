@@ -43,6 +43,24 @@ class InventoryTests(unittest.TestCase):
         errors = validate_inventory(changed)
         self.assertTrue(any("unknown peer node 'hq-dist-99'" in error for error in errors))
 
+    def test_distribution_peer_bundle_requires_two_l2_members(self) -> None:
+        changed = copy.deepcopy(self.inventory)
+        changed["links"] = [link for link in changed["links"] if link["id"] != "hq-dist-peer-2"]
+        errors = validate_inventory(changed)
+        self.assertTrue(any("bundle hq-dist-peer must have exactly two physical L2 member links" in error for error in errors))
+
+        changed = copy.deepcopy(self.inventory)
+        next(link for link in changed["links"] if link["id"] == "br1-dist-peer-1")["kind"] = "routed"
+        errors = validate_inventory(changed)
+        self.assertTrue(any("distribution peers for br1 must not use routed links" in error for error in errors))
+
+    def test_radius_transport_is_udp(self) -> None:
+        changed = copy.deepcopy(self.inventory)
+        aaa = next(intent for intent in changed["service_intents"] if intent["id"] == "aaa-oob")
+        next(transport for transport in aaa["transports"] if transport["port"] == 1812)["protocol"] = "tcp"
+        errors = validate_inventory(changed)
+        self.assertTrue(any("RADIUS port 1812 must use UDP" in error for error in errors))
+
     def test_addressing_plan_values_are_enforced(self) -> None:
         changed = copy.deepcopy(self.inventory)
         next(site for site in changed["sites"] if site["id"] == "br1")["aggregate"] = "10.30.0.0/16"
@@ -52,4 +70,4 @@ class InventoryTests(unittest.TestCase):
     def test_schema_is_machine_readable(self) -> None:
         schema = json.loads((ROOT / "schemas" / "inventory.schema.json").read_text(encoding="utf-8"))
         self.assertEqual(schema["$schema"], "https://json-schema.org/draft/2020-12/schema")
-        self.assertTrue(set(schema["required"]) >= {"sites", "nodes", "links", "prefixes"})
+        self.assertTrue(set(schema["required"]) >= {"sites", "nodes", "links", "prefixes", "bundles"})
