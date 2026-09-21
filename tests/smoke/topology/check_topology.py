@@ -55,6 +55,8 @@ def static_checks() -> None:
         fail("topology nodes differ from authoritative inventory")
     for node_id, node in inventory_nodes.items():
         expected = str(ipaddress.ip_interface(node["oob"]).ip)
+        if "privileged" in nodes[node_id] or "cap-add" in nodes[node_id] or "cap_add" in nodes[node_id]:
+            fail(f"unsupported Containerlab 0.77 runtime capability field on {node_id}")
         if nodes[node_id].get("mgmt-ipv4") != expected:
             fail(f"OOB address drift for {node_id}: expected {expected}")
         if nodes[node_id].get("labels", {}).get("netlab.inventory-node") != node_id:
@@ -103,6 +105,8 @@ def static_checks() -> None:
         versions["NETLAB_SERVICE_IMAGE"],
     }
     for node in nodes.values():
+        if any(key in node for key in ("privileged", "cap-add", "cap_add", "security-opts")):
+            fail("topology contains a runtime capability field unsupported by the pinned Containerlab 0.77 schema")
         image = node.get("image")
         if image not in allowed_images:
             fail(f"node uses an image not pinned in versions.env: {image}")
