@@ -23,6 +23,13 @@ for image in network-node client service; do
   grep -Eq '^HEALTHCHECK ' "${dockerfile}" && pass "${image} healthcheck declared" || fail "${image} healthcheck missing"
   if grep -Eiq '^FROM .*(latest|stable|edge)([^a-zA-Z0-9]|$)' "${dockerfile}"; then fail "${image} uses a floating FROM tag"; fi
   grep -Fq "UBUNTU_SNAPSHOT}" "${dockerfile}" && pass "${image} uses the locked apt snapshot" || fail "${image} does not use UBUNTU_SNAPSHOT"
+  bootstrap_line=$(grep -nF 'apt-get install --no-install-recommends --yes ca-certificates' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
+  remove_line=$(grep -nF 'rm -f /etc/apt/sources.list.d/ubuntu.sources' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
+  if [[ ${bootstrap_line} =~ ^[0-9]+$ && ${remove_line} =~ ^[0-9]+$ && ${bootstrap_line} -lt ${remove_line} ]]; then
+    pass "${image} bootstraps CA before replacing apt sources"
+  else
+    fail "${image} must bootstrap ca-certificates before replacing apt sources"
+  fi
 done
 
 network_dockerfile=${REPO_ROOT}/images/network-node/Dockerfile
