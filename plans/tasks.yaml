@@ -70,7 +70,7 @@ tasks:
     phase: phase-0
     title: Add environment preflight and version policy
     type: chore
-    status: planned
+    status: complete
     depends_on: [GOV-001]
     parallel_group: foundation-a
     allowed_paths:
@@ -125,7 +125,7 @@ tasks:
     phase: phase-0
     title: Define authoritative inventory and schema
     type: feat
-    status: planned
+    status: complete
     depends_on: [GOV-001]
     parallel_group: foundation-a
     allowed_paths:
