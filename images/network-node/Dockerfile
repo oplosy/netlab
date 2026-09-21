@@ -24,9 +24,15 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # The snapshot timestamp is part of the lock. No moving archive or package
 # channel is used. The package versions are recorded at build time.
-RUN apt-get update \
+RUN rm -f /etc/apt/sources.list.d/ubuntu.sources \
+    && printf '%s\n' \
+       "deb [check-valid-until=no] http://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble main universe" \
+       "deb [check-valid-until=no] http://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble-updates main universe" \
+       "deb [check-valid-until=no] http://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble-security main universe" \
+       > /etc/apt/sources.list.d/netlab-snapshot.list \
+    && apt-get update \
     && apt-get install --no-install-recommends --yes ca-certificates \
-    && rm -f /etc/apt/sources.list.d/ubuntu.sources \
+    && rm -f /etc/apt/sources.list.d/netlab-snapshot.list \
     && printf '%s\n' \
        "deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble main universe" \
        "deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble-updates main universe" \

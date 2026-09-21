@@ -23,12 +23,16 @@ for image in network-node client service; do
   grep -Eq '^HEALTHCHECK ' "${dockerfile}" && pass "${image} healthcheck declared" || fail "${image} healthcheck missing"
   if grep -Eiq '^FROM .*(latest|stable|edge)([^a-zA-Z0-9]|$)' "${dockerfile}"; then fail "${image} uses a floating FROM tag"; fi
   grep -Fq "UBUNTU_SNAPSHOT}" "${dockerfile}" && pass "${image} uses the locked apt snapshot" || fail "${image} does not use UBUNTU_SNAPSHOT"
-  bootstrap_line=$(grep -nF 'apt-get install --no-install-recommends --yes ca-certificates' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
   remove_line=$(grep -nF 'rm -f /etc/apt/sources.list.d/ubuntu.sources' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
-  if [[ ${bootstrap_line} =~ ^[0-9]+$ && ${remove_line} =~ ^[0-9]+$ && ${bootstrap_line} -lt ${remove_line} ]]; then
-    pass "${image} bootstraps CA before replacing apt sources"
+  http_source_line=$(grep -nF 'http://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT}' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
+  first_update_line=$(grep -nF 'apt-get update' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
+  bootstrap_line=$(grep -nF 'apt-get install --no-install-recommends --yes ca-certificates' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
+  https_source_line=$(grep -nF 'https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT}' "${dockerfile}" | head -n1 | cut -d: -f1 || true)
+  normal_update_line=$(grep -nF 'apt-get update' "${dockerfile}" | tail -n1 | cut -d: -f1 || true)
+  if [[ ${remove_line} =~ ^[0-9]+$ && ${http_source_line} =~ ^[0-9]+$ && ${first_update_line} =~ ^[0-9]+$ && ${bootstrap_line} =~ ^[0-9]+$ && ${https_source_line} =~ ^[0-9]+$ && ${normal_update_line} =~ ^[0-9]+$ && ${remove_line} -lt ${http_source_line} && ${http_source_line} -lt ${first_update_line} && ${first_update_line} -lt ${bootstrap_line} && ${bootstrap_line} -lt ${https_source_line} && ${https_source_line} -lt ${normal_update_line} ]]; then
+    pass "${image} bootstraps CA from the pinned HTTP snapshot before HTTPS"
   else
-    fail "${image} must bootstrap ca-certificates before replacing apt sources"
+    fail "${image} must use pinned HTTP snapshot CA bootstrap before HTTPS snapshot"
   fi
 done
 
