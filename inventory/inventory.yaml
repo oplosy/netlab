@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "project": "multi-site-enterprise-network-lab",
+    "source_of_truth": "git",
+    "phase": "phase-1",
+    "addressing_plan": "docs/architecture/addressing.md"
+  },
+  "asns": [
+    {"id": 65000, "name": "ISP-1", "domain": "isp", "reserved": false},
+    {"id": 65001, "name": "ISP-2", "domain": "isp", "reserved": true},
+    {"id": 65100, "name": "Headquarters", "domain": "enterprise", "reserved": false},
+    {"id": 65101, "name": "Branch 1", "domain": "enterprise", "reserved": false},
+    {"id": 65102, "name": "Branch 2", "domain": "enterprise", "reserved": true}
+  ],
+  "sites": [
+    {"id": "hq", "name": "Headquarters", "aggregate": "10.10.0.0/16", "ospf_area": 10, "asn": 65100, "public_endpoint": "203.0.113.129/32"},
+    {"id": "br1", "name": "Branch 1", "aggregate": "10.20.0.0/16", "ospf_area": 20, "asn": 65101, "public_endpoint": "203.0.113.130/32"}
+  ],
+  "nodes": [
+    {"id": "hq-edge-1", "site": "hq", "role": "edge", "asn": 65100, "oob": "172.31.255.30/24", "loopback": "10.10.255.1/32", "interfaces": [
+      {"name": "to_hq_dist_1", "kind": "routed", "addresses": ["10.10.252.0/31"]},
+      {"name": "to_hq_dist_2", "kind": "routed", "addresses": ["10.10.252.2/31"]},
+      {"name": "to_isp1_core_1", "kind": "routed", "addresses": ["192.0.2.0/31"]},
+      {"name": "xfrm_to_br1_edge_1", "kind": "xfrm", "addresses": ["10.255.0.0/31"]}
+    ]},
+    {"id": "hq-dist-1", "site": "hq", "role": "dist", "asn": 65100, "oob": "172.31.255.31/24", "loopback": "10.10.255.2/32", "interfaces": [
+      {"name": "to_hq_edge_1", "kind": "routed", "addresses": ["10.10.252.1/31"]},
+      {"name": "to_hq_dist_2", "kind": "routed", "addresses": ["10.10.252.4/31"]},
+      {"name": "to_hq_access_1_member_1", "kind": "l2", "addresses": []},
+      {"name": "to_hq_access_1_member_2", "kind": "l2", "addresses": []},
+      {"name": "vlan10", "kind": "svi", "addresses": ["10.10.10.2/24"]},
+      {"name": "vlan20", "kind": "svi", "addresses": ["10.10.20.2/24"]},
+      {"name": "vlan30", "kind": "svi", "addresses": ["10.10.30.2/24"]},
+      {"name": "vlan99", "kind": "svi", "addresses": ["10.10.99.2/24"]}
+    ]},
+    {"id": "hq-dist-2", "site": "hq", "role": "dist", "asn": 65100, "oob": "172.31.255.32/24", "loopback": "10.10.255.3/32", "interfaces": [
+      {"name": "to_hq_edge_1", "kind": "routed", "addresses": ["10.10.252.3/31"]},
+      {"name": "to_hq_dist_1", "kind": "routed", "addresses": ["10.10.252.5/31"]},
+      {"name": "to_hq_access_1_member_1", "kind": "l2", "addresses": []},
+      {"name": "to_hq_access_1_member_2", "kind": "l2", "addresses": []},
+      {"name": "vlan10", "kind": "svi", "addresses": ["10.10.10.3/24"]},
+      {"name": "vlan20", "kind": "svi", "addresses": ["10.10.20.3/24"]},
+      {"name": "vlan30", "kind": "svi", "addresses": ["10.10.30.3/24"]},
+      {"name": "vlan99", "kind": "svi", "addresses": ["10.10.99.3/24"]}
+    ]},
+    {"id": "hq-access-1", "site": "hq", "role": "access", "asn": 65100, "oob": "172.31.255.33/24", "loopback": "10.10.255.4/32", "interfaces": [
+      {"name": "to_hq_dist_1_member_1", "kind": "l2", "addresses": []},
+      {"name": "to_hq_dist_1_member_2", "kind": "l2", "addresses": []},
+      {"name": "to_hq_dist_2_member_1", "kind": "l2", "addresses": []},
+      {"name": "to_hq_dist_2_member_2", "kind": "l2", "addresses": []}
+    ]},
+    {"id": "hq-client-users-1", "site": "hq", "role": "client", "oob": "172.31.255.34/24", "loopback": null, "interfaces": []},
+    {"id": "hq-server-1", "site": "hq", "role": "server", "oob": "172.31.255.35/24", "loopback": null, "interfaces": []},
+    {"id": "hq-client-guest-1", "site": "hq", "role": "client", "oob": "172.31.255.36/24", "loopback": null, "interfaces": []},
+    {"id": "br1-edge-1", "site": "br1", "role": "edge", "asn": 65101, "oob": "172.31.255.50/24", "loopback": "10.20.255.1/32", "interfaces": [
+      {"name": "to_br1_dist_1", "kind": "routed", "addresses": ["10.20.252.0/31"]},
+      {"name": "to_br1_dist_2", "kind": "routed", "addresses": ["10.20.252.2/31"]},
+      {"name": "to_isp1_core_1", "kind": "routed", "addresses": ["192.0.2.2/31"]},
+      {"name": "xfrm_to_hq_edge_1", "kind": "xfrm", "addresses": ["10.255.0.1/31"]}
+    ]},
+    {"id": "br1-dist-1", "site": "br1", "role": "dist", "asn": 65101, "oob": "172.31.255.51/24", "loopback": "10.20.255.2/32", "interfaces": [
+      {"name": "to_br1_edge_1", "kind": "routed", "addresses": ["10.20.252.1/31"]},
+      {"name": "to_br1_dist_2", "kind": "routed", "addresses": ["10.20.252.4/31"]},
+      {"name": "to_br1_access_1_member_1", "kind": "l2", "addresses": []},
+      {"name": "to_br1_access_1_member_2", "kind": "l2", "addresses": []},
+      {"name": "vlan10", "kind": "svi", "addresses": ["10.20.10.2/24"]},
+      {"name": "vlan20", "kind": "svi", "addresses": ["10.20.20.2/24"]},
+      {"name": "vlan30", "kind": "svi", "addresses": ["10.20.30.2/24"]},
+      {"name": "vlan99", "kind": "svi", "addresses": ["10.20.99.2/24"]}
+    ]},
+    {"id": "br1-dist-2", "site": "br1", "role": "dist", "asn": 65101, "oob": "172.31.255.52/24", "loopback": "10.20.255.3/32", "interfaces": [
+      {"name": "to_br1_edge_1", "kind": "routed", "addresses": ["10.20.252.3/31"]},
+      {"name": "to_br1_dist_1", "kind": "routed", "addresses": ["10.20.252.5/31"]},
+      {"name": "to_br1_access_1_member_1", "kind": "l2", "addresses": []},
+      {"name": "to_br1_access_1_member_2", "kind": "l2", "addresses": []},
+      {"name": "vlan10", "kind": "svi", "addresses": ["10.20.10.3/24"]},
+      {"name": "vlan20", "kind": "svi", "addresses": ["10.20.20.3/24"]},
+      {"name": "vlan30", "kind": "svi", "addresses": ["10.20.30.3/24"]},
+      {"name": "vlan99", "kind": "svi", "addresses": ["10.20.99.3/24"]}
+    ]},
+    {"id": "br1-access-1", "site": "br1", "role": "access", "asn": 65101, "oob": "172.31.255.53/24", "loopback": "10.20.255.4/32", "interfaces": [
+      {"name": "to_br1_dist_1_member_1", "kind": "l2", "addresses": []},
+      {"name": "to_br1_dist_1_member_2", "kind": "l2", "addresses": []},
+      {"name": "to_br1_dist_2_member_1", "kind": "l2", "addresses": []},
+      {"name": "to_br1_dist_2_member_2", "kind": "l2", "addresses": []}
+    ]},
+    {"id": "br1-client-users-1", "site": "br1", "role": "client", "oob": "172.31.255.54/24", "loopback": null, "interfaces": []},
+    {"id": "br1-server-1", "site": "br1", "role": "server", "oob": "172.31.255.55/24", "loopback": null, "interfaces": []},
+    {"id": "br1-client-guest-1", "site": "br1", "role": "client", "oob": "172.31.255.56/24", "loopback": null, "interfaces": []},
+    {"id": "isp1-core-1", "site": null, "role": "isp", "asn": 65000, "oob": "172.31.255.20/24", "loopback": null, "interfaces": [
+      {"name": "to_hq_edge_1", "kind": "routed", "addresses": ["192.0.2.1/31"]},
+      {"name": "to_br1_edge_1", "kind": "routed", "addresses": ["192.0.2.3/31"]}
+    ]},
+    {"id": "svc-dns-1", "site": null, "role": "service", "asn": null, "oob": "172.31.255.10/24", "loopback": null, "interfaces": [], "service": "dns", "service_address": "203.0.113.10/25"},
+    {"id": "svc-dhcp-1", "site": null, "role": "service", "asn": null, "oob": "172.31.255.11/24", "loopback": null, "interfaces": [], "service": "dhcp", "service_address": null},
+    {"id": "svc-ntp-1", "site": null, "role": "service", "asn": null, "oob": "172.31.255.12/24", "loopback": null, "interfaces": [], "service": "ntp", "service_address": "203.0.113.11/25"},
+    {"id": "svc-aaa-1", "site": null, "role": "service", "asn": null, "oob": "172.31.255.13/24", "loopback": null, "interfaces": [], "service": "aaa", "service_address": null},
+    {"id": "svc-observability-1", "site": null, "role": "service", "asn": null, "oob": "172.31.255.14/24", "loopback": null, "interfaces": [], "service": "observability", "service_address": null}
+  ],
+  "vlans": [
+    {"id": "hq-users", "site": "hq", "vlan_id": 10, "name": "USERS", "prefix": "10.10.10.0/24", "gateway": "10.10.10.1", "distribution_addresses": ["10.10.10.2", "10.10.10.3"], "purpose": "corporate clients"},
+    {"id": "hq-servers", "site": "hq", "vlan_id": 20, "name": "SERVERS", "prefix": "10.10.20.0/24", "gateway": "10.10.20.1", "distribution_addresses": ["10.10.20.2", "10.10.20.3"], "purpose": "site servers"},
+    {"id": "hq-guest", "site": "hq", "vlan_id": 30, "name": "GUEST", "prefix": "10.10.30.0/24", "gateway": "10.10.30.1", "distribution_addresses": ["10.10.30.2", "10.10.30.3"], "purpose": "internet-only clients"},
+    {"id": "hq-inband-mgmt", "site": "hq", "vlan_id": 99, "name": "INBAND-MGMT", "prefix": "10.10.99.0/24", "gateway": "10.10.99.1", "distribution_addresses": ["10.10.99.2", "10.10.99.3"], "purpose": "fallback management"},
+    {"id": "br1-users", "site": "br1", "vlan_id": 10, "name": "USERS", "prefix": "10.20.10.0/24", "gateway": "10.20.10.1", "distribution_addresses": ["10.20.10.2", "10.20.10.3"], "purpose": "corporate clients"},
+    {"id": "br1-servers", "site": "br1", "vlan_id": 20, "name": "SERVERS", "prefix": "10.20.20.0/24", "gateway": "10.20.20.1", "distribution_addresses": ["10.20.20.2", "10.20.20.3"], "purpose": "site servers"},
+    {"id": "br1-guest", "site": "br1", "vlan_id": 30, "name": "GUEST", "prefix": "10.20.30.0/24", "gateway": "10.20.30.1", "distribution_addresses": ["10.20.30.2", "10.20.30.3"], "purpose": "internet-only clients"},
+    {"id": "br1-inband-mgmt", "site": "br1", "vlan_id": 99, "name": "INBAND-MGMT", "prefix": "10.20.99.0/24", "gateway": "10.20.99.1", "distribution_addresses": ["10.20.99.2", "10.20.99.3"], "purpose": "fallback management"}
+  ],
+  "prefixes": [
+    {"id": "hq-aggregate", "cidr": "10.10.0.0/16", "kind": "site-aggregate", "owner": "hq", "parent": null},
+    {"id": "br1-aggregate", "cidr": "10.20.0.0/16", "kind": "site-aggregate", "owner": "br1", "parent": null},
+    {"id": "hq-routed-pool", "cidr": "10.10.252.0/24", "kind": "allocation-pool", "owner": "hq", "parent": "hq-aggregate"},
+    {"id": "br1-routed-pool", "cidr": "10.20.252.0/24", "kind": "allocation-pool", "owner": "br1", "parent": "br1-aggregate"},
+    {"id": "hq-loopback-pool", "cidr": "10.10.255.0/24", "kind": "allocation-pool", "owner": "hq", "parent": "hq-aggregate"},
+    {"id": "br1-loopback-pool", "cidr": "10.20.255.0/24", "kind": "allocation-pool", "owner": "br1", "parent": "br1-aggregate"},
+    {"id": "isp1-underlay-pool", "cidr": "192.0.2.0/24", "kind": "allocation-pool", "owner": "isp1", "parent": null},
+    {"id": "xfrm-pool", "cidr": "10.255.0.0/24", "kind": "allocation-pool", "owner": "overlay", "parent": null},
+    {"id": "internet-services", "cidr": "203.0.113.0/25", "kind": "service-pool", "owner": "isp1", "parent": null},
+    {"id": "public-endpoint-pool", "cidr": "203.0.113.128/25", "kind": "allocation-pool", "owner": "enterprise", "parent": null},
+    {"id": "hq-users", "cidr": "10.10.10.0/24", "kind": "vlan", "owner": "hq", "parent": "hq-aggregate"},
+    {"id": "hq-servers", "cidr": "10.10.20.0/24", "kind": "vlan", "owner": "hq", "parent": "hq-aggregate"},
+    {"id": "hq-guest", "cidr": "10.10.30.0/24", "kind": "vlan", "owner": "hq", "parent": "hq-aggregate"},
+    {"id": "hq-inband-mgmt", "cidr": "10.10.99.0/24", "kind": "vlan", "owner": "hq", "parent": "hq-aggregate"},
+    {"id": "br1-users", "cidr": "10.20.10.0/24", "kind": "vlan", "owner": "br1", "parent": "br1-aggregate"},
+    {"id": "br1-servers", "cidr": "10.20.20.0/24", "kind": "vlan", "owner": "br1", "parent": "br1-aggregate"},
+    {"id": "br1-guest", "cidr": "10.20.30.0/24", "kind": "vlan", "owner": "br1", "parent": "br1-aggregate"},
+    {"id": "br1-inband-mgmt", "cidr": "10.20.99.0/24", "kind": "vlan", "owner": "br1", "parent": "br1-aggregate"},
+    {"id": "hq-edge-dist1", "cidr": "10.10.252.0/31", "kind": "p2p", "owner": "hq", "parent": "hq-routed-pool"},
+    {"id": "hq-edge-dist2", "cidr": "10.10.252.2/31", "kind": "p2p", "owner": "hq", "parent": "hq-routed-pool"},
+    {"id": "hq-dist1-dist2", "cidr": "10.10.252.4/31", "kind": "p2p", "owner": "hq", "parent": "hq-routed-pool"},
+    {"id": "br1-edge-dist1", "cidr": "10.20.252.0/31", "kind": "p2p", "owner": "br1", "parent": "br1-routed-pool"},
+    {"id": "br1-edge-dist2", "cidr": "10.20.252.2/31", "kind": "p2p", "owner": "br1", "parent": "br1-routed-pool"},
+    {"id": "br1-dist1-dist2", "cidr": "10.20.252.4/31", "kind": "p2p", "owner": "br1", "parent": "br1-routed-pool"},
+    {"id": "hq-br1-xfrm", "cidr": "10.255.0.0/31", "kind": "xfrm", "owner": "overlay", "parent": "xfrm-pool"},
+    {"id": "hq-isp1", "cidr": "192.0.2.0/31", "kind": "p2p", "owner": "isp1", "parent": "isp1-underlay-pool"},
+    {"id": "br1-isp1", "cidr": "192.0.2.2/31", "kind": "p2p", "owner": "isp1", "parent": "isp1-underlay-pool"},
+    {"id": "svc-dns", "cidr": "203.0.113.10/32", "kind": "service-endpoint", "owner": "isp1", "parent": "internet-services"},
+    {"id": "svc-ntp", "cidr": "203.0.113.11/32", "kind": "service-endpoint", "owner": "isp1", "parent": "internet-services"},
+    {"id": "hq-public-endpoint", "cidr": "203.0.113.129/32", "kind": "public-endpoint", "owner": "hq", "parent": "public-endpoint-pool"},
+    {"id": "br1-public-endpoint", "cidr": "203.0.113.130/32", "kind": "public-endpoint", "owner": "br1", "parent": "public-endpoint-pool"}
+  ],
+  "links": [
+    {"id": "hq-edge-dist1", "kind": "routed", "prefix": "hq-edge-dist1", "endpoints": [{"node": "hq-edge-1", "interface": "to_hq_dist_1", "address": "10.10.252.0/31"}, {"node": "hq-dist-1", "interface": "to_hq_edge_1", "address": "10.10.252.1/31"}]},
+    {"id": "hq-edge-dist2", "kind": "routed", "prefix": "hq-edge-dist2", "endpoints": [{"node": "hq-edge-1", "interface": "to_hq_dist_2", "address": "10.10.252.2/31"}, {"node": "hq-dist-2", "interface": "to_hq_edge_1", "address": "10.10.252.3/31"}]},
+    {"id": "hq-dist1-dist2", "kind": "routed", "prefix": "hq-dist1-dist2", "endpoints": [{"node": "hq-dist-1", "interface": "to_hq_dist_2", "address": "10.10.252.4/31"}, {"node": "hq-dist-2", "interface": "to_hq_dist_1", "address": "10.10.252.5/31"}]},
+    {"id": "br1-edge-dist1", "kind": "routed", "prefix": "br1-edge-dist1", "endpoints": [{"node": "br1-edge-1", "interface": "to_br1_dist_1", "address": "10.20.252.0/31"}, {"node": "br1-dist-1", "interface": "to_br1_edge_1", "address": "10.20.252.1/31"}]},
+    {"id": "br1-edge-dist2", "kind": "routed", "prefix": "br1-edge-dist2", "endpoints": [{"node": "br1-edge-1", "interface": "to_br1_dist_2", "address": "10.20.252.2/31"}, {"node": "br1-dist-2", "interface": "to_br1_edge_1", "address": "10.20.252.3/31"}]},
+    {"id": "br1-dist1-dist2", "kind": "routed", "prefix": "br1-dist1-dist2", "endpoints": [{"node": "br1-dist-1", "interface": "to_br1_dist_2", "address": "10.20.252.4/31"}, {"node": "br1-dist-2", "interface": "to_br1_dist_1", "address": "10.20.252.5/31"}]},
+    {"id": "hq-isp1", "kind": "ebgp", "prefix": "hq-isp1", "endpoints": [{"node": "hq-edge-1", "interface": "to_isp1_core_1", "address": "192.0.2.0/31"}, {"node": "isp1-core-1", "interface": "to_hq_edge_1", "address": "192.0.2.1/31"}]},
+    {"id": "br1-isp1", "kind": "ebgp", "prefix": "br1-isp1", "endpoints": [{"node": "br1-edge-1", "interface": "to_isp1_core_1", "address": "192.0.2.2/31"}, {"node": "isp1-core-1", "interface": "to_br1_edge_1", "address": "192.0.2.3/31"}]},
+    {"id": "hq-br1-xfrm", "kind": "xfrm", "prefix": "hq-br1-xfrm", "endpoints": [{"node": "hq-edge-1", "interface": "xfrm_to_br1_edge_1", "address": "10.255.0.0/31"}, {"node": "br1-edge-1", "interface": "xfrm_to_hq_edge_1", "address": "10.255.0.1/31"}]},
+    {"id": "hq-dist1-access1", "kind": "l2", "bundle": "hq-access-1-dist-1", "endpoints": [{"node": "hq-dist-1", "interface": "to_hq_access_1_member_1"}, {"node": "hq-access-1", "interface": "to_hq_dist_1_member_1"}]},
+    {"id": "hq-dist1-access1-2", "kind": "l2", "bundle": "hq-access-1-dist-1", "endpoints": [{"node": "hq-dist-1", "interface": "to_hq_access_1_member_2"}, {"node": "hq-access-1", "interface": "to_hq_dist_1_member_2"}]},
+    {"id": "hq-dist2-access1-1", "kind": "l2", "bundle": "hq-access-1-dist-2", "endpoints": [{"node": "hq-dist-2", "interface": "to_hq_access_1_member_1"}, {"node": "hq-access-1", "interface": "to_hq_dist_2_member_1"}]},
+    {"id": "hq-dist2-access1-2", "kind": "l2", "bundle": "hq-access-1-dist-2", "endpoints": [{"node": "hq-dist-2", "interface": "to_hq_access_1_member_2"}, {"node": "hq-access-1", "interface": "to_hq_dist_2_member_2"}]},
+    {"id": "br1-dist1-access1-1", "kind": "l2", "bundle": "br1-access-1-dist-1", "endpoints": [{"node": "br1-dist-1", "interface": "to_br1_access_1_member_1"}, {"node": "br1-access-1", "interface": "to_br1_dist_1_member_1"}]},
+    {"id": "br1-dist1-access1-2", "kind": "l2", "bundle": "br1-access-1-dist-1", "endpoints": [{"node": "br1-dist-1", "interface": "to_br1_access_1_member_2"}, {"node": "br1-access-1", "interface": "to_br1_dist_1_member_2"}]},
+    {"id": "br1-dist2-access1-1", "kind": "l2", "bundle": "br1-access-1-dist-2", "endpoints": [{"node": "br1-dist-2", "interface": "to_br1_access_1_member_1"}, {"node": "br1-access-1", "interface": "to_br1_dist_2_member_1"}]},
+    {"id": "br1-dist2-access1-2", "kind": "l2", "bundle": "br1-access-1-dist-2", "endpoints": [{"node": "br1-dist-2", "interface": "to_br1_access_1_member_2"}, {"node": "br1-access-1", "interface": "to_br1_dist_2_member_2"}]}
+  ],
+  "service_intents": [
+    {"id": "dns-corporate", "service": "dns", "node": "svc-dns-1", "source_sites": ["hq", "br1"], "zones": ["users", "servers", "guest", "inband-mgmt"], "transports": [{"protocol": "udp", "port": 53}, {"protocol": "tcp", "port": 53}]},
+    {"id": "dhcp-corporate", "service": "dhcp", "node": "svc-dhcp-1", "source_sites": ["hq", "br1"], "zones": ["users", "servers", "guest", "inband-mgmt"], "transports": [{"protocol": "udp", "port": 67}]},
+    {"id": "ntp-corporate", "service": "ntp", "node": "svc-ntp-1", "source_sites": ["hq", "br1"], "zones": ["users", "servers", "guest", "inband-mgmt"], "transports": [{"protocol": "udp", "port": 123}]},
+    {"id": "aaa-oob", "service": "aaa", "node": "svc-aaa-1", "source_sites": ["hq", "br1"], "zones": ["oob-mgmt"], "transports": [{"protocol": "tcp", "port": 1812}, {"protocol": "tcp", "port": 1813}]},
+    {"id": "observability-oob", "service": "observability", "node": "svc-observability-1", "source_sites": ["hq", "br1"], "zones": ["oob-mgmt"], "transports": [{"protocol": "tcp", "port": 514}, {"protocol": "udp", "port": 514}, {"protocol": "tcp", "port": 9090}]}
+  ]
+}
