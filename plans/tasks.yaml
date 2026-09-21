@@ -47,8 +47,7 @@ tasks:
     phase: phase-0
     title: Bootstrap main and repository protections
     type: chore
-    status: blocked
-    blocker: "Remote main has no commit; repository-owner bootstrap action is required."
+    status: complete
     depends_on: []
     parallel_group: bootstrap
     allowed_paths:
@@ -78,16 +77,20 @@ tasks:
       - scripts/preflight/**
       - docs/runbooks/environment.md
       - versions.env
+      - pyproject.toml
+      - uv.lock
       - Makefile
       - mk/preflight.mk
     deliverables:
       - "Read-only WSL2, Docker, Containerlab, kernel, and resource preflight"
       - "Pinned tool version policy and version lock"
+      - "Locked Python development and validation dependencies"
       - "Environment runbook"
     acceptance:
       - "Preflight returns zero on a supported host"
       - "Each missing prerequisite produces an actionable nonzero result"
       - "The preflight does not install or remove host software"
+      - "The Python environment resolves reproducibly from uv.lock"
     verify:
       - "make preflight"
     commit: "chore(ENV-010): add lab environment preflight"

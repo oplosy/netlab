@@ -28,6 +28,8 @@ in `plans/tasks.yaml` for machine consumption.
 ### ENV-010 — WSL and toolchain preflight
 
 - Deliver: version policy, preflight script, environment runbook, lock file
+- Lock: commit `pyproject.toml` and `uv.lock`; dependency installation remains an
+  explicit user action and is never performed by preflight
 - Deliver: root Makefile that includes task-owned `mk/*.mk` fragments
 - Accept: script detects WSL2, Docker, Containerlab, required kernel features,
   CPU/RAM/disk minimums, and gives actionable failures
