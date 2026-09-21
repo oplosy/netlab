@@ -45,7 +45,7 @@ RUN apt-get update \
     && test "$(dpkg-query -W -f='${Version}' keepalived)" = "${KEEPALIVED_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' charon-systemd)" = "${STRONGSWAN_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' nftables)" = "${NFTABLES_VERSION}" \
-    && mkdir -p /run/netlab /var/log/netlab \
+    && mkdir -p /run/netlab /var/log/netlab /usr/share/netlab \
     && { \
          printf 'frr=%s\n' "$(dpkg-query -W -f='${Version}' frr)"; \
          printf 'openvswitch=%s\n' "$(dpkg-query -W -f='${Version}' openvswitch-switch)"; \
