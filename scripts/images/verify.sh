@@ -33,6 +33,13 @@ for image in network-node client service; do
 done
 
 network_dockerfile=${REPO_ROOT}/images/network-node/Dockerfile
+metadata_dir_line=$(grep -nF 'mkdir -p /run/netlab /var/log/netlab /usr/share/netlab' "${network_dockerfile}" | head -n1 | cut -d: -f1 || true)
+metadata_redirect_line=$(grep -nF '} > /usr/share/netlab/component-versions' "${network_dockerfile}" | head -n1 | cut -d: -f1 || true)
+if [[ ${metadata_dir_line} =~ ^[0-9]+$ && ${metadata_redirect_line} =~ ^[0-9]+$ && ${metadata_dir_line} -lt ${metadata_redirect_line} ]]; then
+  pass 'component evidence directory is created before metadata write'
+else
+  fail 'component evidence directory must be created before metadata write'
+fi
 FRR_SNAPSHOT_VERSION=8.4.4-1.1ubuntu6.7
 [[ ${FRR_VERSION} == "${FRR_SNAPSHOT_VERSION}" ]] && pass 'FRR lock matches the pinned Noble snapshot' || fail "FRR lock must be ${FRR_SNAPSHOT_VERSION} for ${UBUNTU_SNAPSHOT}"
 grep -Fq "ARG FRR_VERSION=${FRR_SNAPSHOT_VERSION}" "${network_dockerfile}" && pass 'Dockerfile FRR default matches snapshot lock' || fail 'Dockerfile FRR default drifted from snapshot lock'
