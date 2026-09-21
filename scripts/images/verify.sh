@@ -33,6 +33,10 @@ for image in network-node client service; do
 done
 
 network_dockerfile=${REPO_ROOT}/images/network-node/Dockerfile
+FRR_SNAPSHOT_VERSION=8.4.4-1.1ubuntu6.7
+[[ ${FRR_VERSION} == "${FRR_SNAPSHOT_VERSION}" ]] && pass 'FRR lock matches the pinned Noble snapshot' || fail "FRR lock must be ${FRR_SNAPSHOT_VERSION} for ${UBUNTU_SNAPSHOT}"
+grep -Fq "ARG FRR_VERSION=${FRR_SNAPSHOT_VERSION}" "${network_dockerfile}" && pass 'Dockerfile FRR default matches snapshot lock' || fail 'Dockerfile FRR default drifted from snapshot lock'
+grep -Fq "| FRR | \`${FRR_SNAPSHOT_VERSION}\`" "${REPO_ROOT}/docs/runbooks/images.md" && pass 'runbook FRR pin matches snapshot lock' || fail 'runbook FRR pin drifted from snapshot lock'
 grep -Fq 'OVS_DATAPATH_MODE' "${REPO_ROOT}/images/network-node/entrypoint.sh" && pass 'OVS datapath selection is explicit' || fail 'OVS datapath selection missing'
 grep -Fq 'ovs-datapath.json' "${REPO_ROOT}/images/network-node/entrypoint.sh" && pass 'OVS datapath evidence is written' || fail 'OVS datapath evidence missing'
 grep -Fq 'OVS_DATAPATH_MODE must be kernel or userspace' "${REPO_ROOT}/images/network-node/entrypoint.sh" && pass 'invalid OVS mode is rejected (negative check)' || fail 'invalid OVS mode rejection missing'
