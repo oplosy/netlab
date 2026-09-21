@@ -1,7 +1,8 @@
 # DAT-030: authoritative inventory checks. The phase Makefile includes this
 # fragment after ENV-010 provides the repository Python environment.
 
-PYTHON ?= python3
+UV ?= uv
+PYTHON ?= $(UV) run --locked python
 INVENTORY_VALIDATOR ?= scripts/validate/validate_inventory.py
 INVENTORY_FILE ?= inventory/inventory.yaml
 INVENTORY_SCHEMA ?= schemas/inventory.schema.json
