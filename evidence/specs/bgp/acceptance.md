@@ -1,10 +1,12 @@
 # WAN-140 BGP acceptance procedure
 
 Policy is rendered from `inventory/inventory.yaml`; do not edit rendered FRR
-configuration by hand. The apply script configures the inventory-derived ISP
-/31 addresses and descriptions on the WAN-facing interfaces, then applies the
-BGP policy. It is safe to repeat and requires the three Phase 1 router
-containers to be running.
+configuration by hand. The apply script enables FRR's `bgpd` daemon in
+`/etc/frr/daemons` and reloads FRR only when BGP is not already running. It
+configures the inventory-derived ISP `/31` addresses and descriptions on the
+WAN-facing interfaces, assigns each site's public endpoint `/32` to `lo`, then
+applies the BGP policy. It is safe to repeat and requires the three Phase 1
+router containers to be running.
 
 ## Apply
 
@@ -40,11 +42,12 @@ contain only the two declared site endpoint `/32`s. It temporarily originates
 route. The ISP must not learn the site prefix and neither site may learn the
 unauthorized ISP prefix. Temporary routes are removed in a `finally` block.
 
-The ISP's explicit outbound allowlist contains only the public endpoint `/32`s
-from inventory. It originates a default to each site, limits each site session
-to one received prefix, and does not redistribute its default or service
-aggregate back to the sites. Site edges accept only the exact default and
-advertise only their own endpoint `/32`.
+The ISP has a per-peer inbound allowlist for only that site's public endpoint
+`/32`; it originates a default to each site, limits each session to one
+received prefix, and sends only the default back to the sites. Site edges
+accept only the exact default and advertise only their own loopback endpoint
+`/32`. The connected loopback route is the BGP network's source route; no
+discard route is used for an endpoint that must terminate IPsec.
 
 ## Integration boundary
 

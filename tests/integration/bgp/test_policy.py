@@ -22,11 +22,13 @@ def _peer(data: dict, site_id: str) -> str:
     link = next(link for link in data["links"] if link["kind"] == "ebgp" and any(
         endpoint["node"] == node_id for endpoint in link["endpoints"]
     ))
-    remote = next(endpoint for endpoint in link["endpoints"] if endpoint["node"] != node_id)
+    remote = next(
+        endpoint for endpoint in link["endpoints"] if endpoint["node"] != node_id
+    )
     return str(ipaddress.ip_interface(remote["address"]).ip)
 
 
-def test_rendered_policy_has_exact_inventory_endpoints_and_default_only_imports() -> None:
+def test_rendered_policy_has_exact_endpoints_and_default_only_imports() -> None:
     data = load_inventory()
     rendered = configs(data)
     sites = {site["id"]: site for site in data["sites"]}
@@ -37,8 +39,14 @@ def test_rendered_policy_has_exact_inventory_endpoints_and_default_only_imports(
         underlay = "192.0.2.0/31" if site_id == "hq" else "192.0.2.2/31"
         assert "interface eth3" in config
         assert f"ip address {underlay}" in config
+        assert "interface lo" in config
+        assert f"ip address {endpoint}" in config
+        assert f"ip route {endpoint} Null0" not in config
         assert "ip prefix-list ISP-DEFAULT seq 10 permit 0.0.0.0/0" in config
-        assert f"ip prefix-list {site_id.upper()}-ENDPOINT seq 10 permit {endpoint}" in config
+        assert (
+            f"ip prefix-list {site_id.upper()}-ENDPOINT seq 10 permit {endpoint}"
+            in config
+        )
         assert "maximum-prefix 1" in config
         assert f"neighbor {_peer(data, site_id)} prefix-list ISP-DEFAULT in" in config
         assert f"network {endpoint}" in config
@@ -48,23 +56,27 @@ def test_rendered_policy_has_exact_inventory_endpoints_and_default_only_imports(
 def test_isp_exports_only_declared_site_endpoints_and_imports_only_them() -> None:
     data = load_inventory()
     config = configs(data)["isp1-core-1"]
-    endpoint_lines = [
-        f"ip prefix-list SITE-ENDPOINTS seq {index * 10} permit {site['public_endpoint'].split('/')[0]}/32"
-        for index, site in enumerate(sorted(data["sites"], key=lambda item: item["public_endpoint"]), start=1)
-    ]
-    assert all(line in config for line in endpoint_lines)
-    permit_lines = [
-        line for line in config.splitlines()
-        if line.startswith("ip prefix-list SITE-ENDPOINTS") and " permit " in line
-    ]
-    assert set(permit_lines) == set(endpoint_lines)
+    sites = {site["id"]: site for site in data["sites"]}
     for site_id, edge_id in (("hq", "hq-edge-1"), ("br1", "br1-edge-1")):
         link = next(link for link in data["links"] if link["kind"] == "ebgp" and any(
             endpoint["node"] == edge_id for endpoint in link["endpoints"]
         ))
-        site_endpoint = next(endpoint for endpoint in link["endpoints"] if endpoint["node"] == edge_id)
+        site_endpoint = next(
+            endpoint for endpoint in link["endpoints"] if endpoint["node"] == edge_id
+        )
         site_ip = str(ipaddress.ip_interface(site_endpoint["address"]).ip)
-        assert f"neighbor {site_ip} prefix-list SITE-ENDPOINTS in" in config
+        endpoint = sites[site_id]["public_endpoint"]
+        expected_filter = (
+            f"ip prefix-list {site_id.upper()}-ENDPOINT seq 10 permit {endpoint}"
+        )
+        permit_lines = [
+            line
+            for line in config.splitlines()
+            if line.startswith(f"ip prefix-list {site_id.upper()}-ENDPOINT")
+            and " permit " in line
+        ]
+        assert permit_lines == [expected_filter]
+        assert f"neighbor {site_ip} prefix-list {site_id.upper()}-ENDPOINT in" in config
         assert f"neighbor {site_ip} prefix-list ISP-DEFAULT-ONLY out" in config
     assert "maximum-prefix 1" in config
     assert "default-originate" in config
@@ -74,10 +86,27 @@ def test_isp_exports_only_declared_site_endpoints_and_imports_only_them() -> Non
     assert "203.0.113.0/25 Null0" in config
 
 
+def test_apply_enables_bgpd_and_reloads_only_when_needed() -> None:
+    script = (ROOT / "automation" / "roles" / "bgp" / "apply.sh").read_text(
+        encoding="utf-8"
+    )
+    assert 'grep -qx "bgpd=no" "$daemons"' in script
+    assert 'sed -i "s/^bgpd=no$/bgpd=yes/" "$daemons"' in script
+    assert "if ! pgrep -x bgpd" in script
+    assert "/usr/lib/frr/frrinit.sh reload" in script
+    assert "vtysh -f /tmp/netlab-bgp.conf" in script
+
+
 def _vtysh(node_id: str, *commands: str, check: bool = True) -> str:
     container = f"clab-netlab-phase-1-{node_id}"
     result = subprocess.run(
-        ["docker", "exec", container, "vtysh", *[part for command in commands for part in ("-c", command)]],
+        [
+            "docker",
+            "exec",
+            container,
+            "vtysh",
+            *[part for command in commands for part in ("-c", command)],
+        ],
         check=check,
         capture_output=True,
         text=True,
@@ -86,12 +115,20 @@ def _vtysh(node_id: str, *commands: str, check: bool = True) -> str:
 
 
 def _prefixes(node_id: str, peer: str | None = None) -> set[str]:
-    command = "show bgp ipv4 unicast" if peer is None else f"show bgp ipv4 unicast neighbors {peer} routes"
+    command = (
+        "show bgp ipv4 unicast"
+        if peer is None
+        else f"show bgp ipv4 unicast neighbors {peer} routes"
+    )
     output = _vtysh(node_id, command)
-    return set(re.findall(r"^\s*[*> ]*\s*(\d{1,3}(?:\.\d{1,3}){3}/\d{1,2})\s", output, re.MULTILINE))
+    prefix_pattern = r"^\s*[*> ]*\s*(\d{1,3}(?:\.\d{1,3}){3}/\d{1,2})\s"
+    return set(re.findall(prefix_pattern, output, re.MULTILINE))
 
 
-@pytest.mark.skipif(os.environ.get("NETLAB_BGP_LIVE") != "1", reason="requires the serialized live lab")
+@pytest.mark.skipif(
+    os.environ.get("NETLAB_BGP_LIVE") != "1",
+    reason="requires the serialized live lab",
+)
 def test_live_sessions_policy_and_rejection_of_injected_routes() -> None:
     data = load_inventory()
     sites = {site["id"]: site for site in data["sites"]}
@@ -101,12 +138,18 @@ def test_live_sessions_policy_and_rejection_of_injected_routes() -> None:
     isp_injected = False
     try:
         expected_isp_prefixes = {site["public_endpoint"] for site in data["sites"]}
-        assert _prefixes("isp1-core-1") == expected_isp_prefixes, "ISP learned a non-endpoint route"
+        assert _prefixes("isp1-core-1") == expected_isp_prefixes, (
+            "ISP learned a non-endpoint route"
+        )
         for site_id, node_id in (("hq", "hq-edge-1"), ("br1", "br1-edge-1")):
             peer = _peer(data, site_id)
             neighbor = _vtysh(node_id, f"show bgp ipv4 unicast neighbors {peer}")
-            assert "BGP state = Established" in neighbor, f"{node_id} eBGP session is not established"
-            assert _prefixes(node_id, peer) == {"0.0.0.0/0"}, f"{node_id} imported a non-default route"
+            assert "BGP state = Established" in neighbor, (
+                f"{node_id} eBGP session is not established"
+            )
+            assert _prefixes(node_id, peer) == {"0.0.0.0/0"}, (
+                f"{node_id} imported a non-default route"
+            )
             injected_sites.append((site_id, node_id, peer))
             _vtysh(
                 node_id,
@@ -119,7 +162,9 @@ def test_live_sessions_policy_and_rejection_of_injected_routes() -> None:
                 f"clear bgp {peer} soft out",
             )
             time.sleep(2)
-            assert _prefixes("isp1-core-1") == expected_isp_prefixes, "ISP learned an unauthorized site route"
+            assert _prefixes("isp1-core-1") == expected_isp_prefixes, (
+                "ISP learned an unauthorized site route"
+            )
 
             isp_injected = True
             _vtysh(
@@ -132,7 +177,9 @@ def test_live_sessions_policy_and_rejection_of_injected_routes() -> None:
                 "end",
             )
             time.sleep(2)
-            assert injected_isp_prefix not in _prefixes(node_id, peer), f"{node_id} accepted an unauthorized ISP route"
+            assert injected_isp_prefix not in _prefixes(node_id, peer), (
+                f"{node_id} accepted an unauthorized ISP route"
+            )
     finally:
         for site_id, node_id, peer in injected_sites:
             _vtysh(
