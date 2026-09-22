@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netlab.invalid/schemas/inventory.schema.json",
+  "title": "Authoritative network inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "metadata", "asns", "sites", "nodes", "vlans", "prefixes", "links", "bundles", "service_intents"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "metadata": {"$ref": "#/$defs/metadata"},
+    "asns": {"type": "array", "items": {"$ref": "#/$defs/asn"}, "minItems": 1},
+    "sites": {"type": "array", "items": {"$ref": "#/$defs/site"}, "minItems": 1},
+    "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}, "minItems": 1},
+    "vlans": {"type": "array", "items": {"$ref": "#/$defs/vlan"}, "minItems": 1},
+    "prefixes": {"type": "array", "items": {"$ref": "#/$defs/prefix"}, "minItems": 1},
+    "links": {"type": "array", "items": {"$ref": "#/$defs/link"}, "minItems": 1},
+    "bundles": {"type": "array", "items": {"$ref": "#/$defs/bundle"}, "minItems": 1},
+    "service_intents": {"type": "array", "items": {"$ref": "#/$defs/service_intent"}, "minItems": 1}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "cidr": {"type": "string", "pattern": "^[0-9a-fA-F:.]+/[0-9]{1,3}$"},
+    "ip": {"type": "string", "pattern": "^[0-9a-fA-F:.]+$"},
+    "metadata": {
+      "type": "object", "additionalProperties": false,
+      "required": ["project", "source_of_truth", "phase", "addressing_plan"],
+      "properties": {
+        "project": {"const": "multi-site-enterprise-network-lab"},
+        "source_of_truth": {"const": "git"},
+        "phase": {"const": "phase-1"},
+        "addressing_plan": {"const": "docs/architecture/addressing.md"}
+      }
+    },
+    "asn": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "domain", "reserved"],
+      "properties": {
+        "id": {"type": "integer", "minimum": 64512, "maximum": 65534},
+        "name": {"type": "string", "minLength": 1},
+        "domain": {"enum": ["enterprise", "isp"]},
+        "reserved": {"type": "boolean"}
+      }
+    },
+    "site": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "aggregate", "ospf_area", "asn", "public_endpoint"],
+      "properties": {
+        "id": {"enum": ["hq", "br1", "br2"]},
+        "name": {"type": "string", "minLength": 1},
+        "aggregate": {"$ref": "#/$defs/cidr"},
+        "ospf_area": {"type": "integer", "enum": [10, 20, 30]},
+        "asn": {"type": "integer"},
+        "public_endpoint": {"$ref": "#/$defs/cidr"}
+      }
+    },
+    "interface": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "kind", "addresses"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"},
+        "kind": {"enum": ["routed", "xfrm", "l2", "svi"]},
+        "addresses": {"type": "array", "items": {"$ref": "#/$defs/cidr"}}
+      }
+    },
+    "node": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "site", "role", "oob", "loopback", "interfaces"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "site": {"type": ["string", "null"]},
+        "role": {"enum": ["edge", "dist", "access", "client", "server", "isp", "service"]},
+        "asn": {"type": ["integer", "null"]},
+        "oob": {"$ref": "#/$defs/cidr"},
+        "loopback": {"type": ["string", "null"], "anyOf": [{"$ref": "#/$defs/cidr"}, {"type": "null"}]},
+        "interfaces": {"type": "array", "items": {"$ref": "#/$defs/interface"}},
+        "service": {"type": "string"},
+        "service_address": {"type": ["string", "null"]}
+      }
+    },
+    "vlan": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "site", "vlan_id", "name", "prefix", "gateway", "distribution_addresses", "purpose"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "site": {"$ref": "#/$defs/id"},
+        "vlan_id": {"type": "integer", "minimum": 1, "maximum": 4094},
+        "name": {"type": "string", "pattern": "^[A-Z0-9-]+$"},
+        "prefix": {"$ref": "#/$defs/cidr"}, "gateway": {"$ref": "#/$defs/ip"},
+        "distribution_addresses": {"type": "array", "items": {"$ref": "#/$defs/ip"}, "minItems": 2, "maxItems": 2},
+        "purpose": {"type": "string", "minLength": 1}
+      }
+    },
+    "prefix": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "cidr", "kind", "owner", "parent"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "cidr": {"$ref": "#/$defs/cidr"},
+        "kind": {"enum": ["site-aggregate", "allocation-pool", "service-pool", "vlan", "p2p", "xfrm", "service-endpoint", "public-endpoint"]},
+        "owner": {"type": "string", "minLength": 1}, "parent": {"type": ["string", "null"]}
+      }
+    },
+    "endpoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["node", "interface"],
+      "properties": {"node": {"$ref": "#/$defs/id"}, "interface": {"type": "string"}, "address": {"$ref": "#/$defs/cidr"}}
+    },
+    "link": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "kind", "endpoints"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "kind": {"enum": ["routed", "ebgp", "xfrm", "l2", "access"]},
+        "prefix": {"$ref": "#/$defs/id"}, "bundle": {"$ref": "#/$defs/id"},
+        "vlan": {"$ref": "#/$defs/id"},
+        "endpoints": {"type": "array", "items": {"$ref": "#/$defs/endpoint"}, "minItems": 2, "maxItems": 2}
+      },
+      "allOf": [{"if": {"properties": {"kind": {"const": "l2"}}}, "then": {"required": ["bundle"]}}, {"if": {"properties": {"kind": {"enum": ["routed", "ebgp", "xfrm"]}}}, "then": {"required": ["prefix"]}}, {"if": {"properties": {"kind": {"const": "access"}}}, "then": {"required": ["vlan"], "not": {"anyOf": [{"required": ["bundle"]}, {"required": ["prefix"]}]}}}]
+    },
+    "bundle": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "site", "kind", "mode", "trunk_vlans", "peer_nodes"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "site": {"$ref": "#/$defs/id"},
+        "kind": {"enum": ["access-uplink", "distribution-peer"]}, "mode": {"const": "lacp"},
+        "trunk_vlans": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 4094}, "minItems": 1},
+        "peer_nodes": {"type": "array", "items": {"$ref": "#/$defs/id"}, "minItems": 2, "maxItems": 2}
+      }
+    },
+    "transport": {
+      "type": "object", "additionalProperties": false, "required": ["protocol", "port"],
+      "properties": {"protocol": {"enum": ["tcp", "udp"]}, "port": {"type": "integer", "minimum": 1, "maximum": 65535}}
+    },
+    "service_intent": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "service", "node", "source_sites", "zones", "transports"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "service": {"type": "string", "minLength": 1}, "node": {"$ref": "#/$defs/id"},
+        "source_sites": {"type": "array", "items": {"$ref": "#/$defs/id"}, "minItems": 1},
+        "zones": {"type": "array", "items": {"enum": ["users", "servers", "guest", "inband-mgmt", "oob-mgmt"]}, "minItems": 1},
+        "transports": {"type": "array", "items": {"$ref": "#/$defs/transport"}, "minItems": 1}
+      }
+    }
+  }
+}

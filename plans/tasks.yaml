@@ -9,7 +9,7 @@ project:
 roles:
   orchestrator:
     profile: planner-medium
-    recommended_model: gpt-5.6-sol
+    recommended_model: gpt-6-sol
     recommended_reasoning: medium
     owns:
       - dependency scheduling
@@ -19,7 +19,7 @@ roles:
       - phase pull requests
   worker:
     profile: implementer-high
-    recommended_model: gpt-5.6-luna
+    recommended_model: gpt-6-luna
     recommended_reasoning: high
     owns:
       - one task branch
@@ -47,8 +47,7 @@ tasks:
     phase: phase-0
     title: Bootstrap main and repository protections
     type: chore
-    status: blocked
-    blocker: "Remote main has no commit; repository-owner bootstrap action is required."
+    status: complete
     depends_on: []
     parallel_group: bootstrap
     allowed_paths:
@@ -71,23 +70,27 @@ tasks:
     phase: phase-0
     title: Add environment preflight and version policy
     type: chore
-    status: planned
+    status: complete
     depends_on: [GOV-001]
     parallel_group: foundation-a
     allowed_paths:
       - scripts/preflight/**
       - docs/runbooks/environment.md
       - versions.env
+      - pyproject.toml
+      - uv.lock
       - Makefile
       - mk/preflight.mk
     deliverables:
       - "Read-only WSL2, Docker, Containerlab, kernel, and resource preflight"
       - "Pinned tool version policy and version lock"
+      - "Locked Python development and validation dependencies"
       - "Environment runbook"
     acceptance:
       - "Preflight returns zero on a supported host"
       - "Each missing prerequisite produces an actionable nonzero result"
       - "The preflight does not install or remove host software"
+      - "The Python environment resolves reproducibly from uv.lock"
     verify:
       - "make preflight"
     commit: "chore(ENV-010): add lab environment preflight"
@@ -96,7 +99,7 @@ tasks:
     phase: phase-0
     title: Build reproducible lab node images
     type: build
-    status: planned
+    status: complete
     depends_on: [GOV-001, ENV-010]
     parallel_group: foundation-b
     allowed_paths:
@@ -122,7 +125,7 @@ tasks:
     phase: phase-0
     title: Define authoritative inventory and schema
     type: feat
-    status: planned
+    status: complete
     depends_on: [GOV-001]
     parallel_group: foundation-a
     allowed_paths:
@@ -148,7 +151,7 @@ tasks:
     phase: phase-0
     title: Create the Phase 1 topology skeleton
     type: feat
-    status: planned
+    status: complete
     depends_on: [ENV-010, IMG-020, DAT-030]
     parallel_group: foundation-c
     allowed_paths:
