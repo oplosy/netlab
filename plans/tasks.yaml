@@ -9,7 +9,7 @@ project:
 roles:
   orchestrator:
     profile: planner-medium
-    recommended_model: gpt-5.6-sol
+    recommended_model: gpt-6-sol
     recommended_reasoning: medium
     owns:
       - dependency scheduling
@@ -19,7 +19,7 @@ roles:
       - phase pull requests
   worker:
     profile: implementer-high
-    recommended_model: gpt-5.6-luna
+    recommended_model: gpt-6-luna
     recommended_reasoning: high
     owns:
       - one task branch
