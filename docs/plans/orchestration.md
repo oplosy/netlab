@@ -4,7 +4,7 @@
 
 ### Orchestrator
 
-Recommended runtime: `gpt-5.6-sol` with medium reasoning.
+Recommended runtime: `gpt-6-sol` with medium reasoning (ADR 0012).
 
 The orchestrator owns planning, dependency resolution, task dispatch, review,
 integration, and the phase pull request. It does not perform worker tasks merely
@@ -25,7 +25,7 @@ The orchestrator must:
 
 ### Worker
 
-Recommended runtime: `gpt-5.6-luna` with high reasoning.
+Recommended runtime: `gpt-6-luna` with high reasoning (ADR 0012).
 
 A worker receives one task. It may inspect the repository and its task
 dependencies but may write only to `allowed_paths`. It must stop and report a
