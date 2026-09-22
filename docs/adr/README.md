@@ -17,6 +17,7 @@ ADR, but existing files are not edited to erase decision history.
 | [0010](0010-source-of-truth-and-orchestration.md) | Git intent, Ansible execution, agent worktrees | Accepted |
 | [0011](0011-development-and-test-toolchain.md) | Python, Ansible, Make, pytest, and GitHub Actions | Accepted |
 | [0012](0012-agent-model-mapping.md) | GPT-6 Sol orchestrator and GPT-6 Luna workers; supersedes only the model recommendation in ADR 0010 | Accepted |
+| [0013](0013-linux-bonding-under-ovs-rstp.md) | Linux 802.3ad bonds beneath OVS RSTP; acceptance awaits live proof | Proposed |
 
 ## Status values
 
