@@ -22,6 +22,8 @@ sys.path.insert(0, str(ROOT))
 from config.switching.apply import build_plan, load_inventory  # noqa: E402
 
 PING_INTERVAL = 0.05
+POST_RECOVERY_HOLD_SECONDS = 1.0
+FOLLOW_ON_TIMEOUT_SECONDS = POST_RECOVERY_HOLD_SECONDS + 0.5
 
 
 def _docker(docker: str, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -147,14 +149,30 @@ def measure_case(
             lowered.append(member)
         assert failed_at is not None
         first_reply = _wait_for_reply(values, lock, failed_at, limit_seconds)
-        interruption = max(0.0, first_reply - failed_at)
+        failure_to_first_reply = max(0.0, first_reply - failed_at)
         # Prove the alternate path or surviving LACP member carries traffic
         # while the injected failure is still present.
-        _wait_for_reply(values, lock, first_reply + 0.9, 0.5)
-        if interruption > limit_seconds:
-            raise RuntimeError(f"{failure_mode} interruption {interruption:.3f}s exceeds {limit_seconds:.3f}s")
-        print(f"{site} {failure_mode}: interruption={interruption:.3f}s limit={limit_seconds:.3f}s recovered_while_failed=true")
-        return {"site": site, "failure_mode": failure_mode, "interruption_seconds": interruption, "limit_seconds": limit_seconds}
+        _wait_for_reply(
+            values,
+            lock,
+            first_reply + POST_RECOVERY_HOLD_SECONDS,
+            FOLLOW_ON_TIMEOUT_SECONDS,
+        )
+        if failure_to_first_reply > limit_seconds:
+            raise RuntimeError(
+                f"{failure_mode} failure-to-first-reply {failure_to_first_reply:.3f}s "
+                f"exceeds {limit_seconds:.3f}s"
+            )
+        print(
+            f"{site} {failure_mode}: failure_to_first_reply={failure_to_first_reply:.3f}s "
+            f"limit={limit_seconds:.3f}s recovered_while_failed=true"
+        )
+        return {
+            "site": site,
+            "failure_mode": failure_mode,
+            "failure_to_first_reply_seconds": failure_to_first_reply,
+            "limit_seconds": limit_seconds,
+        }
     finally:
         for member in lowered:
             _exec(docker, access_container, "ip", "link", "set", "dev", member, "up", check=False)

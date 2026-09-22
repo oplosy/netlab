@@ -13,6 +13,11 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
 from config.switching.apply import build_plan  # noqa: E402
+from tests.integration.l2.measure import (  # noqa: E402
+    FOLLOW_ON_TIMEOUT_SECONDS,
+    PING_INTERVAL,
+    POST_RECOVERY_HOLD_SECONDS,
+)
 
 
 def _inventory() -> dict:
@@ -96,3 +101,7 @@ def test_plan_has_only_scoped_container_operations() -> None:
     assert {item["node"] for item in plan} == {
         "hq-dist-1", "hq-dist-2", "hq-access-1", "br1-dist-1", "br1-dist-2", "br1-access-1"
     }
+
+
+def test_follow_on_ping_timeout_covers_the_post_recovery_hold() -> None:
+    assert FOLLOW_ON_TIMEOUT_SECONDS >= POST_RECOVERY_HOLD_SECONDS + PING_INTERVAL

@@ -19,11 +19,12 @@ The measurement runner performs three checks at each site:
 - It gives the guest and user clients temporary addresses in the same test
   subnet and requires guest-to-user ping to fail with 100% packet loss.
 - It removes one member from the access-to-distribution-1 LACP bundle and
-  measures time to the first successful ping while that member remains down;
-  the limit is 1 second.
+  measures elapsed time from failure injection to the first successful ping
+  while that member remains down; the limit is 1 second.
 - It removes both members of that active uplink, waits for RSTP to move traffic
-  through distribution 2, and measures time to the first successful ping while
-  the direct path remains down; the limit is 5 seconds.
+  through distribution 2, and measures elapsed time from failure injection to
+  the first successful ping while the direct path remains down; the limit is 5
+  seconds.
 
 Traffic runs between the site user client and a temporary VLAN 10 OVS internal
 port on distribution 1. The runner refuses to overwrite existing IPv4

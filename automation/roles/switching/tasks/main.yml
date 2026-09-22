@@ -6,4 +6,3 @@
       - "{{ role_path }}/../../../config/switching/apply.py"
   delegate_to: localhost
   run_once: true
-  changed_when: false
