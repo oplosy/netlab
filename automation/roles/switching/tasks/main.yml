@@ -1,0 +1,9 @@
+---
+- name: Apply inventory-derived VLAN, LACP, and RSTP switching policy
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/../../../config/switching/apply.py"
+  delegate_to: localhost
+  run_once: true
+  changed_when: false
