@@ -1,0 +1,8 @@
+---
+- name: Apply inventory rendered Phase 1 BGP policy
+  ansible.builtin.command:
+    argv:
+      - bash
+      - "{{ role_path }}/apply.sh"
+  delegate_to: localhost
+  changed_when: true
