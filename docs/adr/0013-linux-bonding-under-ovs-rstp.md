@@ -1,9 +1,9 @@
 # ADR 0013: Put Linux LACP Bonds Below Open vSwitch RSTP
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-23
-- Supersedes on acceptance: ADR 0002's selection of Open vSwitch for LACP
-- Clarifies on acceptance: ADR 0003's logical-bundle RSTP implementation
+- Supersedes: ADR 0002's selection of Open vSwitch for LACP
+- Clarifies: ADR 0003's logical-bundle RSTP implementation
 
 ## Context
 
@@ -42,7 +42,7 @@ Physical members join the Linux bond before the logical Port is admitted to
 the OVS bridge. Enabling the OVS Port requires RSTP to be configured on the
 bridge. Runtime state remains ephemeral and is rebuilt from inventory.
 
-## Acceptance gate before changing status to Accepted
+## Live acceptance gate
 
 On the pinned WSL kernel, network-node image, and OVS version:
 
@@ -55,8 +55,28 @@ On the pinned WSL kernel, network-node image, and OVS version:
 5. A second apply makes no material state change, and teardown leaves no lab
    containers, network, or namespace.
 
-Until these checks pass, L2-110 remains unintegrated and the Phase 1 switching
-design is not accepted.
+The architecture gate passed. L2-110 remains unintegrated until its committed apply and evidence procedure reproduce these results.
+
+On 2026-09-23, the pinned WSL kernel and network-node image were tested in the
+20-node Phase 1 topology using inventory-derived Linux 802.3ad bonds. Both
+sites negotiated two-member bonds. OVS listed each bond as a single RSTP Port;
+access bond 1 was Root/Forwarding and bond 2 was Alternate/Discarding, with
+distribution 1 as site root. VLAN 10 traffic succeeded after the probe Port
+reached Forwarding; guest-to-user traffic had 100% packet loss.
+
+With 50 ms probes during injected failures, the maximum reply gaps were:
+
+| Site | One LACP member down | Active RSTP path down |
+|---|---:|---:|
+| HQ | 0.060 s | 0.116 s |
+| Branch 1 | 0.057 s | 0.169 s |
+
+Traffic continued for more than one second while the failed link remained
+down. A second apply kept the same bond members and OVS Port structure. The
+lab was destroyed after each run; `make verify-clean` reported no project
+containers or management network. These observations support this decision.
+The diagnostic scripts were temporary; L2-110 must commit equivalent
+inventory-derived apply and executable evidence before integration.
 
 ## Considered alternative
 
