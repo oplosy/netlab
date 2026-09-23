@@ -255,7 +255,7 @@ tasks:
     phase: phase-1
     title: Implement ISP simulation and eBGP policy
     type: feat
-    status: planned
+    status: complete
     depends_on: [TOP-040]
     parallel_group: network-a
     allowed_paths:
