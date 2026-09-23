@@ -138,6 +138,9 @@ def test_live_sessions_policy_and_rejection_of_injected_routes() -> None:
     isp_injected = False
     try:
         expected_isp_prefixes = {site["public_endpoint"] for site in data["sites"]}
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline and _prefixes("isp1-core-1") != expected_isp_prefixes:
+            time.sleep(0.5)
         assert _prefixes("isp1-core-1") == expected_isp_prefixes, (
             "ISP learned a non-endpoint route"
         )
