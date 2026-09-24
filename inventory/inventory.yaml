@@ -209,7 +209,7 @@
   ],
   "service_intents": [
     {"id": "aaa-oob", "service": "aaa", "node": "svc-aaa-1", "source_sites": ["hq", "br1"], "zones": ["oob-mgmt"], "transports": [{"protocol": "udp", "port": 1812},{"protocol": "udp", "port": 1813}]},
-    {"id": "observability-oob", "service": "observability", "node": "svc-observability-1", "source_sites": ["hq", "br1"], "zones": ["oob-mgmt"], "transports": [{"protocol": "tcp", "port": 514},{"protocol": "udp", "port": 514},{"protocol": "tcp", "port": 9090}]},
+    {"id": "observability-oob", "service": "observability", "node": "svc-observability-1", "source_sites": ["hq", "br1"], "zones": ["oob-mgmt"], "transports": [{"protocol": "tcp", "port": 3000},{"protocol": "tcp", "port": 514},{"protocol": "udp", "port": 514},{"protocol": "tcp", "port": 9090},{"protocol": "udp", "port": 2055}]},
     {"id": "hq-dhcp", "service": "dhcp", "node": "svc-hq-dhcp-1", "source_sites": ["hq"], "zones": ["users", "servers", "guest", "inband-mgmt"], "transports": [{"protocol": "udp", "port": 67}]},
     {"id": "hq-dns", "service": "dns", "node": "svc-hq-dns-1", "source_sites": ["hq"], "zones": ["users", "servers", "guest", "inband-mgmt"], "transports": [{"protocol": "udp", "port": 53},{"protocol": "tcp", "port": 53}]},
     {"id": "hq-ntp", "service": "ntp", "node": "svc-hq-ntp-1", "source_sites": ["hq"], "zones": ["users", "servers", "guest", "inband-mgmt"], "transports": [{"protocol": "udp", "port": 123}]},

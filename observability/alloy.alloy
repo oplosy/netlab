@@ -1,0 +1,19 @@
+loki.source.file "syslog" {
+  targets = [{__path__ = "/var/log/netlab/syslog.log", job = "syslog", lab = "phase-1"}]
+  forward_to = [loki.write.local.receiver]
+  file_match {
+    enabled = true
+    sync_period = "5s"
+  }
+}
+loki.source.file "ipfix" {
+  targets = [{__path__ = "/var/lib/netlab/flows/ipfix.json", job = "ipfix", lab = "phase-1"}]
+  forward_to = [loki.write.local.receiver]
+  file_match {
+    enabled = true
+    sync_period = "5s"
+  }
+}
+loki.write "local" {
+  endpoint { url = "http://172.31.255.14:3100/loki/api/v1/push" }
+}
