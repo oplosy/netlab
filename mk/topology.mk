@@ -15,6 +15,7 @@ topology-check: topology
 lab-up: topology
 	@TOPOLOGY=$(TOPOLOGY_FILE) bash scripts/lifecycle/lab-up.sh
 	@bash automation/roles/bgp/apply.sh
+	@$(TOPOLOGY_PYTHON) config/switching/apply.py
 
 lab-inspect:
 	@TOPOLOGY=$(TOPOLOGY_FILE) bash scripts/lifecycle/lab-inspect.sh

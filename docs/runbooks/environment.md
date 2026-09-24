@@ -63,6 +63,19 @@ The path is deliberately outside the checkout, so a Windows `.venv` cannot be
 selected accidentally and the Linux environment does not create an untracked
 repository directory.
 
+## Linux bonding module for L2 switching
+
+The site switching topology uses Linux 802.3ad bonds beneath OVS RSTP. Load
+the WSL kernel module once before make lab-up:
+
+    wsl.exe -d Ubuntu -u root -- modprobe bonding
+
+Confirm it is available inside WSL:
+
+    test -d /sys/module/bonding
+
+The read-only preflight does not load kernel modules.
+
 ## Run the check
 
 From the dedicated WSL2 distribution, at the repository root:

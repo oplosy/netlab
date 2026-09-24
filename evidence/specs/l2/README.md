@@ -8,8 +8,7 @@ entering the unprivileged WSL shell:
 wsl.exe -d Ubuntu -u root -- modprobe bonding
 ```
 
-The deployment lifecycle does not yet call the switching role, so apply the
-inventory-derived policy after deploying:
+The Phase 1 make lab-up lifecycle deploys the topology, applies BGP, then applies the inventory-derived switching policy. To recheck idempotency manually, run:
 
 ```sh
 python3 config/switching/apply.py
@@ -43,7 +42,4 @@ ping, and refuses to overwrite existing client IPv4 configuration. Its
 ping, and deletes the probe. Preserve full command output with the phase run
 artifacts; do not report live acceptance until the procedure succeeds.
 
-`make test-l2` is the requested task-level command, but its Make target is
-integration-only work outside this task's allowed paths. The phase orchestrator
-must wire the static pytest checks and this runtime measurement into that
-target and into the deploy/apply lifecycle.
+make test-l2 runs the static policy checks and live failure measurements. Start the lab with make lab-up first and preserve the full output as task evidence.
