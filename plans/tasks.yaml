@@ -431,7 +431,7 @@ tasks:
     phase: phase-1
     title: Implement correlated network observability
     type: feat
-    status: planned
+    status: complete
     depends_on: [TOP-040, SVC-160]
     parallel_group: observability-a
     allowed_paths:
