@@ -24,7 +24,7 @@ mode, or moving default archive is consulted.
 | FRR | `8.4.4-1.1ubuntu6.7` | [Ubuntu Noble FRR package search](https://packages.ubuntu.com/search?arch=any&keywords=frr&searchon=names&suite=all) |
 | Open vSwitch | `3.3.9-0ubuntu0.24.04.1` | [Ubuntu Noble Open vSwitch package search](https://packages.ubuntu.com/openvswitch-switch) |
 | Keepalived | `1:2.2.8-1build2` | [Ubuntu Noble Keepalived package](https://packages.ubuntu.com/en/noble/amd64/admin/keepalived) |
-| strongSwan control plane | `charon-systemd=5.9.13-2ubuntu4.24.04.4`, `strongswan-swanctl=5.9.13-2ubuntu4.24.04.4`, `libstrongswan-openssl=5.9.13-2ubuntu4.24.04.4` | [Ubuntu Noble charon-systemd file list](https://packages.ubuntu.com/noble/amd64/charon-systemd/filelist), [Ubuntu Noble strongSwan package](https://packages.ubuntu.com/noble/strongswan) |
+| strongSwan control plane | `charon-systemd=5.9.13-2ubuntu4.24.04.4`, `strongswan-swanctl=5.9.13-2ubuntu4.24.04.4`, `libstrongswan-standard-plugins=5.9.13-2ubuntu4.24.04.4` | [Ubuntu Noble charon-systemd file list](https://packages.ubuntu.com/noble/amd64/charon-systemd/filelist), [Ubuntu Noble standard plugin file list](https://packages.ubuntu.com/noble/amd64/libstrongswan-standard-plugins/filelist) |
 | nftables | `1.0.9-1ubuntu0.1` | [Ubuntu Noble nftables package](https://packages.ubuntu.com/noble/net/nftables) |
 
 The package versions above are distribution package versions, not the latest
@@ -40,8 +40,9 @@ The network image intentionally does not install Ubuntu's `strongswan`
 metapackage: that metapackage depends on both `strongswan-charon` and
 `strongswan-starter`, which would introduce the legacy starter daemon. The
 image installs `charon-systemd` (binary `/usr/sbin/charon-systemd`),
-`strongswan-swanctl`, and `libstrongswan-openssl` from the same locked package
-version. The OpenSSL provider supplies ECDSA authentication and the accepted
+`strongswan-swanctl`, and `libstrongswan-standard-plugins` from the same locked
+package version. The standard plugin package supplies the OpenSSL provider for
+ECDSA authentication and the accepted
 ECP-384 IKE group. The `strongswan` metapackage and legacy starter remain
 excluded. The recorded `strongswan=` component version is the installed
 `charon-systemd` package version.
@@ -147,3 +148,8 @@ definitions:
   - Keepalived `1:2.2.8-1build2`;
   - strongSwan `5.9.13-2ubuntu4.24.04.4`;
   - nftables `1.0.9-1ubuntu0.1`.
+
+The IMG-025 build additionally installed and verified strongSwan standard
+plugins `5.9.13-2ubuntu4.24.04.4`, including the OpenSSL provider. See
+[`evidence/specs/images/IMG-025`](../../evidence/specs/images/IMG-025/README.md)
+for this run's build and runtime evidence.
