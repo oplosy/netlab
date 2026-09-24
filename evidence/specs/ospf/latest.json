@@ -1,27 +1,158 @@
 {
+  "source": "tests/integration/ospf/measure.py",
   "summary_lsa_views": {
-    "hq-edge-1": "\n       OSPF Router with ID (10.10.255.1)\n\n\n                Summary Link States (Area 0.0.0.0)\n\n  LS age: 491\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0xb  \n  LS Type: summary-LSA\n  Link State ID: 10.10.0.0 (summary Network Number)\n  Advertising Router: 10.10.255.1\n  LS Seq Number: 80000002\n  Checksum: 0x8698\n  Length: 28\n\n  Network Mask: /16\n        TOS: 0  Metric: 20\n\n  LS age: 486\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0x6  \n  LS Type: summary-LSA\n  Link State ID: 10.20.0.0 (summary Network Number)\n  Advertising Router: 10.20.255.1\n  LS Seq Number: 80000002\n  Checksum: 0xbd4d\n  Length: 28\n\n  Network Mask: /16\n        TOS: 0  Metric: 20\n\n\n                Summary Link States (Area 0.0.0.10)\n\n  LS age: 485\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0xb  \n  LS Type: summary-LSA\n  Link State ID: 10.20.0.0 (summary Network Number)\n  Advertising Router: 10.10.255.1\n  LS Seq Number: 80000002\n  Checksum: 0x7298\n  Length: 28\n\n  Network Mask: /16\n        TOS: 0  Metric: 30\n\n  LS age: 505\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0xb  \n  LS Type: summary-LSA\n  Link State ID: 10.255.0.0 (summary Network Number)\n  Advertising Router: 10.10.255.1\n  LS Seq Number: 80000001\n  Checksum: 0x969e\n  Length: 28\n\n  Network Mask: /31\n        TOS: 0  Metric: 10\n\n",
-    "br1-edge-1": "\n       OSPF Router with ID (10.20.255.1)\n\n\n                Summary Link States (Area 0.0.0.0)\n\n  LS age: 492\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0x6  \n  LS Type: summary-LSA\n  Link State ID: 10.10.0.0 (summary Network Number)\n  Advertising Router: 10.10.255.1\n  LS Seq Number: 80000002\n  Checksum: 0x8698\n  Length: 28\n\n  Network Mask: /16\n        TOS: 0  Metric: 20\n\n  LS age: 485\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0xb  \n  LS Type: summary-LSA\n  Link State ID: 10.20.0.0 (summary Network Number)\n  Advertising Router: 10.20.255.1\n  LS Seq Number: 80000002\n  Checksum: 0xbd4d\n  Length: 28\n\n  Network Mask: /16\n        TOS: 0  Metric: 20\n\n\n                Summary Link States (Area 0.0.0.20)\n\n  LS age: 486\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0xb  \n  LS Type: summary-LSA\n  Link State ID: 10.10.0.0 (summary Network Number)\n  Advertising Router: 10.20.255.1\n  LS Seq Number: 80000001\n  Checksum: 0x9c6f\n  Length: 28\n\n  Network Mask: /16\n        TOS: 0  Metric: 30\n\n  LS age: 504\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0xb  \n  LS Type: summary-LSA\n  Link State ID: 10.255.0.0 (summary Network Number)\n  Advertising Router: 10.20.255.1\n  LS Seq Number: 80000001\n  Checksum: 0x46e4\n  Length: 28\n\n  Network Mask: /31\n        TOS: 0  Metric: 10\n\n"
+    "hq-edge-1": "\n       OSPF Router with ID (10.10.255.1)\n\n\n                Summary Link States (Area 0.0.0.0)\n\n  LS age: 1323\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0xb  \n  LS Type: summary-LSA\n  Link State ID: 10.10.0.0 (summary Network Number)\n  Advertising Router: 10.10.255.1\n  LS Seq Number: 80000002\n  Checksum: 0x8698\n  Length: 28\n\n  Network Mask: /16\n        TOS: 0  Metric: 20\n\n  LS age: 1322\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0x6  \n  LS Type: summary-LSA\n  Link State ID: 10.20.0.0 (summary Network Number)\n  Advertising Router: 10.20.255.1\n  LS Seq Number: 80000002\n  Checksum: 0xbd4d\n  Length: 28\n\n  Network Mask: /16\n        TOS: 0  Metric: 20\n\n\n                Summary Link States (Area 0.0.0.10)\n\n  LS age: 1313\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0xb  \n  LS Type: summary-LSA\n  Link State ID: 10.20.0.0 (summary Network Number)\n  Advertising Router: 10.10.255.1\n  LS Seq Number: 80000003\n  Checksum: 0x7099\n  Length: 28\n\n  Network Mask: /16\n        TOS: 0  Metric: 30\n\n  LS age: 1333\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0xb  \n  LS Type: summary-LSA\n  Link State ID: 10.255.0.0 (summary Network Number)\n  Advertising Router: 10.10.255.1\n  LS Seq Number: 80000001\n  Checksum: 0x969e\n  Length: 28\n\n  Network Mask: /31\n        TOS: 0  Metric: 10\n\n",
+    "br1-edge-1": "\n       OSPF Router with ID (10.20.255.1)\n\n\n                Summary Link States (Area 0.0.0.0)\n\n  LS age: 1324\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0x6  \n  LS Type: summary-LSA\n  Link State ID: 10.10.0.0 (summary Network Number)\n  Advertising Router: 10.10.255.1\n  LS Seq Number: 80000002\n  Checksum: 0x8698\n  Length: 28\n\n  Network Mask: /16\n        TOS: 0  Metric: 20\n\n  LS age: 1321\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0xb  \n  LS Type: summary-LSA\n  Link State ID: 10.20.0.0 (summary Network Number)\n  Advertising Router: 10.20.255.1\n  LS Seq Number: 80000002\n  Checksum: 0xbd4d\n  Length: 28\n\n  Network Mask: /16\n        TOS: 0  Metric: 20\n\n\n                Summary Link States (Area 0.0.0.20)\n\n  LS age: 1313\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0xb  \n  LS Type: summary-LSA\n  Link State ID: 10.10.0.0 (summary Network Number)\n  Advertising Router: 10.20.255.1\n  LS Seq Number: 80000001\n  Checksum: 0x9c6f\n  Length: 28\n\n  Network Mask: /16\n        TOS: 0  Metric: 30\n\n  LS age: 1332\n  Options: 0x2  : *|-|-|-|-|-|E|-\n  LS Flags: 0xb  \n  LS Type: summary-LSA\n  Link State ID: 10.255.0.0 (summary Network Number)\n  Advertising Router: 10.20.255.1\n  LS Seq Number: 80000001\n  Checksum: 0x46e4\n  Length: 28\n\n  Network Mask: /31\n        TOS: 0  Metric: 10\n\n"
   },
   "remote_site_summary_routes": {
-    "hq": "Routing entry for 10.20.0.0/16\n  Known via \"ospf\", distance 110, metric 40, best\n  Last update 00:04:16 ago\n  * 10.10.252.0, via eth1, weight 1\n\n",
-    "br1": "Routing entry for 10.10.0.0/16\n  Known via \"ospf\", distance 110, metric 40, best\n  Last update 00:08:06 ago\n  * 10.20.252.0, via eth1, weight 1\n\n"
+    "hq": "Routing entry for 10.20.0.0/16\n  Known via \"ospf\", distance 110, metric 40, best\n  Last update 00:02:30 ago\n  * 10.10.252.0, via eth1, weight 1\n\n",
+    "br1": "Routing entry for 10.10.0.0/16\n  Known via \"ospf\", distance 110, metric 40, best\n  Last update 00:21:54 ago\n  * 10.20.252.0, via eth1, weight 1\n\n"
   },
   "conditional_site_defaults": {
-    "hq": "Routing entry for 0.0.0.0/0\n  Known via \"ospf\", distance 110, metric 10, best\n  Last update 00:00:31 ago\n  * 10.10.252.0, via eth1, weight 1\n\n",
-    "br1": "Routing entry for 0.0.0.0/0\n  Known via \"ospf\", distance 110, metric 10, best\n  Last update 00:00:31 ago\n  * 10.20.252.0, via eth1, weight 1\n\n"
+    "hq": "Routing entry for 0.0.0.0/0\n  Known via \"ospf\", distance 110, metric 10, best\n  Last update 00:02:30 ago\n  * 10.10.252.0, via eth1, weight 1\n\n",
+    "br1": "Routing entry for 0.0.0.0/0\n  Known via \"ospf\", distance 110, metric 10, best\n  Last update 00:22:06 ago\n  * 10.20.252.0, via eth1, weight 1\n\n"
   },
   "edge_default_routes": {
-    "hq": "Routing entry for 0.0.0.0/0\n  Known via \"ospf\", distance 110, metric 10\n  Last update 00:00:31 ago\n    10.255.0.1, via xfrm0, weight 1\n\nRouting entry for 0.0.0.0/0\n  Known via \"bgp\", distance 20, metric 0, best\n  Last update 00:00:31 ago\n  * 192.0.2.1, via eth3, weight 1\n\n",
-    "br1": "Routing entry for 0.0.0.0/0\n  Known via \"ospf\", distance 110, metric 10\n  Last update 00:00:31 ago\n    10.255.0.0, via xfrm0, weight 1\n\nRouting entry for 0.0.0.0/0\n  Known via \"bgp\", distance 20, metric 0, best\n  Last update 00:00:31 ago\n  * 192.0.2.3, via eth3, weight 1\n\n"
+    "hq": "Routing entry for 0.0.0.0/0\n  Known via \"ospf\", distance 110, metric 10\n  Last update 00:21:53 ago\n    10.255.0.1, via xfrm0, weight 1\n\nRouting entry for 0.0.0.0/0\n  Known via \"bgp\", distance 20, metric 0, best\n  Last update 00:25:50 ago\n  * 192.0.2.1, via eth3, weight 1\n\n",
+    "br1": "Routing entry for 0.0.0.0/0\n  Known via \"ospf\", distance 110, metric 10\n  Last update 00:21:54 ago\n    10.255.0.0, via xfrm0, weight 1\n\nRouting entry for 0.0.0.0/0\n  Known via \"bgp\", distance 20, metric 0, best\n  Last update 00:24:30 ago\n  * 192.0.2.3, via eth3, weight 1\n\n"
   },
+  "edge_self_originated_default_lsa": {
+    "hq-edge-1": true,
+    "br1-edge-1": true
+  },
+  "default_origin_tracks_bgp_route_source": true,
   "passive_interface_adjacency_check": "no adjacency on eth0/eth3 or VLAN SVIs",
   "bfd_test": {
     "node": "hq-edge-1",
     "peer": "10.10.252.1",
     "interface": "eth1",
-    "failure_detection_seconds": 0.86,
-    "alternate_site_vlan_route": "Routing entry for 10.10.10.0/24\n  Known via \"ospf\", distance 110, metric 20, best\n  Last update 00:00:00 ago\n  * 10.10.252.3, via eth2, weight 1",
-    "recovery_seconds": 2.926
+    "failure_detection_seconds": 0.827,
+    "alternate_site_vlan_route": "Routing entry for 10.10.10.0/24\n  Known via \"ospf\", distance 110, metric 20, best\n  Last update 00:00:01 ago\n  * 10.10.252.3, via eth2, weight 1",
+    "recovery_seconds": 8.554,
+    "continuity_probe_source": "br1-edge-1",
+    "continuity_probe_targets": {
+      "hq-dist-1": "10.10.10.2",
+      "hq-dist-2": "10.10.10.3",
+      "hq-active-vip": "10.10.10.1"
+    },
+    "continuity_probe_baselines": {
+      "hq-dist-1": {
+        "target": "10.10.10.2",
+        "interface": "xfrm0",
+        "sent": 3,
+        "received": 3,
+        "loss_percent": 0.0,
+        "interval_seconds": 0.1,
+        "max_reply_gap_seconds": 0.1,
+        "started_timestamp": 1790263069.6871145,
+        "finished_timestamp": 1790263069.8877807,
+        "reply_timestamps": [
+          1790263069.6878443,
+          1790263069.7874799,
+          1790263069.8877544
+        ]
+      },
+      "hq-dist-2": {
+        "target": "10.10.10.3",
+        "interface": "xfrm0",
+        "sent": 3,
+        "received": 3,
+        "loss_percent": 0.0,
+        "interval_seconds": 0.1,
+        "max_reply_gap_seconds": 0.1,
+        "started_timestamp": 1790263070.0961335,
+        "finished_timestamp": 1790263070.2965667,
+        "reply_timestamps": [
+          1790263070.0963604,
+          1790263070.1964633,
+          1790263070.2965438
+        ]
+      },
+      "hq-active-vip": {
+        "target": "10.10.10.1",
+        "interface": "xfrm0",
+        "sent": 3,
+        "received": 3,
+        "loss_percent": 0.0,
+        "interval_seconds": 0.1,
+        "max_reply_gap_seconds": 0.1,
+        "started_timestamp": 1790263070.5005279,
+        "finished_timestamp": 1790263070.7010703,
+        "reply_timestamps": [
+          1790263070.5007324,
+          1790263070.6010048,
+          1790263070.7010486
+        ]
+      }
+    },
+    "continuity_probe_streams": {
+      "hq-dist-1": {
+        "target": "10.10.10.2",
+        "interface": "xfrm0",
+        "sent": 80,
+        "received": 36,
+        "loss_percent": 55.0,
+        "interval_seconds": 0.1,
+        "max_reply_gap_seconds": 11.119,
+        "started_timestamp": 1790263071.9052472,
+        "finished_timestamp": 1790263086.5282643
+      },
+      "hq-dist-2": {
+        "target": "10.10.10.3",
+        "interface": "xfrm0",
+        "sent": 80,
+        "received": 80,
+        "loss_percent": 0.0,
+        "interval_seconds": 0.1,
+        "max_reply_gap_seconds": 0.1,
+        "started_timestamp": 1790263071.9048104,
+        "finished_timestamp": 1790263079.8131113
+      },
+      "hq-active-vip": {
+        "target": "10.10.10.1",
+        "interface": "xfrm0",
+        "sent": 80,
+        "received": 36,
+        "loss_percent": 55.0,
+        "interval_seconds": 0.1,
+        "max_reply_gap_seconds": 11.12,
+        "started_timestamp": 1790263071.9805558,
+        "finished_timestamp": 1790263086.6044285
+      }
+    },
+    "surviving_path_packet_interruptions_seconds": {
+      "hq-dist-2": 0.0,
+      "hq-active-vip": 11.02
+    },
+    "target_return_routes_before": {
+      "hq-dist-1": "Routing entry for 10.255.0.0/31\n  Known via \"ospf\", distance 110, metric 20, best\n  Last update 00:02:33 ago\n  * 10.10.252.0, via eth1, weight 1\n\n",
+      "hq-dist-2": "Routing entry for 10.255.0.0/31\n  Known via \"ospf\", distance 110, metric 20, best\n  Last update 00:22:03 ago\n  * 10.10.252.2, via eth1, weight 1\n\n"
+    },
+    "target_return_routes_during": {
+      "hq-dist-1": "Routing entry for 10.255.0.0/31\n  Known via \"ospf\", distance 110, metric 20, best\n  Last update 00:02:37 ago\n  * 10.10.252.0, via eth1, weight 1\n\n",
+      "hq-dist-2": "Routing entry for 10.255.0.0/31\n  Known via \"ospf\", distance 110, metric 20, best\n  Last update 00:22:06 ago\n  * 10.10.252.2, via eth1, weight 1\n\n"
+    },
+    "target_return_routes_after": {
+      "hq-dist-1": "Routing entry for 10.255.0.0/31\n  Known via \"ospf\", distance 110, metric 20, best\n  Last update 00:00:01 ago\n  * 10.10.252.0, via eth1, weight 1\n\n",
+      "hq-dist-2": "Routing entry for 10.255.0.0/31\n  Known via \"ospf\", distance 110, metric 20, best\n  Last update 00:22:26 ago\n  * 10.10.252.2, via eth1, weight 1\n\n"
+    },
+    "hq_gateway_forward_routes_before": "Routing entry for 10.10.10.0/24\n  Known via \"ospf\", distance 110, metric 20, best\n  Last update 00:02:34 ago\n  * 10.10.252.1, via eth1, weight 1\n  * 10.10.252.3, via eth2, weight 1\n\n",
+    "hq_gateway_forward_routes_during": "Routing entry for 10.10.10.0/24\n  Known via \"ospf\", distance 110, metric 20, best\n  Last update 00:00:02 ago\n  * 10.10.252.3, via eth2, weight 1\n\n",
+    "hq_gateway_forward_routes_after": "Routing entry for 10.10.10.0/24\n  Known via \"ospf\", distance 110, metric 20, best\n  Last update 00:00:02 ago\n  * 10.10.252.1, via eth1, weight 1\n  * 10.10.252.3, via eth2, weight 1\n\n",
+    "hq_vlan10_addresses_before": {
+      "hq-dist-1": "7: vlan10@svi10: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000\n    inet 10.10.10.2/24 scope global vlan10\n       valid_lft forever preferred_lft forever\n    inet 10.10.10.1/24 scope global secondary vlan10\n       valid_lft forever preferred_lft forever\n",
+      "hq-dist-2": "7: vlan10@svi10: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000\n    inet 10.10.10.3/24 scope global vlan10\n       valid_lft forever preferred_lft forever\n"
+    },
+    "hq_vlan10_addresses_during": {
+      "hq-dist-1": "7: vlan10@svi10: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000\n    inet 10.10.10.2/24 scope global vlan10\n       valid_lft forever preferred_lft forever\n    inet 10.10.10.1/24 scope global secondary vlan10\n       valid_lft forever preferred_lft forever\n",
+      "hq-dist-2": "7: vlan10@svi10: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000\n    inet 10.10.10.3/24 scope global vlan10\n       valid_lft forever preferred_lft forever\n"
+    },
+    "hq_vlan10_addresses_after": {
+      "hq-dist-1": "7: vlan10@svi10: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000\n    inet 10.10.10.2/24 scope global vlan10\n       valid_lft forever preferred_lft forever\n    inet 10.10.10.1/24 scope global secondary vlan10\n       valid_lft forever preferred_lft forever\n",
+      "hq-dist-2": "7: vlan10@svi10: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000\n    inet 10.10.10.3/24 scope global vlan10\n       valid_lft forever preferred_lft forever\n"
+    },
+    "target_route_recovery_seconds_after_bfd_unblock": 18.64,
+    "estimated_packet_interruption_seconds": 11.02,
+    "packet_continuity_threshold_passed": false
   }
 }

@@ -55,30 +55,35 @@ This default-policy check is read-only.
 
 ## Runtime result
 
-Live acceptance completed on 2026-09-24 after applying OSPF/BFD and the
-integrated WAN-140 policy:
+The final live run on 2026-09-24 completed the area, summary, passive-interface,
+BGP-default-source, and BFD checks. It also exposed a gateway failover blocker;
+`evidence/specs/ospf/latest.json` records the failed packet-continuity result.
 
-- HQ and BR1 edge each formed two routed site adjacencies plus the XFRM
-  adjacency; all expected BFD sessions were Up.
-- Area 0 contained only `10.10.0.0/16` and `10.20.0.0/16` site summaries; no
-  VLAN-specific `/24` summary LSA was present.
-- Each site's distribution router installed the remote `/16` and learned the
-  default through OSPF. Edge defaults were learned from ISP-1 over `eth3`.
-- With BFD packets dropped on HQ edge `eth1`, its HQ dist 1 adjacency was
-  removed in `0.860s`. `10.10.10.0/24` remained routed through HQ dist 2 on
-  `eth2`; recovery took `2.926s`.
-- The OOB management default was absent from the routing nodes; direct OOB
-  subnets remained connected. No Docker, WSL, or host kernel settings changed.
+- All expected OSPF neighbors and BFD peers were Up before fault injection.
+  Area 0 carried the HQ and BR1 `/16` summaries, not VLAN `/24` LSAs. Remote
+  `/16` routes, conditional OSPF defaults, and edge BGP defaults were present.
+- Dropping BFD control packets on HQ edge `eth1` removed its HQ dist-1
+  adjacency in `0.827s`. The HQ edge route to `10.10.10.0/24` moved to HQ
+  dist-2 on `eth2`.
+- During the fault, the HQ dist-2 SVI `10.10.10.3` answered `80/80` probes
+  with a maximum reply gap of `0.100s`. The active gateway VIP `10.10.10.1`
+  remained on HQ dist-1 before, during, and after the fault; its probe received
+  only `36/80` replies with an `11.120s` maximum gap (`11.020s` estimated
+  interruption). HQ dist-1's physical SVI `.2` had the same loss.
+- The dist-1 and dist-2 return routes to the BR1 tunnel address were present
+  before and after. Both return routes were confirmed restored `18.640s` after
+  BFD unblocking. The result does not meet the three-second user-traffic
+  interruption objective because the static VRRP master does not move the VIP
+  when its OSPF uplink adjacency fails.
+- The live Keepalived configuration has priorities `150` and `100` and no
+  upstream `track_interface` or `track_script`. A physical interface tracker
+  alone would not detect this BFD-only failure because `eth1` stays up.
 
-These values came from a successful run of the live measurement procedure
-above. A later optional runtime-default-withdraw experiment was abandoned after
-FRR failed to restore both ISP defaults on soft refresh; the temporary prefix
-list entries were removed and the BGP policy was confirmed back at its original
-two entries. The final live measurement runner does not perform that route
-mutation. The conditional route-map and BFD/summary tests passed before that
-experiment. The final source additionally checks self-originated default LSAs;
-that added read-only assertion was statically checked but not rerun after the
-runtime was released.
+OSPF summaries, passive-interface behavior, conditional default origination,
+and BFD detection are verified. End-to-end gateway failover remains blocked on
+upstream-reachability tracking for VRRP, which belongs to the gateway/L3 task
+outside OSPF-130's allowed paths. No Docker, WSL, or host kernel settings were
+changed, and the temporary nftables test table was removed in cleanup.
 
 ## Integration target
 

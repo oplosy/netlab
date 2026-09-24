@@ -15,6 +15,7 @@ import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
+PING_STREAM = ROOT / "tests" / "integration" / "ospf" / "ping_stream.py"
 sys.path.insert(0, str(ROOT / "config" / "routing" / "ospf"))
 from render import build_plan, load_inventory  # noqa: E402
 
@@ -55,6 +56,11 @@ def _route(node: str, prefix: str) -> str:
     return _vtysh(node, f"show ip route {prefix}")
 
 
+def _vlan10_addresses(node: str) -> str:
+    container = f"clab-netlab-phase-1-{node}"
+    return _exec(container, "ip", "-4", "addr", "show", "dev", "vlan10")
+
+
 def _bfd_up(node: str, expected: set[str]) -> bool:
     output = _vtysh(node, "show bfd peers")
     blocks = re.split(r"\n\s*peer ", output)
@@ -86,6 +92,30 @@ def _wait(predicate, timeout: float, interval: float = 0.1) -> float:
             return time.monotonic() - started
         time.sleep(interval)
     raise TimeoutError(f"condition did not converge within {timeout:.1f} seconds")
+
+
+def _icmp_probe(container: str, target: str, *, count: int) -> dict[str, object]:
+    output = _exec(
+        container,
+        "python3", "-", target, "--count", str(count),
+        input_text=PING_STREAM.read_text(encoding="utf-8"),
+    )
+    return json.loads(output)
+
+
+def _start_icmp_probe(container: str, target: str, *, count: int) -> subprocess.Popen[str]:
+    process = subprocess.Popen(
+        ["docker", "exec", "-i", container, "python3", "-", target, "--count", str(count)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert process.stdin is not None
+    process.stdin.write(PING_STREAM.read_text(encoding="utf-8"))
+    process.stdin.close()
+    process.stdin = None
+    return process
 
 
 def _assert_summary(node: str, area0_site: str) -> str:
@@ -175,10 +205,33 @@ def run() -> dict[str, object]:
     test_edge = "hq-edge-1"
     test_peer = "10.10.252.1"
     test_interface = "eth1"
+    probe_node = "br1-edge-1"
+    probe_container = f"clab-netlab-phase-1-{probe_node}"
+    probe_targets = {
+        "hq-dist-1": "10.10.10.2",
+        "hq-dist-2": "10.10.10.3",
+        "hq-active-vip": "10.10.10.1",
+    }
+    probe_baselines = {
+        node: _icmp_probe(probe_container, address, count=3)
+        for node, address in probe_targets.items()
+    }
+    assert all(result["received"] == 3 for result in probe_baselines.values()), (
+        f"continuity probe baseline failed: {probe_baselines}"
+    )
+    target_routers = ("hq-dist-1", "hq-dist-2")
+    target_routes_before = {node: _route(node, "10.255.0.1") for node in target_routers}
+    vip_owners_before = {node: _vlan10_addresses(node) for node in target_routers}
+    gateway_route_before = _route(test_edge, "10.10.10.1")
+    probe_processes = {
+        node: _start_icmp_probe(probe_container, address, count=80)
+        for node, address in probe_targets.items()
+    }
+    time.sleep(0.4)
     table = "ospf130_" + uuid.uuid4().hex[:8]
     container = f"clab-netlab-phase-1-{test_edge}"
-    _exec(container, "nft", "add", "table", "inet", table)
     try:
+        _exec(container, "nft", "add", "table", "inet", table)
         _exec(container, "nft", "add", "chain", "inet", table, "input", "{", "type", "filter", "hook", "input", "priority", "-5", ";", "policy", "accept", ";", "}")
         _exec(container, "nft", "add", "chain", "inet", table, "output", "{", "type", "filter", "hook", "output", "priority", "-5", ";", "policy", "accept", ";", "}")
         _exec(container, "nft", "add", "rule", "inet", table, "input", "iifname", test_interface, "udp", "dport", "3784", "drop")
@@ -186,10 +239,50 @@ def run() -> dict[str, object]:
         detection = _wait(lambda: "Full" not in _neighbors(test_edge).get(test_peer, ""), timeout=3.0)
         alternate = _route(test_edge, "10.10.10.0/24")
         assert "10.10.252.3, via eth2" in alternate, f"surviving VLAN route lacks alternate dist adjacency: {alternate}"
+        target_routes_during = {node: _route(node, "10.255.0.1") for node in target_routers}
+        vip_owners_during = {node: _vlan10_addresses(node) for node in target_routers}
+        gateway_route_during = _route(test_edge, "10.10.10.1")
     finally:
         _exec(container, "nft", "delete", "table", "inet", table, check=False)
 
     recovery = _wait(lambda: "Full" in _neighbors(test_edge).get(test_peer, ""), timeout=10.0)
+    route_recovery_after_edge_full = _wait(
+        lambda: all(
+            "10.255.0.0/31" in _route(node, "10.255.0.1")
+            for node in target_routers
+        ),
+        timeout=30.0,
+    )
+    target_route_recovery = recovery + route_recovery_after_edge_full
+    target_routes_after = {node: _route(node, "10.255.0.1") for node in target_routers}
+    vip_owners_after = {node: _vlan10_addresses(node) for node in target_routers}
+    gateway_route_after = _route(test_edge, "10.10.10.1")
+    probe_streams: dict[str, dict[str, object]] = {}
+    try:
+        for node, process in probe_processes.items():
+            probe_stdout, probe_stderr = process.communicate(timeout=25)
+            assert process.returncode == 0, f"{node} continuity probe failed: {probe_stderr.strip() or probe_stdout.strip()}"
+            probe_streams[node] = json.loads(probe_stdout)
+    except (AssertionError, subprocess.TimeoutExpired):
+        for process in probe_processes.values():
+            if process.poll() is None:
+                process.kill()
+                process.communicate()
+        raise
+    for stream in probe_streams.values():
+        stream.pop("reply_timestamps", None)
+    surviving_path_streams = {
+        name: probe_streams[name] for name in ("hq-dist-2", "hq-active-vip")
+    }
+    packet_interruptions = {
+        name: max(0.0, stream["max_reply_gap_seconds"] - stream["interval_seconds"])
+        for name, stream in surviving_path_streams.items()
+    }
+    packet_continuity_passed = all(
+        stream["received"] == stream["sent"] and packet_interruptions[name] <= 3.0
+        for name, stream in surviving_path_streams.items()
+    )
+    packet_interruption = max(packet_interruptions.values())
     _assert_summary("hq-edge-1", "br1")
     _assert_summary("br1-edge-1", "hq")
     return {
@@ -208,6 +301,23 @@ def run() -> dict[str, object]:
             "failure_detection_seconds": round(detection, 3),
             "alternate_site_vlan_route": alternate.strip(),
             "recovery_seconds": round(recovery, 3),
+            "continuity_probe_source": probe_node,
+            "continuity_probe_targets": probe_targets,
+            "continuity_probe_baselines": probe_baselines,
+            "continuity_probe_streams": probe_streams,
+            "surviving_path_packet_interruptions_seconds": packet_interruptions,
+            "target_return_routes_before": target_routes_before,
+            "target_return_routes_during": target_routes_during,
+            "target_return_routes_after": target_routes_after,
+            "hq_gateway_forward_routes_before": gateway_route_before,
+            "hq_gateway_forward_routes_during": gateway_route_during,
+            "hq_gateway_forward_routes_after": gateway_route_after,
+            "hq_vlan10_addresses_before": vip_owners_before,
+            "hq_vlan10_addresses_during": vip_owners_during,
+            "hq_vlan10_addresses_after": vip_owners_after,
+            "target_route_recovery_seconds_after_bfd_unblock": round(target_route_recovery, 3),
+            "estimated_packet_interruption_seconds": round(packet_interruption, 3),
+            "packet_continuity_threshold_passed": packet_continuity_passed,
         },
     }
 
@@ -222,7 +332,7 @@ def main() -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(serialized + "\n", encoding="utf-8")
     print(serialized)
-    return 0
+    return 0 if result["bfd_test"]["packet_continuity_threshold_passed"] else 1
 
 
 if __name__ == "__main__":
