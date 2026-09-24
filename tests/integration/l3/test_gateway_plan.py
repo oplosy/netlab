@@ -69,7 +69,9 @@ def test_dhcp_relay_hook_exposes_vlan_and_inventory_service_target() -> None:
     assert len(hooks) == 16
     assert all(hook["interface"].startswith("vlan") for hook in hooks)
     assert len({hook["node"] for hook in hooks}) == 4
-    assert all(hook["server"] is None and hook["enabled"] is False for hook in hooks)
+    servers = {"hq": "10.10.20.10", "br1": "10.20.20.10"}
+    assert all(hook["server"] == servers[hook["site"]] for hook in hooks)
+    assert all(hook["enabled"] is True for hook in hooks)
 
 
 def test_guest_forwarding_blocks_enterprise_and_oob_destinations() -> None:
@@ -84,7 +86,17 @@ def test_guest_forwarding_blocks_enterprise_and_oob_destinations() -> None:
 
 def test_changed_dhcp_service_address_is_used_without_hardcoding() -> None:
     data = load_inventory(ROOT / "inventory" / "inventory.yaml")
+    baseline = build_plan(data)
+    baseline_servers = {hook["site"]: hook["server"] for hook in baseline["dhcp_relay_hooks"]}
     dhcp = next(node for node in data["nodes"] if node.get("service") == "dhcp")
     dhcp["service_address"] = "203.0.113.12/32"
     plan = build_plan(data)
-    assert {hook["server"] for hook in plan["dhcp_relay_hooks"]} == {"203.0.113.12"}
+    target_site = dhcp["site"]
+    assert {
+        hook["server"] for hook in plan["dhcp_relay_hooks"] if hook["site"] == target_site
+    } == {"203.0.113.12"}
+    assert len([hook for hook in plan["dhcp_relay_hooks"] if hook["site"] == target_site]) == 8
+    assert all(
+        hook["server"] == ("203.0.113.12" if hook["site"] == target_site else baseline_servers[hook["site"]])
+        for hook in plan["dhcp_relay_hooks"]
+    )
