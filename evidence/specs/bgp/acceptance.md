@@ -49,6 +49,26 @@ accept only the exact default and advertise only their own loopback endpoint
 `/32`. The connected loopback route is the BGP network's source route; no
 discard route is used for an endpoint that must terminate IPsec.
 
+### OOB default route regression
+
+Containerlab installs a management default through `eth0`. The BGP apply step
+removes only default routes on `eth0` before applying FRR policy, preserving
+the connected OOB management subnet. This allows the eBGP-learned default over
+`eth3` to become the selected route for remote public endpoints.
+
+Live verification on 2026-09-24, after applying the change to the running
+Phase 1 lab:
+
+```text
+HQ: 203.0.113.130 via 192.0.2.1 dev eth3 src 192.0.2.0
+BR1: 203.0.113.129 via 192.0.2.3 dev eth3 src 192.0.2.2
+```
+
+Both site edges selected their ISP peer over the data-plane WAN interface.
+The live BGP acceptance function passed, including rejection and cleanup of
+unauthorized route injections. Static pytest result: 3 passed, 1 skipped;
+`bash -n automation/roles/bgp/apply.sh` passed.
+
 ## Integration boundary
 
 The current inventory gives `svc-dns-1` and `svc-ntp-1` service addresses
