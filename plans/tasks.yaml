@@ -375,6 +375,8 @@ tasks:
       - lab/**
       - schemas/**
       - scripts/images/**
+      - scripts/validate/**
+      - tests/unit/inventory/**
       - versions.env
     deliverables:
       - "Kea DHCP, BIND 9, chrony, and FreeRADIUS"
