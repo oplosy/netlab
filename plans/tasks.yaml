@@ -374,10 +374,13 @@ tasks:
       - config/gateway/**
       - docs/runbooks/images.md
       - evidence/specs/services/**
+      - mk/services.mk
       - images/network-node/**
       - images/service/**
       - inventory/**
       - lab/**
+      - scripts/images/build.sh
+      - versions.env
       - schemas/**
       - scripts/images/**
       - scripts/validate/**
