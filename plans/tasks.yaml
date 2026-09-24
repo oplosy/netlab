@@ -200,13 +200,38 @@ tasks:
       - "make test-l2"
     commit: "feat(L2-110): implement resilient site switching"
 
+  - id: L2-111
+    phase: phase-1
+    title: Prove distribution peer VLAN adjacency
+    type: fix
+    status: planned
+    depends_on: [L2-110]
+    parallel_group: network-b
+    allowed_paths:
+      - config/switching/**
+      - tests/integration/l2/**
+      - evidence/specs/l2/**
+      - mk/l2.mk
+    deliverables:
+      - "Distribution peers exchange L2 traffic on every declared site VLAN"
+      - "A live peer-adjacency test waits for the intended RSTP state"
+      - "Failure output includes peer ARP and relevant RSTP port state"
+    acceptance:
+      - "Each distribution node resolves its peer SVI address on VLANs 10, 20, 30, and 99"
+      - "Peer adjacency remains available through the active RSTP path"
+      - "Guest VLAN isolation remains denied"
+    verify:
+      - "make test-l2"
+      - "make test-l2-peer"
+    commit: "fix(L2-111): prove distribution peer VLAN adjacency"
+
   - id: L3-120
     phase: phase-1
     title: Implement SVIs, VRRP, and routed edge links
     type: feat
     status: planned
-    depends_on: [L2-110]
-    parallel_group: network-b
+    depends_on: [L2-110, L2-111]
+    parallel_group: network-c
     allowed_paths:
       - config/gateway/**
       - automation/roles/gateway/**
