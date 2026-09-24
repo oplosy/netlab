@@ -8,6 +8,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 from config.ipsec.apply import _reported_xfrm_if_id, build_plan, load_inventory
+sys.path.insert(0, str(ROOT / "tests" / "integration" / "ipsec"))
+from traffic import build_echo_request
 
 
 def test_phase_one_xfrm_peers_are_derived_from_inventory() -> None:
@@ -61,3 +63,9 @@ def test_pki_generator_only_writes_runtime_paths() -> None:
     assert "chmod 0600" in script
     assert "umask 077" in script
     assert 'out "${PKI_DIR}/' in script
+def test_ping_socket_request_has_linux_icmp_echo_header() -> None:
+    packet = build_echo_request(7, b"payload")
+    assert packet[:2] == bytes((8, 0))
+    assert packet[2:4] == b"\x00\x00"
+    assert packet[4:8] == b"\x00\x00\x00\x07"
+    assert packet[8:] == b"payload"

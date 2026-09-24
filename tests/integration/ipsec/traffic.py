@@ -4,21 +4,30 @@
 from __future__ import annotations
 
 import argparse
-import errno
 import itertools
 import json
 import socket
+import struct
 import sys
 import time
+
+# Linux UAPI values from <linux/in.h>; Python 3.12 omits these constants.
+IP_MTU_DISCOVER = 10
+IP_PMTUDISC_DO = 2
 
 
 def _socket(interface: str, timeout: float) -> socket.socket:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_ICMP)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, interface.encode() + b"\0")
+    sock.setsockopt(socket.IPPROTO_IP, IP_MTU_DISCOVER, IP_PMTUDISC_DO)
     sock.settimeout(timeout)
-    # Linux ping datagram sockets reject IP_MTU_DISCOVER. The XFRM device MTU
-    # enforces the packet-size boundary directly when sendto() runs.
+    # XFRM interface MTU enforces the packet-size boundary.
     return sock
+
+
+def build_echo_request(sequence: int, payload: bytes) -> bytes:
+    """Build the ICMP header required by Linux ping datagram sockets."""
+    return struct.pack("!BBHHH", 8, 0, 0, 0, sequence) + payload
 
 
 def main() -> int:
@@ -44,19 +53,12 @@ def main() -> int:
         parser.error("invalid count, size, timeout, or interval")
 
     received: list[float] = []
-    denied_sends = 0
     sock = _socket(args.interface, args.timeout)
     try:
         for sequence in range(args.count):
             sent = time.monotonic()
             payload = f"netlab-ipsec:{sequence}".encode().ljust(args.size, b"x")
-            try:
-                sock.sendto(payload, (args.target, 0))
-            except OSError as exc:
-                if args.mode == "probe" and args.expect == "down" and exc.errno == errno.EINVAL:
-                    denied_sends += 1
-                    continue
-                raise
+            sock.sendto(build_echo_request(sequence + 1, payload), (args.target, 0))
             try:
                 sock.recvfrom(65535)
                 received.append(time.time())
@@ -77,7 +79,6 @@ def main() -> int:
         "received": len(received),
         "loss_percent": round(100 * (args.count - len(received)) / args.count, 2),
         "max_gap_seconds": round(max(gaps, default=0.0), 3),
-        "send_denied": denied_sends,
         "reply_timestamps": received,
     }
     print(json.dumps(result))
