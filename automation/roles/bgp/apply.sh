@@ -35,6 +35,16 @@ for node in hq-edge-1 br1-edge-1 isp1-core-1; do
       # FRR reload starts newly enabled daemons without restarting running ones.
       /usr/lib/frr/frrinit.sh reload
     fi
+    # eth0 is OOB management only. Drop its injected default route while
+    # preserving the connected management subnet; the imported ISP default
+    # must be the only default used by the data plane.
+    while ip route show default dev eth0 | grep -q .; do
+      ip route del default dev eth0
+    done
+    if ip route show default dev eth0 | grep -q .; then
+      echo "OOB management default route remains installed" >&2
+      exit 1
+    fi
     grep -qx "bgpd=yes" "$daemons"
     pgrep -x bgpd >/dev/null
   '

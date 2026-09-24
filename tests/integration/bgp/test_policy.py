@@ -95,6 +95,7 @@ def test_apply_enables_bgpd_and_reloads_only_when_needed() -> None:
     assert "if ! pgrep -x bgpd" in script
     assert "/usr/lib/frr/frrinit.sh reload" in script
     assert "vtysh -f /tmp/netlab-bgp.conf" in script
+    assert "ip route del default dev eth0" in script
 
 
 def _vtysh(node_id: str, *commands: str, check: bool = True) -> str:
@@ -123,6 +124,17 @@ def _prefixes(node_id: str, peer: str | None = None) -> set[str]:
     output = _vtysh(node_id, command)
     prefix_pattern = r"^\s*[A-Za-z*>=]{1,3}\s+(\d{1,3}(?:\.\d{1,3}){3}/\d{1,2})\s"
     return set(re.findall(prefix_pattern, output, re.MULTILINE))
+
+
+def _route_get(node_id: str, target: str) -> str:
+    container = f"clab-netlab-phase-1-{node_id}"
+    result = subprocess.run(
+        ["docker", "exec", container, "ip", "route", "get", target],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
 
 
 @pytest.mark.skipif(
@@ -155,6 +167,12 @@ def test_live_sessions_policy_and_rejection_of_injected_routes() -> None:
                 time.sleep(0.5)
             assert _prefixes(node_id, peer) == {"0.0.0.0/0"}, (
                 f"{node_id} imported a non-default route"
+            )
+            remote_site_id = "br1" if site_id == "hq" else "hq"
+            remote_endpoint = sites[remote_site_id]["public_endpoint"].split("/")[0]
+            route = _route_get(node_id, remote_endpoint)
+            assert f"via {peer} dev eth3" in route, (
+                f"{node_id} routes the IKE peer over OOB instead of ISP eth3: {route}"
             )
             injected_sites.append((site_id, node_id, peer))
             _vtysh(
