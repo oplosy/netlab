@@ -45,6 +45,24 @@ def test_vrrp_master_preference_matches_rstp_distribution_root() -> None:
         assert "advert_int 1" in node["keepalived_config"]
 
 
+def test_vrrp_tracks_inventory_derived_remote_ospf_summary() -> None:
+    plan = _plan()
+    expected = {"hq": "10.20.0.0/16", "br1": "10.10.0.0/16"}
+    checker = (ROOT / "config" / "gateway" / "check_ospf_route.sh").read_text(encoding="utf-8")
+    assert 'ip -4 route show exact "$1"' in checker
+    assert "proto ospf" in checker
+    for node in plan["nodes"]:
+        remote = expected[node["site"]]
+        config = node["keepalived_config"]
+        assert node["remote_aggregate"] == remote
+        assert "enable_script_security" in config
+        assert "script_user root" in config
+        assert f"script \"/usr/local/sbin/netlab-check-ospf-route {remote}\"" in config
+        assert "  interval 1\n  timeout 1\n  fall 1\n  rise 2\n  weight -60" in config
+        assert config.count("    chk_remote_ospf_route") == 4
+        assert config.count("  track_script {") == 4
+
+
 def test_dhcp_relay_hook_exposes_vlan_and_inventory_service_target() -> None:
     plan = _plan()
     hooks = plan["dhcp_relay_hooks"]

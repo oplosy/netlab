@@ -41,10 +41,29 @@ def _physical_interfaces(data: dict[str, Any]) -> dict[tuple[str, str], str]:
     return result
 
 
-def _keepalived_config(node: dict[str, Any], gateways: list[dict[str, Any]]) -> str:
+def _keepalived_config(
+    node: dict[str, Any], gateways: list[dict[str, Any]], remote_aggregate: str
+) -> str:
     site = node["site"].upper()
     suffix = node["id"].rsplit("-", 1)[-1]
-    lines = ["! Generated from inventory; do not edit.", "global_defs {", f"  router_id {site}_{suffix}", "}", ""]
+    lines = [
+        "! Generated from inventory; do not edit.",
+        "global_defs {",
+        f"  router_id {site}_{suffix}",
+        "  enable_script_security",
+        "  script_user root",
+        "}",
+        "",
+        "vrrp_script chk_remote_ospf_route {",
+        f"  script \"/usr/local/sbin/netlab-check-ospf-route {remote_aggregate}\"",
+        "  interval 1",
+        "  timeout 1",
+        "  fall 1",
+        "  rise 2",
+        "  weight -60",
+        "}",
+        "",
+    ]
     for gateway in gateways:
         lines.extend([
             f"vrrp_instance VI_{gateway['vlan_id']} {{",
@@ -62,6 +81,9 @@ def _keepalived_config(node: dict[str, Any], gateways: list[dict[str, Any]]) -> 
             "  garp_master_repeat 3",
             "  virtual_ipaddress {",
             f"    {gateway['virtual_ip']} dev {gateway['interface']}",
+            "  }",
+            "  track_script {",
+            "    chk_remote_ospf_route",
             "  }",
             "}",
             "",
@@ -144,6 +166,8 @@ def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]
     )
     for node in dist_nodes:
         site_id = node["site"]
+        remote_site = next(site for site in data["sites"] if site["id"] != site_id)
+        remote_aggregate = str(ipaddress.ip_network(remote_site["aggregate"]))
         site_vlans = sorted(vlans_by_site.get(site_id, []), key=lambda vlan: int(vlan["vlan_id"]))
         nftables_config = _nftables_config(blocked_destinations, site_vlans)
         if len(site_vlans) != 4:
@@ -213,7 +237,8 @@ def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]
             "container": f"clab-{lab_name}-{node['id']}",
             "routed_interfaces": routed,
             "gateways": gateways,
-            "keepalived_config": _keepalived_config(node, gateways),
+            "remote_aggregate": remote_aggregate,
+            "keepalived_config": _keepalived_config(node, gateways, remote_aggregate),
             "nftables_config": nftables_config,
         })
 
@@ -306,6 +331,17 @@ def _prepare_node(item: dict[str, Any], relay_hooks: list[dict[str, Any]], docke
     if table.returncode == 0:
         _exec(docker, container, "nft", "delete", "table", "inet", "netlab_gateway")
     _exec(docker, container, "nft", "-f", "/tmp/netlab-gateway.nft")
+    checker = ROOT / "config" / "gateway" / "check_ospf_route.sh"
+    _copy_text(docker, container, "/tmp/netlab-check-ospf-route", checker.read_text(encoding="utf-8"))
+    same_checker = _exec(
+        docker, container, "cmp", "-s", "/tmp/netlab-check-ospf-route",
+        "/usr/local/sbin/netlab-check-ospf-route", check=False,
+    ).returncode == 0
+    if not same_checker:
+        _exec(
+            docker, container, "install", "-D", "-m", "0755",
+            "/tmp/netlab-check-ospf-route", "/usr/local/sbin/netlab-check-ospf-route",
+        )
     _copy_text(docker, container, "/tmp/keepalived.conf", item["keepalived_config"])
     same_config = _exec(
         docker, container, "cmp", "-s", "/tmp/keepalived.conf", "/etc/keepalived/keepalived.conf", check=False
