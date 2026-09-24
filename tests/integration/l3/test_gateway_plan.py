@@ -21,6 +21,7 @@ def test_every_distribution_gets_all_vips_and_inventory_addresses() -> None:
         assert len(node["routed_interfaces"]) == 1
         assert node["routed_interfaces"][0]["interface"] == "eth1"
         for gateway in node["gateways"]:
+            assert gateway["ovs_port"] == f"svi{gateway['vlan_id']}"
             if node["node"].endswith("dist-1"):
                 assert gateway["address"].endswith(".2/24")
             else:

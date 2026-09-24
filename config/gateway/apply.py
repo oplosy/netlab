@@ -173,6 +173,7 @@ def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]
                 raise ValueError(f"VLAN {vlan['id']} gateway conflicts with a distribution address")
             entry = {
                 "interface": interface,
+                "ovs_port": f"svi{int(vlan['vlan_id'])}",
                 "vlan_id": int(vlan["vlan_id"]),
                 "address": str(svi),
                 "virtual_ip": f"{gateway_ip}/{svi.network.prefixlen}",
@@ -222,7 +223,7 @@ def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]
 
 
 def _exec(docker: str, container: str, *argv: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run([docker, "exec", container, *argv], text=True, capture_output=True)
+    result = subprocess.run([docker, "exec", container, *argv], text=True, capture_output=True, check=False)
     if check and result.returncode:
         detail = result.stderr.strip() or result.stdout.strip()
         raise RuntimeError(f"{container} {' '.join(argv)}: {detail}")
@@ -239,6 +240,51 @@ def _copy_text(docker: str, container: str, destination: str, content: str) -> N
         source.unlink(missing_ok=True)
 
 
+def _prepare_svi(docker: str, container: str, gateway: dict[str, Any]) -> None:
+    interface = gateway["interface"]
+    ovs_port = gateway["ovs_port"]
+
+    # Migrate the previous OVS internal SVI once. Internal Ports do not work
+    # with RSTP, so use a veth system Port as an RSTP edge and keep the Linux
+    # endpoint as the SVI that owns its address and VRRP instance.
+    old_type = _exec(
+        docker, container, "ovs-vsctl", "--if-exists", "get", "Interface", interface, "type", check=False
+    )
+    if old_type.returncode == 0 and old_type.stdout.strip().strip('"') == "internal":
+        _exec(docker, container, "ovs-vsctl", "--if-exists", "del-port", BRIDGE, interface)
+        _exec(docker, container, "ip", "link", "del", "dev", interface, check=False)
+
+    linux = _exec(docker, container, "ip", "link", "show", "dev", interface, check=False)
+    ovs_link = _exec(docker, container, "ip", "link", "show", "dev", ovs_port, check=False)
+    if bool(linux.returncode == 0) != bool(ovs_link.returncode == 0):
+        raise ValueError(f"{container} SVI veth pair {ovs_port}<->{interface} is incomplete")
+    if linux.returncode != 0:
+        _exec(
+            docker, container, "ip", "link", "add", ovs_port,
+            "type", "veth", "peer", "name", interface,
+        )
+    else:
+        ovs_ifindex = _exec(docker, container, "cat", f"/sys/class/net/{ovs_port}/ifindex").stdout.strip()
+        ovs_peer = _exec(docker, container, "cat", f"/sys/class/net/{ovs_port}/iflink").stdout.strip()
+        linux_ifindex = _exec(docker, container, "cat", f"/sys/class/net/{interface}/ifindex").stdout.strip()
+        linux_peer = _exec(docker, container, "cat", f"/sys/class/net/{interface}/iflink").stdout.strip()
+        if ovs_peer != linux_ifindex or linux_peer != ovs_ifindex:
+            raise ValueError(f"{container} SVI interfaces {ovs_port} and {interface} are not a veth pair")
+
+    _exec(
+        docker,
+        container,
+        "ovs-vsctl", "--may-exist", "add-port", BRIDGE, ovs_port,
+        "--", "set", "Port", ovs_port,
+        "vlan_mode=access", f"tag={gateway['vlan_id']}",
+        "other_config:rstp-enable=true",
+        "other_config:rstp-port-admin-edge=true",
+    )
+    _exec(docker, container, "ip", "link", "set", "dev", ovs_port, "up")
+    _exec(docker, container, "ip", "link", "set", "dev", interface, "up")
+    _exec(docker, container, "ip", "address", "replace", gateway["address"], "dev", interface)
+
+
 def _prepare_node(item: dict[str, Any], relay_hooks: list[dict[str, Any]], docker: str) -> None:
     container = item["container"]
     for routed in item["routed_interfaces"]:
@@ -252,15 +298,7 @@ def _prepare_node(item: dict[str, Any], relay_hooks: list[dict[str, Any]], docke
         _exec(docker, container, "ip", "address", "replace", routed["address"], "dev", interface)
     _exec(docker, container, "sysctl", "-w", "net.ipv4.ip_forward=1")
     for gateway in item["gateways"]:
-        interface = gateway["interface"]
-        _exec(
-            docker, container, "ovs-vsctl", "--may-exist", "add-port", BRIDGE, interface,
-            "--", "set", "Interface", interface, "type=internal",
-            "--", "set", "Port", interface, f"tag={gateway['vlan_id']}",
-            "other_config:rstp-port-admin-edge=true",
-        )
-        _exec(docker, container, "ip", "link", "set", "dev", interface, "up")
-        _exec(docker, container, "ip", "address", "replace", gateway["address"], "dev", interface)
+        _prepare_svi(docker, container, gateway)
     hooks = [hook for hook in relay_hooks if hook["node"] == item["node"]]
     _copy_text(docker, container, "/run/netlab/dhcp-relay-hooks.json", json.dumps(hooks, indent=2) + "\n")
     _copy_text(docker, container, "/tmp/netlab-gateway.nft", item["nftables_config"])

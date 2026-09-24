@@ -20,7 +20,7 @@ from config.gateway.apply import LAB_NAME, build_plan, load_inventory
 def _exec(
     docker: str, container: str, *argv: str, check: bool = True
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run([docker, "exec", container, *argv], text=True, capture_output=True)
+    result = subprocess.run([docker, "exec", container, *argv], text=True, capture_output=True, check=False)
     if check and result.returncode:
         detail = result.stderr.strip() or result.stdout.strip()
         raise RuntimeError(f"{container} {' '.join(argv)} failed: {detail}")
@@ -142,11 +142,6 @@ def _check_routed_links(docker: str, plan: dict[str, Any], data: dict[str, Any])
             if endpoint["node"] != item["node"]
         )
         peer_node = nodes[peer_endpoint["node"]]
-        peer_interface = next(
-            interface
-            for interface in peer_node["interfaces"]
-            if interface["name"] == peer_endpoint["interface"]
-        )
         physical_kinds = {"routed", "ebgp", "l2", "access"}
         peer_index = 1
         for interface in peer_node["interfaces"]:
@@ -183,7 +178,6 @@ def verify_site(docker: str, site_id: str, data: dict[str, Any], plan: dict[str,
     vip = user_vlan["gateway"]
 
     tracked: list[tuple[str, str, list[str]]] = []
-    primary_stopped = False
     try:
         for node, address, gateway in (
             (users, user_address, user_vlan["gateway"]),
@@ -211,7 +205,6 @@ def verify_site(docker: str, site_id: str, data: dict[str, Any], plan: dict[str,
         print(f"{site_id} user client uses VRRP VIP {vip} and reaches the server VLAN")
 
         _exec(docker, primary["container"], "pkill", "-TERM", "-o", "-x", "keepalived")
-        primary_stopped = True
         _wait_vip_owner(docker, primary, backup, primary)
         for container, _, _ in tracked:
             _exec(docker, container, "ip", "neigh", "flush", "dev", "eth1", check=False)

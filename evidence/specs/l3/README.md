@@ -11,8 +11,10 @@ Phase 1 topology and apply the inventory-derived gateway configuration:
     make lab-down
 
 The apply configures each distribution-to-edge /31 on its distribution-side
-interface, enables IPv4 forwarding, creates one internal OVS access port for
-each declared SVI, and assigns the distribution address. Keepalived advertises
+interface, enables IPv4 forwarding, creates an OVS system access port and a
+Linux veth peer for each declared SVI, and assigns the distribution address to
+the Linux endpoint. OVS enables RSTP on the system port and marks it as an edge
+port. Keepalived advertises
 the inventory .1 address on each VLAN. Distribution 1 is preferred at priority
 150, matching its RSTP root preference; distribution 2 uses priority 100. VRRP
 advertisements use the other distribution SVI address as an explicit unicast peer.
@@ -48,6 +50,22 @@ packets. The exact OVS forwarding cause is still open. The live VIP-to-server
 positive check and failover check were not reached, and HQ has not been
 measured.
 
-Do not mark L3-120 complete or integrate it until peer adjacency resolves,
-preferred VRRP ownership is exclusive, failover passes, and guest-to-user
-traffic is denied live at both sites.
+The live failure was caused by OVS internal SVI ports, which do not participate
+in RSTP and therefore could not forward unicast VRRP advertisements between
+distribution nodes. The implementation now migrates those ports to RSTP edge
+system ports backed by Linux veth peers.
+
+## Latest live run: 2026-09-24, after SVI migration
+
+Static plan tests pass (5 tests), Ruff passes, and applying gateway policy twice
+converges on all four distribution nodes. Both sites pass the live acceptance:
+the four routed /31 links are selected by their route tables; user clients
+reach both distribution SVI addresses and the server VLAN through the `.1`
+VRRP VIP; distribution 2 takes all four VIPs and forwards traffic after
+distribution 1 is stopped; and guest VLAN 30 to user VLAN 10 is denied with
+100% packet loss. The lab was destroyed and `make verify-clean` reported no
+phase-1 containers or `netlab-mgmt` network.
+
+DHCP relay remains untested because the inventory has no `svc-dhcp-1`
+`service_address` and the topology has no runtime relay agent. No DHCP lease
+acceptance is claimed.
