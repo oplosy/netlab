@@ -367,9 +367,15 @@ tasks:
       - tests/integration/services/**
       - automation/roles/gateway/**
       - config/gateway/**
+      - docs/runbooks/images.md
       - evidence/specs/services/**
+      - images/network-node/**
+      - images/service/**
       - inventory/**
       - lab/**
+      - schemas/**
+      - scripts/images/**
+      - versions.env
     deliverables:
       - "Kea DHCP, BIND 9, chrony, and FreeRADIUS"
       - "Site/VLAN-specific leases and internal zones"
