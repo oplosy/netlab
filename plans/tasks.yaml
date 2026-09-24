@@ -304,6 +304,30 @@ tasks:
       - "make test-ospf"
     commit: "feat(OSPF-130): add multi-area enterprise routing"
 
+  - id: OSPF-131
+    phase: phase-1
+    title: Stabilize BFD-triggered gateway failover within three seconds
+    type: fix
+    status: planned
+    depends_on: [OSPF-130, L3-120]
+    parallel_group: runtime-exclusive
+    runtime_lock: lab
+    allowed_paths:
+      - config/gateway/**
+      - automation/roles/gateway/**
+      - tests/integration/ospf/**
+      - evidence/specs/ospf/**
+    deliverables:
+      - "Measured BFD route and VRRP gateway failover within the existing three-second acceptance limit"
+      - "Repeatable live evidence showing VIP traffic does not exceed the interruption limit"
+    acceptance:
+      - "HQ routed-link loss restores VIP traffic within three seconds"
+      - "At least three consecutive live measurements meet the limit"
+      - "Existing passive-interface, summary, BFD, and default-origination checks remain green"
+    verify:
+      - "make test-ospf"
+    commit: "fix(OSPF-131): stabilize BFD gateway failover"
+
   - id: WAN-140
     phase: phase-1
     title: Implement ISP simulation and eBGP policy
@@ -459,7 +483,7 @@ tasks:
     title: Build the end-to-end evidence suite
     type: test
     status: planned
-    depends_on: [OSPF-130, VPN-150, SEC-170, OBS-180]
+    depends_on: [OSPF-130, OSPF-131, VPN-150, SEC-170, OBS-180]
     parallel_group: runtime-exclusive
     runtime_lock: lab
     allowed_paths:
