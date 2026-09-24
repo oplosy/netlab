@@ -61,6 +61,17 @@ def _vlan10_addresses(node: str) -> str:
     return _exec(container, "ip", "-4", "addr", "show", "dev", "vlan10")
 
 
+def _kernel_has_ospf_route(node: str, prefix: str) -> bool:
+    container = f"clab-netlab-phase-1-{node}"
+    output = _exec(container, "ip", "-4", "route", "show", "exact", prefix)
+    return any(re.search(r"\bproto\s+ospf\b", line) for line in output.splitlines())
+
+
+def _vip_owners(addresses: dict[str, str], vip: str) -> list[str]:
+    pattern = re.compile(rf"\binet {re.escape(vip)}/\d+\b")
+    return sorted(node for node, output in addresses.items() if pattern.search(output))
+
+
 def _bfd_up(node: str, expected: set[str]) -> bool:
     output = _vtysh(node, "show bfd peers")
     blocks = re.split(r"\n\s*peer ", output)
@@ -92,6 +103,15 @@ def _wait(predicate, timeout: float, interval: float = 0.1) -> float:
             return time.monotonic() - started
         time.sleep(interval)
     raise TimeoutError(f"condition did not converge within {timeout:.1f} seconds")
+
+
+def _wait_optional(predicate, timeout: float, interval: float = 0.1) -> float | None:
+    started = time.monotonic()
+    while time.monotonic() - started < timeout:
+        if predicate():
+            return time.monotonic() - started
+        time.sleep(interval)
+    return None
 
 
 def _icmp_probe(container: str, target: str, *, count: int) -> dict[str, object]:
@@ -239,12 +259,19 @@ def run() -> dict[str, object]:
         detection = _wait(lambda: "Full" not in _neighbors(test_edge).get(test_peer, ""), timeout=3.0)
         alternate = _route(test_edge, "10.10.10.0/24")
         assert "10.10.252.3, via eth2" in alternate, f"surviving VLAN route lacks alternate dist adjacency: {alternate}"
+        vip_takeover = _wait_optional(
+            lambda: _vip_owners(
+                {node: _vlan10_addresses(node) for node in target_routers}, "10.10.10.1"
+            ) == ["hq-dist-2"],
+            timeout=5.0,
+        )
         target_routes_during = {node: _route(node, "10.255.0.1") for node in target_routers}
         vip_owners_during = {node: _vlan10_addresses(node) for node in target_routers}
         gateway_route_during = _route(test_edge, "10.10.10.1")
     finally:
         _exec(container, "nft", "delete", "table", "inet", table, check=False)
 
+    fault_cleared_at = time.monotonic()
     recovery = _wait(lambda: "Full" in _neighbors(test_edge).get(test_peer, ""), timeout=10.0)
     route_recovery_after_edge_full = _wait(
         lambda: all(
@@ -269,6 +296,15 @@ def run() -> dict[str, object]:
                 process.kill()
                 process.communicate()
         raise
+    preferred_vip_return = _wait_optional(
+        lambda: _kernel_has_ospf_route("hq-dist-1", "10.20.0.0/16")
+        and _vip_owners(
+            {node: _vlan10_addresses(node) for node in target_routers}, "10.10.10.1"
+        ) == ["hq-dist-1"],
+        timeout=20.0,
+    )
+    preferred_vip_returned_at = time.monotonic()
+    vip_owners_settled = {node: _vlan10_addresses(node) for node in target_routers}
     for stream in probe_streams.values():
         stream.pop("reply_timestamps", None)
     surviving_path_streams = {
@@ -278,10 +314,10 @@ def run() -> dict[str, object]:
         name: max(0.0, stream["max_reply_gap_seconds"] - stream["interval_seconds"])
         for name, stream in surviving_path_streams.items()
     }
-    packet_continuity_passed = all(
-        stream["received"] == stream["sent"] and packet_interruptions[name] <= 3.0
-        for name, stream in surviving_path_streams.items()
-    )
+    packet_continuity_passed = all(value <= 3.0 for value in packet_interruptions.values())
+    expected_vip_owner = "hq-dist-2"
+    vip_owner_during = _vip_owners(vip_owners_during, "10.10.10.1")
+    vip_failover_passed = vip_takeover is not None and vip_owner_during == [expected_vip_owner]
     packet_interruption = max(packet_interruptions.values())
     _assert_summary("hq-edge-1", "br1")
     _assert_summary("br1-edge-1", "hq")
@@ -315,9 +351,31 @@ def run() -> dict[str, object]:
             "hq_vlan10_addresses_before": vip_owners_before,
             "hq_vlan10_addresses_during": vip_owners_during,
             "hq_vlan10_addresses_after": vip_owners_after,
+            "hq_vlan10_addresses_settled": vip_owners_settled,
+            "hq_vlan10_vip_owners": {
+                "before": _vip_owners(vip_owners_before, "10.10.10.1"),
+                "during": vip_owner_during,
+                "after": _vip_owners(vip_owners_after, "10.10.10.1"),
+                "settled": _vip_owners(vip_owners_settled, "10.10.10.1"),
+            },
+            "preferred_vip_return_wait_after_probe_streams_seconds": (
+                round(preferred_vip_return, 3)
+                if preferred_vip_return is not None
+                else None
+            ),
+            "preferred_vip_return_seconds_after_bfd_unblock": (
+                round(preferred_vip_returned_at - fault_cleared_at, 3)
+                if preferred_vip_return is not None
+                else None
+            ),
+            "preferred_vip_returned_after_route_recovery": preferred_vip_return is not None,
+            "vip_takeover_seconds_after_bfd_detection": (
+                round(vip_takeover, 3) if vip_takeover is not None else None
+            ),
             "target_route_recovery_seconds_after_bfd_unblock": round(target_route_recovery, 3),
             "estimated_packet_interruption_seconds": round(packet_interruption, 3),
             "packet_continuity_threshold_passed": packet_continuity_passed,
+            "vrrp_failover_threshold_passed": vip_failover_passed,
         },
     }
 
@@ -332,7 +390,11 @@ def main() -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(serialized + "\n", encoding="utf-8")
     print(serialized)
-    return 0 if result["bfd_test"]["packet_continuity_threshold_passed"] else 1
+    accepted = (
+        result["bfd_test"]["packet_continuity_threshold_passed"]
+        and result["bfd_test"]["vrrp_failover_threshold_passed"]
+    )
+    return 0 if accepted else 1
 
 
 if __name__ == "__main__":

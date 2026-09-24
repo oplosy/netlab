@@ -55,35 +55,43 @@ This default-policy check is read-only.
 
 ## Runtime result
 
-The final live run on 2026-09-24 completed the area, summary, passive-interface,
-BGP-default-source, and BFD checks. It also exposed a gateway failover blocker;
-`evidence/specs/ospf/latest.json` records the failed packet-continuity result.
+Final live acceptance on 2026-09-24 verified the OSPF areas, summaries, passive
+interfaces, conditional BGP default origination, routed failover, and VRRP
+reaction to loss of the remote OSPF summary. `evidence/specs/ospf/latest.json`
+contains the full output, including route and VIP owner snapshots.
 
 - All expected OSPF neighbors and BFD peers were Up before fault injection.
   Area 0 carried the HQ and BR1 `/16` summaries, not VLAN `/24` LSAs. Remote
   `/16` routes, conditional OSPF defaults, and edge BGP defaults were present.
 - Dropping BFD control packets on HQ edge `eth1` removed its HQ dist-1
-  adjacency in `0.827s`. The HQ edge route to `10.10.10.0/24` moved to HQ
-  dist-2 on `eth2`.
-- During the fault, the HQ dist-2 SVI `10.10.10.3` answered `80/80` probes
-  with a maximum reply gap of `0.100s`. The active gateway VIP `10.10.10.1`
-  remained on HQ dist-1 before, during, and after the fault; its probe received
-  only `36/80` replies with an `11.120s` maximum gap (`11.020s` estimated
-  interruption). HQ dist-1's physical SVI `.2` had the same loss.
-- The dist-1 and dist-2 return routes to the BR1 tunnel address were present
-  before and after. Both return routes were confirmed restored `18.640s` after
-  BFD unblocking. The result does not meet the three-second user-traffic
-  interruption objective because the static VRRP master does not move the VIP
-  when its OSPF uplink adjacency fails.
-- The live Keepalived configuration has priorities `150` and `100` and no
-  upstream `track_interface` or `track_script`. A physical interface tracker
-  alone would not detect this BFD-only failure because `eth1` stays up.
+  adjacency in `0.841s`; the edge route to `10.10.10.0/24` moved to HQ dist-2
+  on `eth2`.
+- The exact OSPF route tracker lowered dist-1's effective VRRP priority from
+  `150` to `90`, below dist-2's `100`. The active VIP `10.10.10.1` moved from
+  dist-1 to dist-2 during the failure. Dist-2 SVI `10.10.10.3` replied to
+  `80/80` probes; the VIP replied to `71/80`. Its maximum reply gap was
+  `2.355s`, or `2.255s` estimated interruption, within the three-second goal.
+  The measured VIP takeover was `4.145s` after BFD detected the failure; this
+  is reported separately from the packet interruption, which is the acceptance
+  threshold.
+- The inactive dist-1 SVI `.2` lost replies while its remote path was
+  withdrawn. Dist-2 remained reachable and owned the gateway VIP during the
+  transition. HQ edge `eth1` stayed up throughout; the route tracker tests the
+  exact remote `/16` with OSPF protocol, so the OOB or site default cannot mask
+  loss of the summary.
+- The edge OSPF adjacency returned in `0.534s` after BFD unblocking. Both
+  distribution return routes were confirmed restored within `10.809s`. After
+  the packet streams completed, the collector waited for dist-1's exact remote
+  `10.20.0.0/16 proto ospf` route and preferred VIP ownership. The VIP returned
+  to dist-1 `16.392s` after BFD unblocking (`4.066s` after stream collection);
+  the final settled owner snapshot confirms dist-1. The wait is bounded at
+  `20s` and the return time is independent of the takeover and packet-gap
+  measurements.
 
-OSPF summaries, passive-interface behavior, conditional default origination,
-and BFD detection are verified. End-to-end gateway failover remains blocked on
-upstream-reachability tracking for VRRP, which belongs to the gateway/L3 task
-outside OSPF-130's allowed paths. No Docker, WSL, or host kernel settings were
-changed, and the temporary nftables test table was removed in cleanup.
+Keepalived's trusted checker is installed under `/usr/local/sbin` and tests
+`ip -4 route show exact <remote-site-/16>` for `proto ospf`. The test does not
+change Docker, WSL, or host kernel settings; its temporary nftables table is
+removed in a `finally` block.
 
 ## Integration target
 
