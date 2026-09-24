@@ -404,7 +404,7 @@ tasks:
     phase: phase-1
     title: Enforce segmentation, control-plane policy, and guest NAT
     type: feat
-    status: planned
+    status: complete
     depends_on: [OSPF-130, WAN-140, SVC-160]
     parallel_group: security-a
     allowed_paths:
