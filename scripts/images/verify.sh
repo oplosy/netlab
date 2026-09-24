@@ -61,6 +61,9 @@ grep -Fq 'netlab.component.frr="${FRR_VERSION}"' "${network_dockerfile}" && grep
 grep -Fq 'netlab.component.openvswitch="${OVS_VERSION}"' "${network_dockerfile}" && grep -Fq 'openvswitch-switch=${OVS_VERSION}' "${network_dockerfile}" && pass 'OVS package lock matches label' || fail 'OVS label/package lock mismatch'
 grep -Fq 'netlab.component.keepalived="${KEEPALIVED_VERSION}"' "${network_dockerfile}" && grep -Fq 'keepalived=${KEEPALIVED_VERSION}' "${network_dockerfile}" && pass 'Keepalived package lock matches label' || fail 'Keepalived label/package lock mismatch'
 grep -Fq 'netlab.component.strongswan="${STRONGSWAN_VERSION}"' "${network_dockerfile}" && grep -Eq '(^|[[:space:]])(charon-systemd|strongswan-swanctl)=\$\{STRONGSWAN_VERSION\}([[:space:]]|$)' "${network_dockerfile}" && pass 'strongSwan package lock matches label' || fail 'strongSwan label/package lock mismatch'
+grep -Fq 'libstrongswan-standard-plugins=${STRONGSWAN_VERSION}' "${network_dockerfile}" && pass 'standard plugin package is version-pinned' || fail 'standard plugin package is missing or unpinned'
+grep -Fq "dpkg-query -W -f='\${Version}' libstrongswan-standard-plugins" "${network_dockerfile}" && pass 'standard plugin version is checked during build' || fail 'standard plugin build-time version check missing'
+grep -Fq "printf 'strongswan-standard-plugins=%s\\n'" "${network_dockerfile}" && pass 'standard plugin version is recorded in component manifest' || fail 'standard plugin component evidence missing'
 grep -Fq 'netlab.component.nftables="${NFTABLES_VERSION}"' "${network_dockerfile}" && grep -Fq 'nftables=${NFTABLES_VERSION}' "${network_dockerfile}" && pass 'nftables package lock matches label' || fail 'nftables label/package lock mismatch'
 grep -Fq 'charon-systemd=${STRONGSWAN_VERSION}' "${network_dockerfile}" && pass 'charon-systemd is version-pinned' || fail 'charon-systemd package is not pinned'
 grep -Fq "dpkg-query -W -f='\${Version}' charon-systemd" "${network_dockerfile}" && pass 'component manifest records charon-systemd' || fail 'component manifest does not record charon-systemd'
@@ -81,6 +84,10 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   for image in "${NETLAB_NETWORK_IMAGE}" "${NETLAB_CLIENT_IMAGE}" "${NETLAB_SERVICE_IMAGE}"; do
     docker image inspect "${image}" >/dev/null 2>&1 && pass "runtime image exists: ${image}" || fail "runtime image missing: ${image}"
   done
+  docker run --rm --entrypoint sh "${NETLAB_NETWORK_IMAGE}" -ec \
+    'test -f /usr/lib/ipsec/plugins/libstrongswan-openssl.so && openssl ecparam -name secp384r1 -genkey -noout >/dev/null' \
+    && pass 'runtime image has the locked OpenSSL provider and ECP-384 support' \
+    || fail 'runtime OpenSSL provider/ECP-384 check failed'
   printf 'runtime verification completed against local Docker images\n'
 else
   printf '[BLOCKED] Docker CLI/daemon unavailable; runtime image inspection and clean-build comparison were not run.\n'
