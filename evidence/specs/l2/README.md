@@ -49,13 +49,18 @@ preserve full output as task evidence.
 
 ## Peer adjacency investigation: 2026-09-24
 
-The new BR1 live check fails on VLAN 10. Distribution 1 emits ARP requests,
-but its neighbor entry for distribution 2 remains `INCOMPLETE`. RSTP reports
-the distribution peer trunk as Forwarding on both ends (distribution 1 is
-Designated; distribution 2 is Root), and the trunk allows VLANs 10, 20, 30,
-and 99. OVS learns the distribution 1 probe MAC on distribution 2's peer
-trunk, but distribution 2's internal VLAN probe receives no packets. This
-locates the failure after the frame reaches distribution 2's bridge; the
-reason the bridge does not deliver it to the internal VLAN port remains open.
-The lab was torn down and `make verify-clean` passed. The existing L2 test
-suite and both-site peer adjacency are not accepted by this investigation.
+The first BR1 live attempt failed on VLAN 10. Distribution 1 emitted ARP
+requests, and OVS learned the source MAC on distribution 2's peer trunk, while
+the receiving probe showed zero packets. That attempt used an OVS `internal`
+port as its probe. The pinned Ubuntu Noble OVS schema says internal ports do
+not work with RSTP and are excluded from RSTP by default, so the failed probe
+did not prove a production peer-trunk defect.
+
+The probe now uses a veth pair: the OVS-facing end is a `system` Port in the
+declared access VLAN, with RSTP explicitly enabled and the edge flag set; the
+other end carries the temporary test address. The runner waits for both peer
+trunks and every probe Port to report RSTP Forwarding before it sends ARP. On
+failure it reports the probe interface counters, OVS Port state, RSTP state,
+port counters, and MAC table from both distribution nodes. The updated live
+acceptance has not yet been run. The lab was torn down and `make verify-clean`
+passed after the previous attempt.
