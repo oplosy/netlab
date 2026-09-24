@@ -301,8 +301,14 @@ def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) ->
             if endpoint_roles.count("access") != 1:
                 errors.append(f"access link {link_id} must have exactly one access-switch endpoint")
             non_access_roles = [role for role in endpoint_roles if role != "access"]
-            if len(non_access_roles) != 1 or non_access_roles[0] not in {"client", "server"}:
-                errors.append(f"access link {link_id} endpoint must have client or server role")
+            if len(non_access_roles) != 1 or non_access_roles[0] not in {"client", "server", "service"}:
+                errors.append(f"access link {link_id} endpoint must have client, server, or site service role")
+            elif non_access_roles[0] == "service":
+                service_node = next((node for node in valid_nodes if node.get("role") == "service"), None)
+                if service_node is None or service_node.get("service") not in {"dhcp", "dns", "ntp"}:
+                    errors.append(f"access link {link_id} may attach only a site DHCP, DNS, or NTP service")
+                elif vlan is not None and vlan.get("vlan_id") != 20:
+                    errors.append(f"site service {service_node['id']} must attach to the SERVERS VLAN")
 
     links_by_bundle: dict[str, list[dict[str, Any]]] = {bundle_id: [] for bundle_id in bundle_map}
     for link in links:
@@ -374,10 +380,33 @@ def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) ->
             count = len(access_links_by_node.get(node_id, []))
             if count != 1:
                 errors.append(f"endpoint node {node_id} must have exactly one access link, got {count}")
+        if node.get("role") == "service" and node.get("service") in {"dhcp", "dns", "ntp"}:
+            count = len(access_links_by_node.get(node_id, []))
+            if count != 1:
+                errors.append(f"site service node {node_id} must have exactly one SERVERS access link, got {count}")
+            value = node.get("service_address")
+            if value:
+                address = _parse_ip(value, f"node {node_id} service address", errors)
+                server_vlan = next((vlan for vlan in vlans if vlan.get("id") == f"{node.get('site')}-servers"), None)
+                network = _parse_network(server_vlan.get("prefix", ""), f"{node_id} SERVERS VLAN", errors) if server_vlan else None
+                if address is not None and network is not None and address not in network:
+                    errors.append(f"site service {node_id} must use its site's SERVERS subnet")
         if node.get("role") == "access":
             count = len(access_links_by_node.get(node_id, []))
-            if count != 3:
-                errors.append(f"access switch {node_id} must have exactly three endpoint access links, got {count}")
+            service_count = sum(
+                1 for link in links
+                if link.get("kind") == "access"
+                and any(endpoint.get("node") == node_id for endpoint in link.get("endpoints", []))
+                and any(
+                    (peer := node_map.get(endpoint.get("node"))) is not None
+                    and peer.get("role") == "service"
+                    and peer.get("site") == node.get("site")
+                    for endpoint in link.get("endpoints", [])
+                )
+            )
+            expected_count = 3 + service_count
+            if count != expected_count:
+                errors.append(f"access switch {node_id} must have three endpoint and {service_count} service access links, got {count}")
 
     # The site aggregates and VLAN records are duplicated intentionally across
     # the hierarchy, but their canonical prefix IDs must still resolve.

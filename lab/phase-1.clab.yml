@@ -55,7 +55,7 @@ topology:
       labels:
         netlab.inventory-node: hq-access-1
         netlab.inventory-role: access
-        netlab.interface-map: eth1=to_hq_dist_1_member_1,eth2=to_hq_dist_1_member_2,eth3=to_hq_dist_2_member_1,eth4=to_hq_dist_2_member_2,eth5=to_hq_client_users_1,eth6=to_hq_server_1,eth7=to_hq_client_guest_1
+        netlab.interface-map: eth1=to_hq_dist_1_member_1,eth2=to_hq_dist_1_member_2,eth3=to_hq_dist_2_member_1,eth4=to_hq_dist_2_member_2,eth5=to_hq_client_users_1,eth6=to_hq_server_1,eth7=to_hq_client_guest_1,eth8=to_svc_hq_dhcp_1,eth9=to_svc_hq_dns_1,eth10=to_svc_hq_ntp_1
       env:
         NETLAB_NODE_ROLE: access
         OVS_DATAPATH_MODE: kernel
@@ -127,7 +127,7 @@ topology:
       labels:
         netlab.inventory-node: br1-access-1
         netlab.inventory-role: access
-        netlab.interface-map: eth1=to_br1_dist_1_member_1,eth2=to_br1_dist_1_member_2,eth3=to_br1_dist_2_member_1,eth4=to_br1_dist_2_member_2,eth5=to_br1_client_users_1,eth6=to_br1_server_1,eth7=to_br1_client_guest_1
+        netlab.interface-map: eth1=to_br1_dist_1_member_1,eth2=to_br1_dist_1_member_2,eth3=to_br1_dist_2_member_1,eth4=to_br1_dist_2_member_2,eth5=to_br1_client_users_1,eth6=to_br1_server_1,eth7=to_br1_client_guest_1,eth8=to_svc_br1_dhcp_1,eth9=to_svc_br1_dns_1,eth10=to_svc_br1_ntp_1
       env:
         NETLAB_NODE_ROLE: access
         OVS_DATAPATH_MODE: kernel
@@ -163,7 +163,7 @@ topology:
       labels:
         netlab.inventory-node: isp1-core-1
         netlab.inventory-role: isp
-        netlab.interface-map: eth1=to_hq_edge_1,eth2=to_br1_edge_1
+        netlab.interface-map: eth1=to_hq_edge_1,eth2=to_br1_edge_1,eth3=to_isp1_dns_1,eth4=to_isp1_ntp_1
       env:
         NETLAB_NODE_ROLE: router
         OVS_DATAPATH_MODE: kernel
@@ -175,19 +175,9 @@ topology:
       labels:
         netlab.inventory-node: svc-dns-1
         netlab.inventory-role: service
-        netlab.interface-map: ''
+        netlab.interface-map: eth1=to_isp1_core_1
       env:
         NETLAB_SERVICE: dns
-    svc-dhcp-1:
-      kind: linux
-      image: netlab/service:0.1.0
-      mgmt-ipv4: 172.31.255.11
-      labels:
-        netlab.inventory-node: svc-dhcp-1
-        netlab.inventory-role: service
-        netlab.interface-map: ''
-      env:
-        NETLAB_SERVICE: dhcp
     svc-ntp-1:
       kind: linux
       image: netlab/service:0.1.0
@@ -195,7 +185,7 @@ topology:
       labels:
         netlab.inventory-node: svc-ntp-1
         netlab.inventory-role: service
-        netlab.interface-map: ''
+        netlab.interface-map: eth1=to_isp1_core_1
       env:
         NETLAB_SERVICE: ntp
     svc-aaa-1:
@@ -218,6 +208,66 @@ topology:
         netlab.interface-map: ''
       env:
         NETLAB_SERVICE: observability
+    svc-hq-dhcp-1:
+      kind: linux
+      image: netlab/service:0.1.0
+      mgmt-ipv4: 172.31.255.40
+      labels:
+        netlab.inventory-node: svc-hq-dhcp-1
+        netlab.inventory-role: service
+        netlab.interface-map: eth1=to_hq_access_1
+      env:
+        NETLAB_SERVICE: dhcp
+    svc-hq-dns-1:
+      kind: linux
+      image: netlab/service:0.1.0
+      mgmt-ipv4: 172.31.255.41
+      labels:
+        netlab.inventory-node: svc-hq-dns-1
+        netlab.inventory-role: service
+        netlab.interface-map: eth1=to_hq_access_1
+      env:
+        NETLAB_SERVICE: dns
+    svc-hq-ntp-1:
+      kind: linux
+      image: netlab/service:0.1.0
+      mgmt-ipv4: 172.31.255.42
+      labels:
+        netlab.inventory-node: svc-hq-ntp-1
+        netlab.inventory-role: service
+        netlab.interface-map: eth1=to_hq_access_1
+      env:
+        NETLAB_SERVICE: ntp
+    svc-br1-dhcp-1:
+      kind: linux
+      image: netlab/service:0.1.0
+      mgmt-ipv4: 172.31.255.60
+      labels:
+        netlab.inventory-node: svc-br1-dhcp-1
+        netlab.inventory-role: service
+        netlab.interface-map: eth1=to_br1_access_1
+      env:
+        NETLAB_SERVICE: dhcp
+    svc-br1-dns-1:
+      kind: linux
+      image: netlab/service:0.1.0
+      mgmt-ipv4: 172.31.255.61
+      labels:
+        netlab.inventory-node: svc-br1-dns-1
+        netlab.inventory-role: service
+        netlab.interface-map: eth1=to_br1_access_1
+      env:
+        NETLAB_SERVICE: dns
+    svc-br1-ntp-1:
+      kind: linux
+      image: netlab/service:0.1.0
+      mgmt-ipv4: 172.31.255.62
+      labels:
+        netlab.inventory-node: svc-br1-ntp-1
+        netlab.inventory-role: service
+        netlab.interface-map: eth1=to_br1_access_1
+      env:
+        NETLAB_SERVICE: ntp
   links:
   - type: veth
     endpoints:
@@ -483,3 +533,91 @@ topology:
       netlab.inventory-kind: access
       netlab.inventory-bundle: ''
       netlab.inventory-addresses: ''
+  - type: veth
+    endpoints:
+    - node: svc-hq-dhcp-1
+      interface: eth1
+    - node: hq-access-1
+      interface: eth8
+    labels:
+      netlab.inventory-link: svc-hq-dhcp-1-access
+      netlab.inventory-kind: access
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: ''
+  - type: veth
+    endpoints:
+    - node: svc-hq-dns-1
+      interface: eth1
+    - node: hq-access-1
+      interface: eth9
+    labels:
+      netlab.inventory-link: svc-hq-dns-1-access
+      netlab.inventory-kind: access
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: ''
+  - type: veth
+    endpoints:
+    - node: svc-hq-ntp-1
+      interface: eth1
+    - node: hq-access-1
+      interface: eth10
+    labels:
+      netlab.inventory-link: svc-hq-ntp-1-access
+      netlab.inventory-kind: access
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: ''
+  - type: veth
+    endpoints:
+    - node: svc-br1-dhcp-1
+      interface: eth1
+    - node: br1-access-1
+      interface: eth8
+    labels:
+      netlab.inventory-link: svc-br1-dhcp-1-access
+      netlab.inventory-kind: access
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: ''
+  - type: veth
+    endpoints:
+    - node: svc-br1-dns-1
+      interface: eth1
+    - node: br1-access-1
+      interface: eth9
+    labels:
+      netlab.inventory-link: svc-br1-dns-1-access
+      netlab.inventory-kind: access
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: ''
+  - type: veth
+    endpoints:
+    - node: svc-br1-ntp-1
+      interface: eth1
+    - node: br1-access-1
+      interface: eth10
+    labels:
+      netlab.inventory-link: svc-br1-ntp-1-access
+      netlab.inventory-kind: access
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: ''
+  - type: veth
+    endpoints:
+    - node: isp1-core-1
+      interface: eth3
+    - node: svc-dns-1
+      interface: eth1
+    labels:
+      netlab.inventory-link: isp1-service-dns
+      netlab.inventory-kind: routed
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: isp1-core-1:to_isp1_dns_1=203.0.113.8/31;svc-dns-1:to_isp1_core_1=203.0.113.9/31
+  - type: veth
+    endpoints:
+    - node: isp1-core-1
+      interface: eth4
+    - node: svc-ntp-1
+      interface: eth1
+    labels:
+      netlab.inventory-link: isp1-service-ntp
+      netlab.inventory-kind: routed
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: isp1-core-1:to_isp1_ntp_1=203.0.113.12/31;svc-ntp-1:to_isp1_core_1=203.0.113.13/31

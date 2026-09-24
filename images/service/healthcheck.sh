@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# IMG-020 source: service role health assertion.
+# IMG-020/SVC-160 source: service role health assertion.
 set -Eeuo pipefail
-SERVICE_PORT=${SERVICE_PORT:-8080}
-curl --fail --silent --show-error "http://127.0.0.1:${SERVICE_PORT}/health" >/dev/null
-printf 'healthy service port=%s\n' "${SERVICE_PORT}"
+[[ -f /run/netlab/services-configured ]] || { echo 'service config not applied' >&2; exit 1; }
+case "${NETLAB_SERVICE:-}" in
+  dhcp) pgrep -x kea-dhcp4 >/dev/null ;;
+  dns|internet-dns) pgrep -x named >/dev/null ;;
+  ntp|internet-ntp) pgrep -x chronyd >/dev/null ;;
+  aaa) pgrep -x freeradius >/dev/null ;;
+  *) echo 'unknown service role' >&2; exit 1 ;;
+esac
+printf 'healthy service=%s\n' "${NETLAB_SERVICE}"
