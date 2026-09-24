@@ -61,6 +61,11 @@ declared access VLAN, with RSTP explicitly enabled and the edge flag set; the
 other end carries the temporary test address. The runner waits for both peer
 trunks and every probe Port to report RSTP Forwarding before it sends ARP. On
 failure it reports the probe interface counters, OVS Port state, RSTP state,
-port counters, and MAC table from both distribution nodes. The updated live
-acceptance has not yet been run. The lab was torn down and `make verify-clean`
-passed after the previous attempt.
+port counters, and MAC table from both distribution nodes.
+
+The integrated live acceptance was rerun on 2026-09-24. All 16 bidirectional
+peer ARP checks passed across HQ and BR1 VLANs 10, 20, 30, and 99. `make test-l2`
+also passed its 7 static checks; measured maximum reply gaps were 60 ms for
+LACP member failure and 173 ms for active RSTP path failure, within the 1 s and
+5 s limits. Applying switching twice succeeded, and `make verify-clean`
+confirmed teardown removed all project containers and the management network.
