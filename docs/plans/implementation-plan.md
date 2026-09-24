@@ -47,7 +47,7 @@ in `plans/tasks.yaml` for machine consumption.
 ### IMG-025 — strongSwan ECP-384 crypto backend
 
 - Depends on: IMG-020
-- Deliver: install and verify the pinned `libstrongswan-openssl` provider
+- Deliver: install and verify the pinned `libstrongswan-standard-plugins` package that supplies the OpenSSL provider
 - Accept: the network image loads ECP-384 and parses ECDSA P-384 certificates;
   the legacy starter daemon remains absent
 - Required by: VPN-150; its accepted IKE proposal uses ECP-384
@@ -95,7 +95,7 @@ in `plans/tasks.yaml` for machine consumption.
 
 ### VPN-150 — IKEv2 XFRM overlay
 
-- Depends on: L3-120, WAN-140
+- Depends on: L3-120, WAN-140, IMG-025
 - Deliver lab PKI generation, site certificates, strongSwan configuration, XFRM
   links, MTU/MSS setting, and rekey/recovery tests
 - Accept: XFRM peer addresses communicate only after IPsec is established;

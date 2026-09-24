@@ -125,7 +125,7 @@ tasks:
     phase: phase-0
     title: Install the strongSwan ECP-384 crypto backend
     type: fix
-    status: planned
+    status: complete
     depends_on: [IMG-020]
     parallel_group: network-c
     allowed_paths:
@@ -134,7 +134,7 @@ tasks:
       - docs/runbooks/images.md
       - evidence/specs/images/**
     deliverables:
-      - "Pinned libstrongswan-openssl provider in the network-node image"
+      - "Pinned standard plugin package providing the OpenSSL backend in the network-node image"
       - "Image verification for provider version and ECP-384 capability"
     acceptance:
       - "Installed OpenSSL provider version matches STRONGSWAN_VERSION"
