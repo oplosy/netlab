@@ -95,7 +95,7 @@ removed in a `finally` block.
 
 ## Integration target
 
-The task packet calls for `make test-ospf`, but the Makefile fragment is outside
-OSPF-130's allowed paths and no such target exists at this task base. The
-commands above are the direct task-scoped verification procedure; integration
-must add the Make target separately.
+`make test-ospf` runs the static OSPF and gateway-plan tests, applies OSPF/BFD
+twice to verify idempotence, applies the route-tracked gateway configuration,
+and runs the live continuity/failover measurement. It requires an active Phase
+1 lab and serialized access to the shared runtime.

@@ -278,7 +278,7 @@ tasks:
     phase: phase-1
     title: Implement OSPF areas, summaries, and BFD
     type: feat
-    status: planned
+    status: complete
     depends_on: [L3-120, VPN-150]
     parallel_group: network-d
     allowed_paths:
