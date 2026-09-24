@@ -1,6 +1,6 @@
 # ADR 0014: Give Site Services Explicit Data-Plane Addresses
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 - Supersedes: ADR-0008 guest DNS/NTP reachability scope only; preserves OOB isolation
 
@@ -11,7 +11,7 @@ current service nodes have only Containerlab OOB interfaces. ADR-0008 forbids
 routing data-plane VLANs to OOB, so the current inventory cannot satisfy those
 acceptance criteria without violating the management-plane boundary.
 
-## Proposed decision
+## Decision
 
 Keep OOB addresses exclusively for administration. Give each site a local
 service node with a second interface in that site's existing SERVERS VLAN

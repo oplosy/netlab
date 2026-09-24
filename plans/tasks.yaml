@@ -286,6 +286,10 @@ tasks:
       - automation/roles/ospf/**
       - tests/integration/ospf/**
       - evidence/specs/ospf/**
+      - config/gateway/**
+      - automation/roles/gateway/**
+      - tests/integration/l3/**
+      - evidence/specs/l3/**
     deliverables:
       - "Areas 0, 10, and 20"
       - "Normal site areas with visible remote-site summaries"
@@ -365,6 +369,19 @@ tasks:
       - services/aaa/**
       - automation/roles/services/**
       - tests/integration/services/**
+      - automation/roles/gateway/**
+      - config/gateway/**
+      - docs/runbooks/images.md
+      - evidence/specs/services/**
+      - images/network-node/**
+      - images/service/**
+      - inventory/**
+      - lab/**
+      - schemas/**
+      - scripts/images/**
+      - scripts/validate/**
+      - tests/unit/inventory/**
+      - versions.env
     deliverables:
       - "Kea DHCP, BIND 9, chrony, and FreeRADIUS"
       - "Site/VLAN-specific leases and internal zones"
@@ -372,6 +389,8 @@ tasks:
     acceptance:
       - "Clients receive the correct subnet, gateway, DNS, and NTP data"
       - "Internal and simulated Internet names resolve"
+      - "Guest DNS and NTP work while other guest-to-server traffic is denied"
+      - "Client VLANs cannot reach OOB management addresses"
       - "Central AAA and fallback behavior are both exercised"
     verify:
       - "make test-services"

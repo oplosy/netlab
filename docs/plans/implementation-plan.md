@@ -114,6 +114,8 @@ in `plans/tasks.yaml` for machine consumption.
 
 ### SVC-160 — Core infrastructure services
 
+- Architecture: accepted ADR-0014 gives DNS/DHCP/NTP site-local data-plane
+  addresses in VLAN 20 while keeping OOB administration isolated.
 - Depends on: L3-120, TOP-040
 - Deliver Kea DHCP, BIND 9, chrony, FreeRADIUS, and local fallback procedures
 - Accept: every client receives the correct site/VLAN lease, resolves internal
