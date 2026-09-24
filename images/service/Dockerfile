@@ -3,8 +3,8 @@ ARG UBUNTU_BASE_IMAGE=ubuntu:24.04@sha256:a61567bd31828687156d735ea8eb01ba4e3763
 FROM ${UBUNTU_BASE_IMAGE}
 ARG UBUNTU_SNAPSHOT=20260905T000000Z
 ARG KEA_VERSION=2.4.1-3ubuntu0.2
-ARG BIND9_VERSION=1:9.18.39-0ubuntu0.24.04.6
-ARG BIND9_UTILS_VERSION=1:9.18.39-0ubuntu0.24.04.6
+ARG BIND9_VERSION=1:9.18.39-0ubuntu0.24.04.7
+ARG BIND9_UTILS_VERSION=1:9.18.39-0ubuntu0.24.04.7
 ARG CHRONY_VERSION=4.5-1ubuntu4.2
 ARG FREERADIUS_VERSION=3.2.5+dfsg-3~ubuntu24.04.3
 ARG DHCP_CLIENT_VERSION=4.4.3-P1-4ubuntu2
@@ -24,6 +24,7 @@ RUN rm -f /etc/apt/sources.list.d/ubuntu.sources \
     && printf '%s\n' \
        "deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble main universe" \
        "deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble-updates main universe" \
+       "deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble-security main universe" \
        > /etc/apt/sources.list.d/netlab-snapshot.list \
     && apt-get -o Acquire::https::Verify-Peer=false update \
     && apt-get -o Acquire::https::Verify-Peer=false install --no-install-recommends --yes ca-certificates \
@@ -31,6 +32,7 @@ RUN rm -f /etc/apt/sources.list.d/ubuntu.sources \
     && printf '%s\n' \
        "deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble main universe" \
        "deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble-updates main universe" \
+       "deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT} noble-security main universe" \
        > /etc/apt/sources.list.d/netlab-snapshot.list \
     && apt-get update \
     && apt-get install --no-install-recommends --yes \
