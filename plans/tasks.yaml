@@ -329,7 +329,7 @@ tasks:
     phase: phase-1
     title: Implement the IKEv2 XFRM overlay
     type: feat
-    status: planned
+    status: complete
     depends_on: [L3-120, WAN-140, IMG-025]
     parallel_group: network-c
     allowed_paths:

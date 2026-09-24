@@ -101,6 +101,8 @@ in `plans/tasks.yaml` for machine consumption.
 - Accept: XFRM peer addresses communicate only after IPsec is established;
   underlay capture shows ESP and no plaintext enterprise payload; rekey
   preserves the XFRM path within objective
+- Status: complete; live HQ–BR1 results are recorded in
+  `evidence/specs/ipsec/acceptance.md`
 
 ### OSPF-130 — Multi-area routing and summaries
 
