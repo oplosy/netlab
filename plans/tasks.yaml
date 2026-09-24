@@ -121,6 +121,30 @@ tasks:
       - "make verify-images"
     commit: "build(IMG-020): add reproducible lab images"
 
+  - id: IMG-025
+    phase: phase-0
+    title: Install the strongSwan ECP-384 crypto backend
+    type: fix
+    status: planned
+    depends_on: [IMG-020]
+    parallel_group: network-c
+    allowed_paths:
+      - images/network-node/**
+      - scripts/images/**
+      - docs/runbooks/images.md
+      - evidence/specs/images/**
+    deliverables:
+      - "Pinned libstrongswan-openssl provider in the network-node image"
+      - "Image verification for provider version and ECP-384 capability"
+    acceptance:
+      - "Installed OpenSSL provider version matches STRONGSWAN_VERSION"
+      - "Network-node image exposes ECP-384 and ECDSA certificate parsing"
+      - "No legacy strongSwan starter daemon is introduced"
+    verify:
+      - "make images"
+      - "make verify-images"
+    commit: "fix(IMG-025): add strongSwan ECP-384 provider"
+
   - id: DAT-030
     phase: phase-0
     title: Define authoritative inventory and schema
@@ -306,7 +330,7 @@ tasks:
     title: Implement the IKEv2 XFRM overlay
     type: feat
     status: planned
-    depends_on: [L3-120, WAN-140]
+    depends_on: [L3-120, WAN-140, IMG-025]
     parallel_group: network-c
     allowed_paths:
       - config/ipsec/**

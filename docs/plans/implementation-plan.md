@@ -44,6 +44,14 @@ in `plans/tasks.yaml` for machine consumption.
   unavailable; record the selected mode in evidence rather than silently
   falling back
 
+### IMG-025 — strongSwan ECP-384 crypto backend
+
+- Depends on: IMG-020
+- Deliver: install and verify the pinned `libstrongswan-openssl` provider
+- Accept: the network image loads ECP-384 and parses ECDSA P-384 certificates;
+  the legacy starter daemon remains absent
+- Required by: VPN-150; its accepted IKE proposal uses ECP-384
+
 ### DAT-030 — Authoritative inventory schema
 
 - Deliver versioned site/node/link/VLAN/prefix/ASN/service data plus schema
