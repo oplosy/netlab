@@ -439,6 +439,9 @@ tasks:
       - automation/roles/observability/**
       - tests/integration/observability/**
       - evidence/specs/observability/**
+      - inventory/**
+      - versions.env
+      - mk/observability.mk
     deliverables:
       - "Prometheus, snmp_exporter, Grafana, syslog-ng, Alloy, Loki, and GoFlow2"
       - "SNMPv3, syslog, and OVS IPFIX configuration"
