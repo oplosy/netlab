@@ -277,6 +277,9 @@ def apply(plan: dict[str, Any], docker: str = "docker") -> None:
             # before the service apply reports success.
             _run(docker, service, "chronyc", "local", "stratum", "8")
 
+    # Install the return-path SNAT before waiting for site chrony to synchronize.
+    _configure_service_egress_nat(plan["service_egress_nat"], docker)
+
     for site in ("hq", "br1"):
         ntp_container = _container(f"svc-{site}-ntp-1")
         _run(docker, ntp_container, "chronyc", "burst", "4/4")
@@ -316,7 +319,6 @@ def apply(plan: dict[str, Any], docker: str = "docker") -> None:
     if changed or _run(docker, aaa["container"], "test", "-f", "/run/netlab/services-configured", check=False).returncode:
         _restart_or_reload(docker, aaa_item, "aaa")
 
-    _configure_service_egress_nat(plan["service_egress_nat"], docker)
     _configure_network_nodes(plan, credentials, docker)
 
 
