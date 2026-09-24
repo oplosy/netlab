@@ -286,6 +286,10 @@ tasks:
       - automation/roles/ospf/**
       - tests/integration/ospf/**
       - evidence/specs/ospf/**
+      - config/gateway/**
+      - automation/roles/gateway/**
+      - tests/integration/l3/**
+      - evidence/specs/l3/**
     deliverables:
       - "Areas 0, 10, and 20"
       - "Normal site areas with visible remote-site summaries"
