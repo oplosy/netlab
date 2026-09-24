@@ -369,6 +369,7 @@ tasks:
       - services/aaa/**
       - automation/roles/services/**
       - tests/integration/services/**
+      - tests/integration/l3/**
       - automation/roles/gateway/**
       - config/gateway/**
       - docs/runbooks/images.md
