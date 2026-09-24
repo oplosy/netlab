@@ -1,0 +1,13 @@
+{
+  "uid": "netlab-path-health",
+  "title": "NetLab Path and Failure Health",
+  "schemaVersion": 41,
+  "version": 1,
+  "refresh": "15s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "timeseries", "title": "Interface operational state (1 = up)", "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "ifOperStatus", "legendFormat": "{{instance}} {{ifName}}", "refId": "A"}]},
+    {"id": 2, "type": "timeseries", "title": "Interface packet rate", "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "rate(ifInUcastPkts[5m])", "legendFormat": "{{instance}} {{ifName}} in", "refId": "A"}, {"expr": "rate(ifOutUcastPkts[5m])", "legendFormat": "{{instance}} {{ifName}} out", "refId": "B"}]},
+    {"id": 3, "type": "logs", "title": "Network syslog and exported IPFIX", "gridPos": {"x": 0, "y": 8, "w": 24, "h": 10}, "datasource": {"type": "loki", "uid": "loki"}, "targets": [{"expr": "{job=~\"syslog|ipfix\"}", "refId": "A"}]}
+  ]
+}
