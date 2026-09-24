@@ -55,13 +55,13 @@ def _wait_for_reply(
 
 
 def _wait_for_baseline(values: list[float], lock: threading.Lock) -> None:
-    deadline = time.monotonic() + 5
+    deadline = time.monotonic() + 25
     while time.monotonic() < deadline:
         with lock:
             if len(values) >= 10:
                 return
         time.sleep(0.02)
-    raise TimeoutError("baseline ping did not produce 10 replies within 5 seconds")
+    raise TimeoutError("baseline ping did not produce 10 replies within 25 seconds")
 
 
 def verify_vlan_isolation(docker: str, site: str) -> None:
@@ -116,20 +116,34 @@ def measure_case(
         existing = _exec(docker, client_container, "ip", "-o", "-4", "addr", "show", "dev", "eth1")
         if existing.stdout.strip():
             raise RuntimeError(f"{client} eth1 already has IPv4 configuration: {existing.stdout.strip()}")
+        _exec(docker, dist_container, "ip", "link", "add", "probeovs", "type", "veth", "peer", "name", "l2probe")
+        probe_created = True
         _exec(
-            docker, dist_container, "ovs-vsctl", "--may-exist", "add-port", "netlab-br0", "l2probe",
-            "--", "set", "Interface", "l2probe", "type=internal", "--", "set", "Port", "l2probe",
+            docker, dist_container, "ovs-vsctl", "--may-exist", "add-port", "netlab-br0", "probeovs",
+            "--", "set", "Port", "probeovs",
             "vlan_mode=access", f"tag={test_vlan}", "other_config:rstp-port-admin-edge=true",
         )
-        probe_created = True
+        _exec(docker, dist_container, "ip", "link", "set", "dev", "l2probe", "address", "02:00:00:00:00:fd")
+        _exec(docker, dist_container, "ip", "link", "set", "probeovs", "up")
         _exec(docker, dist_container, "ip", "link", "set", "l2probe", "up")
         _exec(docker, dist_container, "ip", "addr", "add", f"{probe}/24", "dev", "l2probe")
         _exec(docker, client_container, "ip", "addr", "add", client_ip, "dev", "eth1")
         client_configured = True
         _exec(docker, client_container, "ip", "link", "set", "eth1", "up")
+        _exec(docker, client_container, "ip", "neigh", "del", probe, "dev", "eth1", check=False)
+
+        deadline = time.monotonic() + 25
+        while time.monotonic() < deadline:
+            rstp = _exec(docker, dist_container, "ovs-appctl", "rstp/show", "netlab-br0").stdout
+            probe_line = next((line for line in rstp.splitlines() if line.strip().startswith("probeovs ")), "")
+            if "Forwarding" in probe_line:
+                break
+            time.sleep(0.5)
+        else:
+            raise RuntimeError("probeovs did not reach RSTP Forwarding within 25s")
 
         process = subprocess.Popen(
-            [docker, "exec", client_container, "ping", "-n", "-D", "-O", "-i", str(PING_INTERVAL), "-w", "15", probe],
+            [docker, "exec", client_container, "ping", "-n", "-D", "-O", "-i", str(PING_INTERVAL), "-w", "45", probe],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -152,25 +166,31 @@ def measure_case(
         failure_to_first_reply = max(0.0, first_reply - failed_at)
         # Prove the alternate path or surviving LACP member carries traffic
         # while the injected failure is still present.
-        _wait_for_reply(
+        follow_on_reply = _wait_for_reply(
             values,
             lock,
             first_reply + POST_RECOVERY_HOLD_SECONDS,
             FOLLOW_ON_TIMEOUT_SECONDS,
         )
-        if failure_to_first_reply > limit_seconds:
+        with lock:
+            before = max(value for value in values if value < failed_at)
+            after = sorted(value for value in values if failed_at <= value <= follow_on_reply)
+        max_reply_gap = max(right - left for left, right in zip([before] + after, after))
+        if max_reply_gap > limit_seconds:
             raise RuntimeError(
-                f"{failure_mode} failure-to-first-reply {failure_to_first_reply:.3f}s "
+                f"{failure_mode} maximum reply gap {max_reply_gap:.3f}s "
                 f"exceeds {limit_seconds:.3f}s"
             )
         print(
             f"{site} {failure_mode}: failure_to_first_reply={failure_to_first_reply:.3f}s "
+            f"max_reply_gap={max_reply_gap:.3f}s "
             f"limit={limit_seconds:.3f}s recovered_while_failed=true"
         )
         return {
             "site": site,
             "failure_mode": failure_mode,
             "failure_to_first_reply_seconds": failure_to_first_reply,
+            "max_reply_gap_seconds": max_reply_gap,
             "limit_seconds": limit_seconds,
         }
     finally:
@@ -186,7 +206,8 @@ def measure_case(
         if client_configured:
             _exec(docker, client_container, "ip", "addr", "del", client_ip, "dev", "eth1", check=False)
         if probe_created:
-            _exec(docker, dist_container, "ovs-vsctl", "--if-exists", "del-port", "netlab-br0", "l2probe", check=False)
+            _exec(docker, dist_container, "ovs-vsctl", "--if-exists", "del-port", "netlab-br0", "probeovs", check=False)
+            _exec(docker, dist_container, "ip", "link", "del", "probeovs", check=False)
 
 
 def main() -> int:
@@ -194,6 +215,7 @@ def main() -> int:
     parser.add_argument("--inventory", type=Path, default=ROOT / "inventory" / "inventory.yaml")
     parser.add_argument("--docker", default="docker")
     parser.add_argument("--site", choices=("hq", "br1", "all"), default="all")
+    parser.add_argument("--failure", choices=("lacp", "rstp", "all"), default="all")
     args = parser.parse_args()
     try:
         data = load_inventory(args.inventory)
@@ -214,14 +236,16 @@ def main() -> int:
             test_prefix = ".".join(prefix[:3])
             vlan_id = int(vlan["vlan_id"])
             verify_vlan_isolation(args.docker, site)
-            results.append(measure_case(
-                args.docker, site, access, dist1, client, access_members, vlan_id, test_prefix,
-                "lacp", 1.0,
-            ))
-            results.append(measure_case(
-                args.docker, site, access, dist1, client, access_members, vlan_id, test_prefix,
-                "rstp", 5.0,
-            ))
+            if args.failure in ("lacp", "all"):
+                results.append(measure_case(
+                    args.docker, site, access, dist1, client, access_members, vlan_id, test_prefix,
+                    "lacp", 1.0,
+                ))
+            if args.failure in ("rstp", "all"):
+                results.append(measure_case(
+                    args.docker, site, access, dist1, client, access_members, vlan_id, test_prefix,
+                    "rstp", 5.0,
+                ))
         print(json.dumps({"results": results}, indent=2))
     except (OSError, ValueError, KeyError, StopIteration, subprocess.CalledProcessError, TimeoutError, RuntimeError) as exc:
         print(f"L2 failure measurement failed: {exc}", file=sys.stderr)

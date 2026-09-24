@@ -31,8 +31,8 @@ def test_every_lacp_bundle_has_two_members_and_one_declared_peer_pair() -> None:
     assert len(bundle_config) == 12
     for item in bundle_config:
         assert len(item["members"]) == 2
-        assert item["argv"][0:3] == ["ovs-vsctl", "--may-exist", "add-bond"]
-        assert "lacp=active" in item["argv"]
+        assert item["argv"][0:3] == ["ovs-vsctl", "--may-exist", "add-port"]
+        assert "lacp=active" not in item["argv"]
         assert "vlan_mode=trunk" in item["argv"]
         assert "trunks=10,20,30,99" in item["argv"]
 
@@ -59,6 +59,7 @@ def test_rstp_root_is_deterministic_and_site_local() -> None:
     assert "other_config:rstp-priority=8192" in bridge["br1-dist-2"]
     assert "other_config:rstp-priority=32768" in bridge["hq-access-1"]
     assert all("netlab-phase-1-" in item["container"] for item in plan)
+    assert sum(bool(item.get("bridge_setup")) for item in plan) == 6
 
 
 def test_distribution_peer_bundle_cannot_span_sites_or_access_nodes() -> None:

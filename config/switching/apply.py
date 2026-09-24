@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from collections import defaultdict
@@ -113,6 +114,7 @@ def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> list[dict[str,
         plan.append({
             "node": node_id,
             "container": container,
+            "bridge_setup": True,
             "argv": [
                 "ovs-vsctl", "set", "Bridge", BRIDGE,
                 "rstp_enable=true", f"other_config:rstp-priority={priority}",
@@ -126,9 +128,9 @@ def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> list[dict[str,
                 "node": node_id,
                 "container": container,
                 "argv": [
-                    "ovs-vsctl", "--may-exist", "add-bond", BRIDGE, bond, *members,
+                    "ovs-vsctl", "--may-exist", "add-port", BRIDGE, bond,
                     "--", "set", "Port", bond,
-                    "lacp=active", "vlan_mode=trunk", f"trunks={trunks}",
+                    "vlan_mode=trunk", f"trunks={trunks}",
                     "other_config:rstp-enable=true",
                 ],
                 "bundle": bundle_id,
@@ -149,12 +151,67 @@ def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> list[dict[str,
     return plan
 
 
+def _exec(
+    docker: str, container: str, *argv: str, check: bool = True
+) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(
+        [docker, "exec", container, *argv], text=True, capture_output=True
+    )
+    if check and result.returncode:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(f"{container} {' '.join(argv)}: {detail}")
+    return result
+
+
+def _converge_bond(item: dict[str, Any], docker: str) -> None:
+    container = item["container"]
+    bond = item["argv"][4]
+    members = item["members"]
+    existing = _exec(docker, container, "ip", "link", "show", "dev", bond, check=False).returncode == 0
+    if existing:
+        state = _exec(docker, container, "cat", f"/proc/net/bonding/{bond}").stdout
+        if "Bonding Mode: IEEE 802.3ad" not in state:
+            raise ValueError(f"{container} {bond} is not an 802.3ad bond")
+    masters = {}
+    for member in members:
+        master = _exec(
+            docker, container, "readlink", f"/sys/class/net/{member}/master", check=False
+        )
+        masters[member] = Path(master.stdout.strip()).name if master.returncode == 0 else None
+        if masters[member] not in (None, bond):
+            raise ValueError(f"{container} {member} belongs to a different master")
+    if not existing:
+        _exec(
+            docker, container, "ip", "link", "add", bond, "type", "bond",
+            "mode", "802.3ad", "miimon", "100", "lacp_rate", "fast",
+        )
+    for member in members:
+        if masters[member] == bond:
+            continue
+        _exec(docker, container, "ip", "link", "set", "dev", member, "down")
+        _exec(docker, container, "ip", "link", "set", "dev", member, "master", bond)
+        _exec(docker, container, "ip", "link", "set", "dev", member, "up")
+    _exec(docker, container, "ip", "link", "set", "dev", bond, "up")
+    state = _exec(docker, container, "cat", f"/proc/net/bonding/{bond}").stdout
+    actual_members = re.findall(r"^Slave Interface: (\S+)$", state, re.MULTILINE)
+    if "Bonding Mode: IEEE 802.3ad" not in state or sorted(actual_members) != sorted(members):
+        raise ValueError(f"{container} {bond} does not match the two-member 802.3ad plan")
+
+
 def apply(plan: list[dict[str, Any]], docker: str = "docker") -> None:
     containers = sorted({item["container"] for item in plan})
     for container in containers:
         subprocess.run([docker, "inspect", container], check=True, stdout=subprocess.DEVNULL)
+    # Every bridge must run RSTP before admitting any bonded loop edge.
     for item in plan:
-        subprocess.run([docker, "exec", item["container"], *item["argv"]], check=True)
+        if item.get("bridge_setup"):
+            _exec(docker, item["container"], *item["argv"])
+    for item in plan:
+        if item.get("bridge_setup"):
+            continue
+        if item.get("bundle"):
+            _converge_bond(item, docker)
+        _exec(docker, item["container"], *item["argv"])
 
 
 def main() -> int:
@@ -170,7 +227,7 @@ def main() -> int:
         else:
             apply(plan)
             print(f"switching policy converged on {len({item['node'] for item in plan})} site switches")
-    except (OSError, ValueError, json.JSONDecodeError, subprocess.CalledProcessError) as exc:
+    except (OSError, ValueError, RuntimeError, json.JSONDecodeError, subprocess.CalledProcessError) as exc:
         print(f"switching apply failed: {exc}", file=sys.stderr)
         return 1
     return 0
