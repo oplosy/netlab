@@ -412,6 +412,7 @@ tasks:
       - automation/roles/security/**
       - tests/security/**
       - evidence/specs/security/**
+      - mk/security.mk
     deliverables:
       - "Default-deny nftables zone policy"
       - "Guest NAT to simulated Internet"
