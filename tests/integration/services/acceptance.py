@@ -29,12 +29,29 @@ def docker_exec(node_id: str, *args: str) -> str:
 
 
 def counter(node_id: str, selector: str) -> int:
-    output = docker_exec(node_id, "nft", "list", "chain", "inet", "netlab_gateway", "forward")
-    for line in output.splitlines():
-        if selector in line:
-            match = re.search(r"counter packets (\d+)", line)
-            if match:
-                return int(match.group(1))
+    for table in ("netlab_sec170", "netlab_gateway"):
+        result = subprocess.run(
+            ("docker", "exec", container(node_id), "nft", "list", "chain", "inet", table, "forward"),
+            capture_output=True, text=True, check=False,
+        )
+        if result.returncode:
+            continue
+        lines = result.stdout.splitlines()
+        if table == "netlab_sec170":
+            # SEC-170's default drop runs before the SVC gateway's more specific
+            # drop rules, so measure its terminal forward-chain counter instead.
+            selected = [line for line in lines if line.strip().startswith("counter packets ")
+                        and line.strip().endswith(" drop")]
+            if selected:
+                match = re.search(r"counter packets (\d+)", selected[-1])
+                if match:
+                    return int(match.group(1))
+        else:
+            for line in lines:
+                if selector in line:
+                    match = re.search(r"counter packets (\d+)", line)
+                    if match:
+                        return int(match.group(1))
     raise RuntimeError(f"no nftables counter found for {selector} on {node_id}")
 
 

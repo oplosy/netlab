@@ -96,6 +96,11 @@ class ServicePlanTests(unittest.TestCase):
             self.assertEqual(service["isp_interface"], expected_interface)
             expected_ip = "203.0.113.10/32" if service["service"] == "dns" else "203.0.113.11/32"
             self.assertEqual(service["service_address"], expected_ip)
+        internet_dns_options = next(service["dns_files"]["/etc/bind/named.conf.options"]
+                                    for service in plan["internet"] if service["service"] == "dns")
+        self.assertIn("allow-query { 203.0.113.0/25; 203.0.113.129/32; 203.0.113.130/32; 10.0.0.0/8; }",
+                      internet_dns_options)
+        self.assertNotIn("203.0.113.128/25", internet_dns_options)
 
     def test_radius_rendering_uses_oob_scope_and_runtime_secrets(self) -> None:
         clients = render_clients(INVENTORY, "a" * 40)

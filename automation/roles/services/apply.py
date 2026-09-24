@@ -94,13 +94,18 @@ def _site_files(data: dict[str, Any], site: str) -> dict[str, tuple[str, str]]:
     }
 
 
-def _internet_dns_files() -> dict[str, str]:
+def _internet_dns_files(data: dict[str, Any]) -> dict[str, str]:
+    public_endpoints = sorted({
+        str(ipaddress.ip_interface(site["public_endpoint"]).ip)
+        for site in data["sites"]
+    }, key=ipaddress.ip_address)
+    allowed_sources = " ".join(f"{address}/32;" for address in public_endpoints)
     return {
         "/etc/bind/named.conf.options": "\n".join([
             "options {", '  directory "/var/cache/bind";',
             "  listen-on { 127.0.0.1; 203.0.113.10; };",
             "  listen-on-v6 { none; };", "  recursion no;",
-            "  allow-query { 203.0.113.0/25; 10.0.0.0/8; };",
+            f"  allow-query {{ 203.0.113.0/25; {allowed_sources} 10.0.0.0/8; }};",
             "  allow-transfer { none; };", "  dnssec-validation no;", "};", "",
         ]),
         "/etc/bind/named.conf.local":
@@ -173,7 +178,7 @@ def build_plan(data: dict[str, Any]) -> dict[str, Any]:
             "isp_interface": physical["isp1-core-1", isp_endpoint["interface"]],
             "isp_address": isp_endpoint["address"],
             "route_via": str(ipaddress.ip_interface(service_endpoint["address"]).ip),
-            "dns_files": _internet_dns_files() if service == "dns" else {},
+            "dns_files": _internet_dns_files(data) if service == "dns" else {},
             "ntp_file": render_internet(data) if service == "ntp" else None,
         })
     aaa_node = nodes[AAA_NODE]
