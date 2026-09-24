@@ -42,4 +42,20 @@ ping, and refuses to overwrite existing client IPv4 configuration. Its
 ping, and deletes the probe. Preserve full command output with the phase run
 artifacts; do not report live acceptance until the procedure succeeds.
 
-make test-l2 runs the static policy checks and live failure measurements. Start the lab with make lab-up first and preserve the full output as task evidence.
+`make test-l2` runs the static policy checks and live failure measurements.
+`make test-l2-peer` checks bidirectional ARP between temporary distribution
+ports on VLANs 10, 20, 30, and 99. Start the lab with `make lab-up` first and
+preserve full output as task evidence.
+
+## Peer adjacency investigation: 2026-09-24
+
+The new BR1 live check fails on VLAN 10. Distribution 1 emits ARP requests,
+but its neighbor entry for distribution 2 remains `INCOMPLETE`. RSTP reports
+the distribution peer trunk as Forwarding on both ends (distribution 1 is
+Designated; distribution 2 is Root), and the trunk allows VLANs 10, 20, 30,
+and 99. OVS learns the distribution 1 probe MAC on distribution 2's peer
+trunk, but distribution 2's internal VLAN probe receives no packets. This
+locates the failure after the frame reaches distribution 2's bridge; the
+reason the bridge does not deliver it to the internal VLAN port remains open.
+The lab was torn down and `make verify-clean` passed. The existing L2 test
+suite and both-site peer adjacency are not accepted by this investigation.
