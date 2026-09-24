@@ -229,7 +229,7 @@ tasks:
     phase: phase-1
     title: Implement SVIs, VRRP, and routed edge links
     type: feat
-    status: planned
+    status: complete
     depends_on: [L2-110, L2-111]
     parallel_group: network-c
     allowed_paths:
