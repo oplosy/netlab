@@ -73,6 +73,13 @@ class InventoryTests(unittest.TestCase):
         errors = validate_inventory(changed)
         self.assertTrue(any("endpoint node br1-client-guest-1 must have exactly one access link, got 0" in error for error in errors))
 
+    def test_site_services_use_servers_vlan_access_ports(self) -> None:
+        self.assertEqual(validate_inventory(self.inventory), [])
+        changed = copy.deepcopy(self.inventory)
+        next(link for link in changed["links"] if link["id"] == "svc-hq-dns-1-access")["vlan"] = "hq-users"
+        errors = validate_inventory(changed)
+        self.assertTrue(any("site service svc-hq-dns-1 must attach to the SERVERS VLAN" in error for error in errors))
+
     def test_addressing_plan_values_are_enforced(self) -> None:
         changed = copy.deepcopy(self.inventory)
         next(site for site in changed["sites"] if site["id"] == "br1")["aggregate"] = "10.30.0.0/16"

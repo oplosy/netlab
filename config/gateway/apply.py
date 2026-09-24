@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import ipaddress
 import json
 import subprocess
@@ -91,8 +92,13 @@ def _keepalived_config(
     return "\n".join(lines)
 
 
-def _nftables_config(destinations: list[str], vlans: list[dict[str, Any]]) -> str:
+def _nftables_config(
+    destinations: list[str],
+    vlans: list[dict[str, Any]],
+    services: dict[str, str],
+) -> str:
     blocked = ", ".join(destinations)
+    oob_network = "172.31.255.0/24"
     lines = [
         "table inet netlab_gateway {",
         "  chain input {",
@@ -104,11 +110,24 @@ def _nftables_config(destinations: list[str], vlans: list[dict[str, Any]]) -> st
         lines.append(
             f'    iifname "vlan{vlan_id}" ip saddr {{ {peers} }} ip protocol 112 accept'
         )
+        lines.append(f'    iifname "vlan{vlan_id}" ip daddr {oob_network} counter drop')
+    lines.extend([
+        f'    iifname "vlan30" ip daddr {services["dns"]} udp dport 53 accept',
+        f'    iifname "vlan30" ip daddr {services["dns"]} tcp dport 53 accept',
+        f'    iifname "vlan30" ip daddr {services["ntp"]} udp dport 123 accept',
+    ])
     lines.extend([
         f'    iifname "vlan30" ip daddr {{ {blocked} }} counter drop',
         "  }",
         "  chain forward {",
         "    type filter hook forward priority filter; policy accept;",
+        f'    iifname "vlan30" ip daddr {services["dns"]} udp dport 53 accept',
+        f'    iifname "vlan30" ip daddr {services["dns"]} tcp dport 53 accept',
+        f'    iifname "vlan30" ip daddr {services["ntp"]} udp dport 123 accept',
+        *[
+            f'    iifname "vlan{int(vlan["vlan_id"])}" ip daddr {oob_network} counter drop'
+            for vlan in vlans
+        ],
         f'    iifname "vlan30" ip daddr {{ {blocked} }} counter drop',
         "  }",
         "}",
@@ -125,12 +144,12 @@ def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]
     for vlan in data["vlans"]:
         vlans_by_site.setdefault(vlan["site"], []).append(vlan)
 
-    dhcp_services = [node for node in data["nodes"] if node.get("service") == "dhcp"]
-    if len(dhcp_services) > 1:
-        raise ValueError("at most one DHCP service node is supported")
-    dhcp_server = None
-    if dhcp_services and dhcp_services[0].get("service_address"):
-        dhcp_server = str(ipaddress.ip_interface(dhcp_services[0]["service_address"]).ip)
+    dhcp_services = {
+        node["site"]: node for node in data["nodes"]
+        if node.get("service") == "dhcp" and node.get("site")
+    }
+    if len(dhcp_services) != len(sites):
+        raise ValueError("each site must have exactly one local DHCP service node")
 
     blocked_destinations = sorted(
         {str(ipaddress.ip_network(site["aggregate"])) for site in data["sites"]}
@@ -143,6 +162,11 @@ def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]
     routed_endpoints: list[dict[str, Any]] = []
     for link in data["links"]:
         if link.get("kind") != "routed":
+            continue
+        endpoint_roles = {nodes[endpoint["node"]].get("role") for endpoint in link["endpoints"]}
+        # ISP service networks are configured by the services role; this plan
+        # owns only the site edge-to-distribution routed links.
+        if endpoint_roles != {"edge", "dist"}:
             continue
         for endpoint in link["endpoints"]:
             node = nodes[endpoint["node"]]
@@ -166,10 +190,25 @@ def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]
     )
     for node in dist_nodes:
         site_id = node["site"]
+        dhcp_server = str(ipaddress.ip_interface(dhcp_services[site_id]["service_address"]).ip)
         remote_site = next(site for site in data["sites"] if site["id"] != site_id)
         remote_aggregate = str(ipaddress.ip_network(remote_site["aggregate"]))
         site_vlans = sorted(vlans_by_site.get(site_id, []), key=lambda vlan: int(vlan["vlan_id"]))
-        nftables_config = _nftables_config(blocked_destinations, site_vlans)
+        site_services: dict[str, str] = {}
+        for service in ("dns", "ntp"):
+            service_node = next(
+                (
+                    candidate for candidate in data["nodes"]
+                    if candidate.get("site") == site_id
+                    and candidate.get("role") == "service"
+                    and candidate.get("service") == service
+                ),
+                None,
+            )
+            if service_node is None or not service_node.get("service_address"):
+                raise ValueError(f"{site_id} is missing its local {service} service address")
+            site_services[service] = str(ipaddress.ip_interface(service_node["service_address"]).ip)
+        nftables_config = _nftables_config(blocked_destinations, site_vlans, site_services)
         if len(site_vlans) != 4:
             raise ValueError(f"{site_id} must declare all four routed VLANs")
         siblings = sorted(
@@ -326,6 +365,7 @@ def _prepare_node(item: dict[str, Any], relay_hooks: list[dict[str, Any]], docke
         _prepare_svi(docker, container, gateway)
     hooks = [hook for hook in relay_hooks if hook["node"] == item["node"]]
     _copy_text(docker, container, "/run/netlab/dhcp-relay-hooks.json", json.dumps(hooks, indent=2) + "\n")
+    _configure_dhcp_relay(container, hooks, docker)
     _copy_text(docker, container, "/tmp/netlab-gateway.nft", item["nftables_config"])
     table = _exec(docker, container, "nft", "list", "table", "inet", "netlab_gateway", check=False)
     if table.returncode == 0:
@@ -349,6 +389,38 @@ def _prepare_node(item: dict[str, Any], relay_hooks: list[dict[str, Any]], docke
     if not same_config:
         _exec(docker, container, "install", "-D", "-m", "0644", "/tmp/keepalived.conf", "/etc/keepalived/keepalived.conf")
         _exec(docker, container, "touch", "/run/netlab/keepalived-config-changed")
+
+
+def _configure_dhcp_relay(container: str, hooks: list[dict[str, Any]], docker: str) -> None:
+    enabled = [hook for hook in hooks if hook["enabled"]]
+    state = "/run/netlab/dhcp-relay-state"
+    if not enabled:
+        _exec(docker, container, "bash", "-ec",
+              f"if [ -s {state} ]; then read -r _ pid < {state}; [ -z \"$pid\" ] || kill \"$pid\" 2>/dev/null || true; fi; rm -f {state}")
+        return
+    servers = {hook["server"] for hook in enabled}
+    if len(servers) != 1:
+        raise ValueError(f"{container} has multiple DHCP relay targets")
+    server = next(iter(servers))
+    interfaces = sorted({hook["interface"] for hook in enabled},
+                        key=lambda value: int(value.removeprefix("vlan")))
+    digest = hashlib.sha256(
+        json.dumps({"server": server, "interfaces": interfaces}, sort_keys=True).encode()
+    ).hexdigest()
+    script = (
+        "state=/run/netlab/dhcp-relay-state; "
+        f"wanted={digest}; "
+        "if [ -s \"$state\" ]; then read -r old pid < \"$state\"; "
+        "if [ \"$old\" = \"$wanted\" ] && [ -n \"$pid\" ] && kill -0 \"$pid\" 2>/dev/null; then exit 0; fi; "
+        "if [ -n \"${pid:-}\" ] && kill -0 \"$pid\" 2>/dev/null && "
+        "tr '\\000' ' ' < \"/proc/$pid/cmdline\" | grep -q '/usr/sbin/dhcrelay'; then kill \"$pid\"; fi; fi; "
+        "args=(-4 -d) "
+        + " ".join(f"args+=(-i {interface})" for interface in interfaces)
+        + f"; /usr/sbin/dhcrelay \"${{args[@]}}\" {server} >/var/log/netlab/dhcrelay.log 2>&1 & "
+        "pid=$!; sleep 0.2; kill -0 \"$pid\" 2>/dev/null || { cat /var/log/netlab/dhcrelay.log >&2; exit 1; }; "
+        "printf '%s %s\\n' \"$wanted\" \"$pid\" > \"$state\""
+    )
+    _exec(docker, container, "bash", "-ec", script)
 
 
 def _start_keepalived(item: dict[str, Any], docker: str) -> None:
