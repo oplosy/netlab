@@ -367,6 +367,7 @@ tasks:
       - tests/integration/services/**
       - automation/roles/gateway/**
       - config/gateway/**
+      - evidence/specs/services/**
       - inventory/**
       - lab/**
     deliverables:
