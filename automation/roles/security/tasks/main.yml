@@ -1,0 +1,6 @@
+- name: Apply SEC-170 inventory-derived nftables policy
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_python_interpreter | default('python3') }}"
+      - "{{ role_path }}/../../../config/security/apply.py"
+  changed_when: false
