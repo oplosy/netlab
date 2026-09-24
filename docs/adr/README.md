@@ -18,7 +18,7 @@ ADR, but existing files are not edited to erase decision history.
 | [0011](0011-development-and-test-toolchain.md) | Python, Ansible, Make, pytest, and GitHub Actions | Accepted |
 | [0012](0012-agent-model-mapping.md) | GPT-6 Sol orchestrator and GPT-6 Luna workers; supersedes only the model recommendation in ADR 0010 | Accepted |
 | [0013](0013-linux-bonding-under-ovs-rstp.md) | Linux 802.3ad bonds beneath OVS RSTP | Accepted |
-| [0014](0014-site-local-services-data-plane.md) | Explicit data-plane access for site services | Proposed |
+| [0014](0014-site-local-services-data-plane.md) | Explicit data-plane access for site services | Accepted |
 
 ## Status values
 
