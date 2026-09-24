@@ -14,7 +14,11 @@ the Linux endpoint. OVS enables RSTP on the system port and marks it as an edge
 port. Keepalived advertises the inventory .1 address on each VLAN. Distribution
 1 is preferred at priority 150, matching its RSTP root preference; distribution
 2 uses priority 100. VRRP advertisements use the other distribution SVI address
-as an explicit unicast peer.
+as an explicit unicast peer. Every VRRP instance tracks the inventory-derived
+remote-site `/16` as an exact OSPF route. When that route disappears, the
+preferred distribution's priority drops by 60, below its sibling's priority.
+The checker is installed under `/usr/local/sbin` with script-security enabled
+and an explicit `root` script user.
 
 The live test assigns a temporary address to each site's user client, proves
 that the client reaches its .1 default gateway, then stops Keepalived on
@@ -22,6 +26,12 @@ distribution 1 and proves that distribution 2 owns the VIP and forwards
 traffic. It removes temporary client state afterward and leaves distribution 2
 as the active owner after the injected failure. Run make lab-down immediately
 after this test before starting other topology checks.
+
+The OSPF live acceptance also drops BFD packets on one edge-to-distribution
+adjacency while sending 100 ms ICMP probes through the VPN to the active gateway
+VIP and surviving distribution SVI. It records route and VIP ownership before,
+during, and after the failure. The acceptance limit is a maximum packet-reply
+gap of three seconds.
 
 The inventory has no address for svc-dhcp-1. Apply writes per-VLAN relay hook
 metadata to /run/netlab/dhcp-relay-hooks.json, with the target disabled until
