@@ -190,15 +190,20 @@ def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) ->
         if node_asn is not None and node_asn not in asn_map:
             errors.append(f"node {node_id} references unknown ASN {node_asn}")
         oob_network = _parse_network("172.31.255.0/24", "OOB management network", errors)
-        oob_address = _parse_ip(node.get("oob", ""), f"node {node_id} OOB", errors)
-        if oob_address is not None and oob_network is not None and oob_address not in oob_network:
-            errors.append(f"node {node_id} OOB address is outside 172.31.255.0/24")
-        if oob_address is not None:
-            previous = addresses.get(oob_address)
-            if previous is not None:
-                errors.append(f"duplicate IP address {oob_address} at node {node_id} OOB; already used by {previous}")
-            else:
-                addresses[oob_address] = f"node {node_id} OOB"
+        oob_value = node.get("oob")
+        if node.get("role") in {"client", "server"}:
+            if oob_value is not None:
+                errors.append(f"endpoint node {node_id} must not have an OOB address")
+        else:
+            oob_address = _parse_ip(oob_value or "", f"node {node_id} OOB", errors)
+            if oob_address is not None and oob_network is not None and oob_address not in oob_network:
+                errors.append(f"node {node_id} OOB address is outside 172.31.255.0/24")
+            if oob_address is not None:
+                previous = addresses.get(oob_address)
+                if previous is not None:
+                    errors.append(f"duplicate IP address {oob_address} at node {node_id} OOB; already used by {previous}")
+                else:
+                    addresses[oob_address] = f"node {node_id} OOB"
         if node.get("loopback"):
             record_address(node["loopback"], f"node {node_id} loopback")
         interface_names: set[str] = set()

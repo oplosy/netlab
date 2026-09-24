@@ -37,6 +37,7 @@ mode, or moving default archive is consulted.
 | PAM RADIUS module | `2.0.1-1` | [Ubuntu Noble libpam-radius-auth](https://packages.ubuntu.com/noble/amd64/libpam-radius-auth) |
 | OpenSSH client | `1:9.6p1-3ubuntu13.19` | [Ubuntu Noble OpenSSH client](https://packages.ubuntu.com/noble/openssh-client) |
 | sshpass (acceptance helper) | `1.09-1` | [Ubuntu Noble sshpass manpage](https://manpages.ubuntu.com/manpages/noble/man1/sshpass.1.html) |
+| BIND DNS utilities (`dig` acceptance helper) | `1:9.18.39-0ubuntu0.24.04.7` | [Ubuntu Noble bind9-dnsutils](https://packages.ubuntu.com/noble/net/bind9-dnsutils) |
 
 The package versions above are distribution package versions, not the latest
 upstream release labels. This is intentional: the image installs from the

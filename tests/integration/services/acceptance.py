@@ -61,9 +61,11 @@ def lease_and_bootstrap(site: str, client: str, image: str) -> str:
     offset = "10.10" if site == "hq" else "10.20"
     guest = "guest" in client
     script = "\n".join([
-        "dhclient -4 -1 -v eth1",
+        "ip -4 address flush dev eth1",
+        "rm -f /tmp/dhclient.eth1.leases",
+        "dhclient -4 -1 -v -lf /tmp/dhclient.eth1.leases eth1",
         "ip -4 -o address show dev eth1",
-        "grep -E 'fixed-address|option routers|option domain-name-servers|option ntp-servers' /var/lib/dhcp/dhclient.eth1.leases | tail -n 4",
+        "grep -E 'fixed-address|option routers|option domain-name-servers|option ntp-servers' /tmp/dhclient.eth1.leases | tail -n 4",
         f"dig +time=3 +tries=1 @{offset}.20.11 {site}-edge-1.{site}.netlab.test A",
         f"dig +time=3 +tries=1 @{offset}.20.11 www.internet.test A",
         "printf 'driftfile /tmp/chrony.drift\\nserver "
@@ -90,13 +92,37 @@ def lease_and_bootstrap(site: str, client: str, image: str) -> str:
     return output
 
 
+def relay_ownership(site: str) -> None:
+    relays: dict[str, set[str]] = {}
+    for suffix in ("dist-1", "dist-2"):
+        node = f"{site}-{suffix}"
+        state = docker_exec(node, "bash", "-ec",
+                            "test ! -s /run/netlab/dhcp-relay-state || cat /run/netlab/dhcp-relay-state")
+        fields = state.split()
+        if fields:
+            if len(fields) < 2:
+                raise RuntimeError(f"DHCP relay state is incomplete on {node}")
+            docker_exec(node, "bash", "-ec", f"kill -0 {fields[1]}")
+        relays[node] = set(fields[2:])
+    for vlan in (10, 20, 30, 99):
+        owners = [node for node, interfaces in relays.items() if f"vlan{vlan}" in interfaces]
+        if len(owners) != 1:
+            raise RuntimeError(f"VLAN {vlan} on {site} has {len(owners)} active DHCP relays: {owners}")
+    print(f"{site}: one DHCP relay per active VRRP VLAN: PASS")
+
+
 def denied_flow(site: str, guest: str, target: str, image: str) -> None:
     gateway = f"{site}-dist-1"
     guest_drop = f'iifname "vlan30" ip daddr {{'
     oob_drop = 'iifname "vlan30" ip daddr 172.31.255.0/24'
     before_server = counter(gateway, guest_drop)
     before_oob = counter(gateway, oob_drop)
-    helper(guest, "python3 -c 'import socket; s=socket.socket(); s.settimeout(1); s.connect_ex(('" + repr(target) + ", 22))'", image)
+    helper(
+        guest,
+        "python3 -c 'import socket; s=socket.socket(); s.settimeout(1); "
+        f"s.connect_ex(({json.dumps(target)}, 22))'",
+        image,
+    )
     helper(guest, "python3 -c 'import socket; s=socket.socket(); s.settimeout(1); s.connect_ex((\"172.31.255.13\", 1812))'", image)
     if counter(gateway, guest_drop) <= before_server:
         raise RuntimeError(f"guest-to-server deny counter did not increase at {gateway}")
@@ -123,11 +149,11 @@ def aaa_acceptance() -> None:
         "sshpass -d 0 ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
         f"-o ConnectTimeout=5 netlab_admin@{target_oob}"
     )
-    session = helper_with_stdin("hq-client-users-1", ssh, os.environ.get("NETLAB_SERVICE_IMAGE", "netlab/service:0.1.0"),
+    session = helper_with_stdin("svc-aaa-1", ssh, os.environ.get("NETLAB_SERVICE_IMAGE", "netlab/service:0.1.0"),
                                 password + "\nshow version\nexit\n")
     if "FRRouting" not in session:
         raise RuntimeError("RADIUS-backed SSH did not reach the forced vtysh CLI")
-    helper_with_stdin("hq-client-users-1", ssh, os.environ.get("NETLAB_SERVICE_IMAGE", "netlab/service:0.1.0"),
+    helper_with_stdin("svc-aaa-1", ssh, os.environ.get("NETLAB_SERVICE_IMAGE", "netlab/service:0.1.0"),
                       "invalid-netlab-password\n", expect_success=False)
 
     inventory = json.loads((ROOT / "inventory" / "inventory.yaml").read_text(encoding="utf-8"))
@@ -139,7 +165,7 @@ def aaa_acceptance() -> None:
             raise RuntimeError(f"SSH listener is absent or not OOB-only on {network_node['id']}: {listeners}")
 
     try:
-        _run("docker", "exec", target, "nft", "delete", "table", "inet", "netlab_svc160_aaa_test", timeout=10)
+        run("docker", "exec", target, "nft", "delete", "table", "inet", "netlab_svc160_aaa_test", timeout=10)
     except RuntimeError:
         pass
     try:
@@ -147,7 +173,7 @@ def aaa_acceptance() -> None:
                     "nft 'add chain inet netlab_svc160_aaa_test output { type filter hook output priority -200; policy accept; }'; "
                     "nft add rule inet netlab_svc160_aaa_test output ip daddr 172.31.255.13 udp dport 1812 drop")
         fallback = helper_with_stdin(
-            "hq-client-users-1",
+            "svc-aaa-1",
             "sshpass -d 0 ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
             f"-o ConnectTimeout=10 netlab_breakglass@{target_oob}",
             os.environ.get("NETLAB_SERVICE_IMAGE", "netlab/service:0.1.0"),
@@ -156,7 +182,7 @@ def aaa_acceptance() -> None:
         if "FRRouting" not in fallback:
             raise RuntimeError("local break-glass SSH did not reach the forced vtysh CLI")
         helper_with_stdin(
-            "hq-client-users-1",
+            "svc-aaa-1",
             "sshpass -d 0 ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
             f"-o ConnectTimeout=10 netlab_admin@{target_oob}",
             os.environ.get("NETLAB_SERVICE_IMAGE", "netlab/service:0.1.0"),
@@ -173,6 +199,7 @@ def main() -> int:
     # Verify this image exists before attempting any namespace probes.
     run("docker", "image", "inspect", image)
     for site in ("hq", "br1"):
+        relay_ownership(site)
         for suffix in ("client-users-1", "server-1", "client-guest-1"):
             client = f"{site}-{suffix}"
             output = lease_and_bootstrap(site, client, image)

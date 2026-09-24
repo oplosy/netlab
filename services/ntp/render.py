@@ -24,11 +24,15 @@ def render_site(data: dict[str, Any], site: str) -> str:
     ])
 
 
-def render_internet() -> str:
+def render_internet(data: dict[str, Any]) -> str:
+    site_sources = [
+        str(ipaddress.ip_interface(site["public_endpoint"]).ip) + "/32"
+        for site in data["sites"] if site["id"] in {"hq", "br1"}
+    ]
     return "\n".join([
         "driftfile /var/lib/chrony/chrony.drift", "makestep 1.0 3", "rtcsync",
         "leapsectz right/UTC", "bindaddress 203.0.113.11", "port 123",
-        "local stratum 8", "allow 10.0.0.0/8", "cmdport 0", "",
+        "local stratum 8", *(f"allow {source}" for source in site_sources), "cmdport 0", "",
     ])
 
 

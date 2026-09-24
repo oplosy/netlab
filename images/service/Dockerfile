@@ -4,6 +4,7 @@ FROM ${UBUNTU_BASE_IMAGE}
 ARG UBUNTU_SNAPSHOT=20260905T000000Z
 ARG KEA_VERSION=2.4.1-3ubuntu0.2
 ARG BIND9_VERSION=1:9.18.39-0ubuntu0.24.04.7
+ARG BIND9_DNSUTILS_VERSION=1:9.18.39-0ubuntu0.24.04.7
 ARG BIND9_UTILS_VERSION=1:9.18.39-0ubuntu0.24.04.7
 ARG CHRONY_VERSION=4.5-1ubuntu4.2
 ARG FREERADIUS_VERSION=3.2.5+dfsg-3~ubuntu24.04.3
@@ -38,11 +39,12 @@ RUN rm -f /etc/apt/sources.list.d/ubuntu.sources \
     && apt-get install --no-install-recommends --yes \
        bash ca-certificates curl iproute2 python3 \
        kea-dhcp4-server=${KEA_VERSION} \
-       bind9=${BIND9_VERSION} bind9-utils=${BIND9_UTILS_VERSION} \
+       bind9=${BIND9_VERSION} bind9-dnsutils=${BIND9_DNSUTILS_VERSION} bind9-utils=${BIND9_UTILS_VERSION} \
        chrony=${CHRONY_VERSION} freeradius=${FREERADIUS_VERSION} freeradius-utils=${FREERADIUS_VERSION} \
        isc-dhcp-client=${DHCP_CLIENT_VERSION} openssh-client=${OPENSSH_CLIENT_VERSION} sshpass=${SSHPASS_VERSION} \
     && test "$(dpkg-query -W -f='${Version}' kea-dhcp4-server)" = "${KEA_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' bind9)" = "${BIND9_VERSION}" \
+    && test "$(dpkg-query -W -f='${Version}' bind9-dnsutils)" = "${BIND9_DNSUTILS_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' bind9-utils)" = "${BIND9_UTILS_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' chrony)" = "${CHRONY_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' freeradius)" = "${FREERADIUS_VERSION}" \
@@ -53,6 +55,7 @@ RUN rm -f /etc/apt/sources.list.d/ubuntu.sources \
     && { \
          printf 'kea=%s\n' "$(dpkg-query -W -f='${Version}' kea-dhcp4-server)"; \
          printf 'bind9=%s\n' "$(dpkg-query -W -f='${Version}' bind9)"; \
+         printf 'bind9-dnsutils=%s\n' "$(dpkg-query -W -f='${Version}' bind9-dnsutils)"; \
          printf 'bind9-utils=%s\n' "$(dpkg-query -W -f='${Version}' bind9-utils)"; \
          printf 'chrony=%s\n' "$(dpkg-query -W -f='${Version}' chrony)"; \
          printf 'freeradius=%s\n' "$(dpkg-query -W -f='${Version}' freeradius)"; \

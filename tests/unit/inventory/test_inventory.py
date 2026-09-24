@@ -25,6 +25,13 @@ class InventoryTests(unittest.TestCase):
         errors = validate_inventory(changed)
         self.assertTrue(any("duplicate IP address 172.31.255.30" in error for error in errors))
 
+    def test_endpoints_must_not_have_oob_addresses(self) -> None:
+        changed = copy.deepcopy(self.inventory)
+        endpoint = next(node for node in changed["nodes"] if node["role"] == "client")
+        endpoint["oob"] = "172.31.255.34/24"
+        errors = validate_inventory(changed)
+        self.assertTrue(any(f"endpoint node {endpoint['id']} must not have an OOB address" in error for error in errors))
+
     def test_duplicate_asn_is_rejected(self) -> None:
         changed = copy.deepcopy(self.inventory)
         changed["asns"].append({"id": 65100, "name": "duplicate", "domain": "enterprise", "reserved": False})

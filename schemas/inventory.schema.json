@@ -70,7 +70,7 @@
         "site": {"type": ["string", "null"]},
         "role": {"enum": ["edge", "dist", "access", "client", "server", "isp", "service"]},
         "asn": {"type": ["integer", "null"]},
-        "oob": {"$ref": "#/$defs/cidr"},
+        "oob": {"type": ["string", "null"], "anyOf": [{"$ref": "#/$defs/cidr"}, {"type": "null"}]},
         "loopback": {"type": ["string", "null"], "anyOf": [{"$ref": "#/$defs/cidr"}, {"type": "null"}]},
         "interfaces": {"type": "array", "items": {"$ref": "#/$defs/interface"}},
         "service": {"type": "string"},

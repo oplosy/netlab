@@ -54,11 +54,15 @@ def static_checks() -> None:
     if set(nodes) != set(inventory_nodes):
         fail("topology nodes differ from authoritative inventory")
     for node_id, node in inventory_nodes.items():
-        expected = str(ipaddress.ip_interface(node["oob"]).ip)
         if "privileged" in nodes[node_id]:
             fail(f"unsupported privileged toggle on Containerlab 0.77 node {node_id}")
-        if nodes[node_id].get("mgmt-ipv4") != expected:
-            fail(f"OOB address drift for {node_id}: expected {expected}")
+        if node["role"] in {"client", "server"}:
+            if nodes[node_id].get("network-mode") != "none" or "mgmt-ipv4" in nodes[node_id]:
+                fail(f"endpoint {node_id} must not attach to the OOB management network")
+        else:
+            expected = str(ipaddress.ip_interface(node["oob"]).ip)
+            if nodes[node_id].get("mgmt-ipv4") != expected:
+                fail(f"OOB address drift for {node_id}: expected {expected}")
         if nodes[node_id].get("labels", {}).get("netlab.inventory-node") != node_id:
             fail(f"missing inventory label for {node_id}")
     if nodes.get("isp1-core-1", {}).get("env", {}).get("NETLAB_NODE_ROLE") != "router":

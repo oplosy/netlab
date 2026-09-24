@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import ipaddress
 import json
 import subprocess
@@ -83,6 +82,9 @@ def _keepalived_config(
             "  virtual_ipaddress {",
             f"    {gateway['virtual_ip']} dev {gateway['interface']}",
             "  }",
+            '  notify_master "/usr/local/sbin/netlab-dhcp-relay-reconcile"',
+            '  notify_backup "/usr/local/sbin/netlab-dhcp-relay-reconcile"',
+            '  notify_fault "/usr/local/sbin/netlab-dhcp-relay-reconcile"',
             "  track_script {",
             "    chk_remote_ospf_route",
             "  }",
@@ -252,6 +254,7 @@ def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]
                 "node": node["id"],
                 "interface": interface,
                 "vlan_id": entry["vlan_id"],
+                "virtual_ip": entry["virtual_ip"],
                 "server": dhcp_server,
                 "enabled": dhcp_server is not None,
             })
@@ -392,35 +395,11 @@ def _prepare_node(item: dict[str, Any], relay_hooks: list[dict[str, Any]], docke
 
 
 def _configure_dhcp_relay(container: str, hooks: list[dict[str, Any]], docker: str) -> None:
-    enabled = [hook for hook in hooks if hook["enabled"]]
-    state = "/run/netlab/dhcp-relay-state"
-    if not enabled:
-        _exec(docker, container, "bash", "-ec",
-              f"if [ -s {state} ]; then read -r _ pid < {state}; [ -z \"$pid\" ] || kill \"$pid\" 2>/dev/null || true; fi; rm -f {state}")
-        return
-    servers = {hook["server"] for hook in enabled}
-    if len(servers) != 1:
-        raise ValueError(f"{container} has multiple DHCP relay targets")
-    server = next(iter(servers))
-    interfaces = sorted({hook["interface"] for hook in enabled},
-                        key=lambda value: int(value.removeprefix("vlan")))
-    digest = hashlib.sha256(
-        json.dumps({"server": server, "interfaces": interfaces}, sort_keys=True).encode()
-    ).hexdigest()
-    script = (
-        "state=/run/netlab/dhcp-relay-state; "
-        f"wanted={digest}; "
-        "if [ -s \"$state\" ]; then read -r old pid < \"$state\"; "
-        "if [ \"$old\" = \"$wanted\" ] && [ -n \"$pid\" ] && kill -0 \"$pid\" 2>/dev/null; then exit 0; fi; "
-        "if [ -n \"${pid:-}\" ] && kill -0 \"$pid\" 2>/dev/null && "
-        "tr '\\000' ' ' < \"/proc/$pid/cmdline\" | grep -q '/usr/sbin/dhcrelay'; then kill \"$pid\"; fi; fi; "
-        "args=(-4 -d) "
-        + " ".join(f"args+=(-i {interface})" for interface in interfaces)
-        + f"; /usr/sbin/dhcrelay \"${{args[@]}}\" {server} >/var/log/netlab/dhcrelay.log 2>&1 & "
-        "pid=$!; sleep 0.2; kill -0 \"$pid\" 2>/dev/null || { cat /var/log/netlab/dhcrelay.log >&2; exit 1; }; "
-        "printf '%s %s\\n' \"$wanted\" \"$pid\" > \"$state\""
-    )
-    _exec(docker, container, "bash", "-ec", script)
+    reconcile = ROOT / "config" / "gateway" / "dhcp_relay_reconcile.sh"
+    _copy_text(docker, container, "/tmp/netlab-dhcp-relay-reconcile", reconcile.read_text(encoding="utf-8"))
+    _exec(docker, container, "install", "-D", "-m", "0755",
+          "/tmp/netlab-dhcp-relay-reconcile", "/usr/local/sbin/netlab-dhcp-relay-reconcile")
+    _exec(docker, container, "/usr/local/sbin/netlab-dhcp-relay-reconcile")
 
 
 def _start_keepalived(item: dict[str, Any], docker: str) -> None:

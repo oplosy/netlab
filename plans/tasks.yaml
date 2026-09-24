@@ -359,7 +359,7 @@ tasks:
     phase: phase-1
     title: Implement enterprise infrastructure services
     type: feat
-    status: planned
+    status: complete
     depends_on: [L3-120, TOP-040]
     parallel_group: services-a
     allowed_paths:
@@ -367,6 +367,11 @@ tasks:
       - services/dns/**
       - services/ntp/**
       - services/aaa/**
+      - schemas/**
+      - scripts/lifecycle/**
+      - scripts/validate/**
+      - tests/unit/inventory/**
+      - tests/smoke/topology/**
       - automation/roles/services/**
       - tests/integration/services/**
       - tests/integration/l3/**
@@ -379,13 +384,8 @@ tasks:
       - images/service/**
       - inventory/**
       - lab/**
-      - scripts/images/build.sh
       - versions.env
-      - schemas/**
       - scripts/images/**
-      - scripts/validate/**
-      - tests/unit/inventory/**
-      - versions.env
     deliverables:
       - "Kea DHCP, BIND 9, chrony, and FreeRADIUS"
       - "Site/VLAN-specific leases and internal zones"

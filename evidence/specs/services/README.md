@@ -43,10 +43,11 @@ temporarily blocks RADIUS egress on one router and verifies that only the local
 break-glass account still reaches the forced vtysh CLI. The temporary nftables
 table is deleted in a `finally` cleanup path.
 
-Expected final output is `SVC-160 live acceptance: PASS`; the output must also
-show per-client DHCP/DNS/NTP success, guest drop counters, and central AAA
-accept/reject. The procedure has not been run while OSPF-130 owns the runtime,
-so no live result is claimed by this specification.
+The procedure completed successfully on 2026-09-24 after the orchestrator
+released the shared runtime. The run produced `SVC-160 live acceptance: PASS`
+with per-client DHCP/DNS/NTP checks, guest drop counters, OOB reachability
+denials, central AAA accept/reject, and break-glass fallback. A concise record
+is in [latest.md](latest.md).
 
 ## Administrative fallback
 

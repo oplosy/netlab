@@ -174,13 +174,33 @@ def build_plan(data: dict[str, Any]) -> dict[str, Any]:
             "isp_address": isp_endpoint["address"],
             "route_via": str(ipaddress.ip_interface(service_endpoint["address"]).ip),
             "dns_files": _internet_dns_files() if service == "dns" else {},
-            "ntp_file": render_internet() if service == "ntp" else None,
+            "ntp_file": render_internet(data) if service == "ntp" else None,
         })
     aaa_node = nodes[AAA_NODE]
-    return {"sites": work, "internet": isp_work, "aaa": {
+    network_nodes = [
+        {"id": node["id"], "oob": node["oob"]}
+        for node in data["nodes"] if node.get("role") in {"edge", "dist", "isp", "router"}
+    ]
+    service_egress_nat = []
+    for site in (item for item in data["sites"] if item["id"] in {"hq", "br1"}):
+        edge = next(node for node in data["nodes"] if node.get("site") == site["id"] and node.get("role") == "edge")
+        rules: list[dict[str, Any]] = []
+        for service, destination, protocol, ports in (
+            ("dns", "203.0.113.10", "udp", (53,)),
+            ("dns", "203.0.113.10", "tcp", (53,)),
+            ("ntp", "203.0.113.11", "udp", (123,)),
+        ):
+            service_node = nodes[f"svc-{site['id']}-{service}-1"]
+            rules.append({
+                "source": str(ipaddress.ip_interface(service_node["service_address"]).ip),
+                "destination": destination, "protocol": protocol,
+                "port": ports[0], "public_address": str(ipaddress.ip_interface(site["public_endpoint"]).ip),
+            })
+        service_egress_nat.append({"container": _container(edge["id"]), "rules": rules})
+    return {"sites": work, "internet": isp_work, "network_nodes": network_nodes, "aaa": {
         "container": _container(AAA_NODE),
         "oob_address": str(ipaddress.ip_interface(aaa_node["oob"]).ip),
-    }}
+    }, "service_egress_nat": service_egress_nat}
 
 
 def _restart_or_reload(docker: str, node: dict[str, Any], service: str) -> None:
@@ -194,14 +214,12 @@ def _restart_or_reload(docker: str, node: dict[str, Any], service: str) -> None:
              f"for _ in {{1..100}}; do pgrep -x {process} >/dev/null && exit 0; sleep 0.1; done; "
              f"echo '{service} daemon failed to start after configuration marker' >&2; exit 1")
         return
-    if service == "dns":
-        _run(docker, container, "rndc", "reload")
-    elif service == "ntp":
-        _run(docker, container, "chronyc", "reconfig")
-    elif service == "dhcp":
-        _run(docker, container, "pkill", "-HUP", "-x", "kea-dhcp4")
-    elif service == "aaa":
-        _run(docker, container, "pkill", "-HUP", "-x", "freeradius")
+    old_pid = _run(docker, container, "pgrep", "-xo", process).stdout.strip()
+    _run(docker, container, "kill", "-TERM", old_pid)
+    _run(docker, container, "bash", "-ec",
+         f"for _ in {{1..100}}; do pid=$(pgrep -xo {process} || true); "
+         f"[[ -n \"$pid\" && \"$pid\" != {old_pid} ]] && exit 0; sleep 0.1; done; "
+         f"echo '{service} daemon did not restart after configuration update' >&2; exit 1")
 
 
 def apply(plan: dict[str, Any], docker: str = "docker") -> None:
@@ -221,7 +239,7 @@ def apply(plan: dict[str, Any], docker: str = "docker") -> None:
             site = item["node"].split("-")[1]
             _run(docker, container, "named-checkzone", f"{site}.netlab.test", f"/etc/bind/netlab-{site}.zone")
         elif item["node"].endswith("-dhcp-1"):
-            _run(docker, container, "kea-dhcp4", "-t", "-c", "/etc/kea/kea-dhcp4.conf")
+            _run(docker, container, "kea-dhcp4", "-t", "/etc/kea/kea-dhcp4.conf")
         elif item["node"].endswith("-ntp-1"):
             _run(docker, container, "chronyd", "-p", "-f", "/etc/chrony/chrony.conf")
         if changed or _run(docker, container, "test", "-f", "/run/netlab/services-configured", check=False).returncode:
@@ -248,6 +266,16 @@ def apply(plan: dict[str, Any], docker: str = "docker") -> None:
             _run(docker, service, "chronyd", "-p", "-f", "/etc/chrony/chrony.conf")
         if changed or _run(docker, service, "test", "-f", "/run/netlab/services-configured", check=False).returncode:
             _restart_or_reload(docker, {**item, "container": service}, item["service"])
+        if item["service"] == "ntp":
+            # The simulated ISP NTP endpoint must serve its local stratum after
+            # every start. Site servers then poll it promptly and converge
+            # before the service apply reports success.
+            _run(docker, service, "chronyc", "local", "stratum", "8")
+
+    for site in ("hq", "br1"):
+        ntp_container = _container(f"svc-{site}-ntp-1")
+        _run(docker, ntp_container, "chronyc", "burst", "4/4")
+        _run(docker, ntp_container, "chronyc", "waitsync", "30", "0", "0", "1")
 
     aaa = plan["aaa"]
     credentials = _runtime_credentials(docker, aaa["container"])
@@ -260,7 +288,10 @@ def apply(plan: dict[str, Any], docker: str = "docker") -> None:
             "  listen {", "    type = auth", "    ipaddr = 172.31.255.13", "    port = 1812", "  }",
             "  listen {", "    type = acct", "    ipaddr = 172.31.255.13", "    port = 1813", "  }",
             "  authorize {", "    filter_username", "    preprocess", "    files", "    pap", "  }",
-            "  authenticate {", "    Auth-Type PAP {", "      pap", "    }", "  }",
+            "  authenticate {", "    Auth-Type PAP {", "      pap", "    }",
+            "    Auth-Type CHAP {", "      chap", "    }",
+            "    Auth-Type MS-CHAP {", "      mschap", "    }",
+            "    Auth-Type EAP {", "      eap", "    }", "  }",
             "}",
             "",
         ]),
@@ -271,19 +302,47 @@ def apply(plan: dict[str, Any], docker: str = "docker") -> None:
     changed = False
     for destination, content in files.items():
         changed = _copy(docker, aaa["container"], destination, content, "0640") or changed
+        ownership = _run(docker, aaa["container"], "stat", "-c", "%U:%G", destination)
+        if ownership.stdout.strip() != "root:freerad":
+            _run(docker, aaa["container"], "chown", "root:freerad", destination)
+            changed = True
     _run(docker, aaa["container"], "freeradius", "-XC")
     aaa_item = {"container": aaa["container"]}
     if changed or _run(docker, aaa["container"], "test", "-f", "/run/netlab/services-configured", check=False).returncode:
         _restart_or_reload(docker, aaa_item, "aaa")
 
-    _configure_network_nodes(plan, data, credentials, docker)
+    _configure_service_egress_nat(plan["service_egress_nat"], docker)
+    _configure_network_nodes(plan, credentials, docker)
 
 
-def _configure_network_nodes(plan: dict[str, Any], data: dict[str, Any], credentials: dict[str, str], docker: str) -> None:
-    aaa_address = plan["aaa"]["oob_address"]
-    for node in data["nodes"]:
-        if node.get("role") not in {"edge", "dist", "isp", "router"}:
+def _configure_service_egress_nat(items: list[dict[str, Any]], docker: str) -> None:
+    """SNAT only site DNS/NTP upstream requests to the BGP-advertised endpoint."""
+    for item in items:
+        lines = [
+            "table ip netlab_service_egress_nat {",
+            " chain postrouting { type nat hook postrouting priority srcnat; policy accept;",
+        ]
+        for rule in item["rules"]:
+            lines.append(
+                f"  ip saddr {rule['source']} ip daddr {rule['destination']} "
+                f"{rule['protocol']} dport {rule['port']} counter snat to {rule['public_address']}"
+            )
+        lines.extend([" }", "}", ""])
+        content = "\n".join(lines)
+        digest = hashlib.sha256(content.encode()).hexdigest()
+        marker = "/run/netlab/service-egress-nat.sha256"
+        current = _run(docker, item["container"], "cat", marker, check=False)
+        exists = _run(docker, item["container"], "nft", "list", "table", "ip", "netlab_service_egress_nat", check=False)
+        if current.returncode == 0 and current.stdout.strip() == digest and exists.returncode == 0:
             continue
+        _run(docker, item["container"], "nft", "delete", "table", "ip", "netlab_service_egress_nat", check=False)
+        _run_input(docker, item["container"], content, "nft", "-f", "-")
+        _run_input(docker, item["container"], digest + "\n", "tee", marker)
+
+
+def _configure_network_nodes(plan: dict[str, Any], credentials: dict[str, str], docker: str) -> None:
+    aaa_address = plan["aaa"]["oob_address"]
+    for node in plan["network_nodes"]:
         container = _container(node["id"])
         oob_address = str(ipaddress.ip_interface(node["oob"]).ip)
         radius_config = render_node_radius(aaa_address, credentials["shared_secret"], node["oob"])

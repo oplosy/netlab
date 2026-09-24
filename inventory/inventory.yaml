@@ -58,9 +58,9 @@
       {"name": "to_svc_hq_dns_1", "kind": "l2", "addresses": []},
       {"name": "to_svc_hq_ntp_1", "kind": "l2", "addresses": []}
     ]},
-    {"id": "hq-client-users-1", "site": "hq", "role": "client", "oob": "172.31.255.34/24", "loopback": null, "interfaces": [{"name": "to_hq_access_1", "kind": "l2", "addresses": []}]},
-    {"id": "hq-server-1", "site": "hq", "role": "server", "oob": "172.31.255.35/24", "loopback": null, "interfaces": [{"name": "to_hq_access_1", "kind": "l2", "addresses": []}]},
-    {"id": "hq-client-guest-1", "site": "hq", "role": "client", "oob": "172.31.255.36/24", "loopback": null, "interfaces": [{"name": "to_hq_access_1", "kind": "l2", "addresses": []}]},
+    {"id": "hq-client-users-1", "site": "hq", "role": "client", "oob": null, "loopback": null, "interfaces": [{"name": "to_hq_access_1", "kind": "l2", "addresses": []}]},
+    {"id": "hq-server-1", "site": "hq", "role": "server", "oob": null, "loopback": null, "interfaces": [{"name": "to_hq_access_1", "kind": "l2", "addresses": []}]},
+    {"id": "hq-client-guest-1", "site": "hq", "role": "client", "oob": null, "loopback": null, "interfaces": [{"name": "to_hq_access_1", "kind": "l2", "addresses": []}]},
     {"id": "br1-edge-1", "site": "br1", "role": "edge", "asn": 65101, "oob": "172.31.255.50/24", "loopback": "10.20.255.1/32", "interfaces": [
       {"name": "to_br1_dist_1", "kind": "routed", "addresses": ["10.20.252.0/31"]},
       {"name": "to_br1_dist_2", "kind": "routed", "addresses": ["10.20.252.2/31"]},
@@ -101,9 +101,9 @@
       {"name": "to_svc_br1_dns_1", "kind": "l2", "addresses": []},
       {"name": "to_svc_br1_ntp_1", "kind": "l2", "addresses": []}
     ]},
-    {"id": "br1-client-users-1", "site": "br1", "role": "client", "oob": "172.31.255.54/24", "loopback": null, "interfaces": [{"name": "to_br1_access_1", "kind": "l2", "addresses": []}]},
-    {"id": "br1-server-1", "site": "br1", "role": "server", "oob": "172.31.255.55/24", "loopback": null, "interfaces": [{"name": "to_br1_access_1", "kind": "l2", "addresses": []}]},
-    {"id": "br1-client-guest-1", "site": "br1", "role": "client", "oob": "172.31.255.56/24", "loopback": null, "interfaces": [{"name": "to_br1_access_1", "kind": "l2", "addresses": []}]},
+    {"id": "br1-client-users-1", "site": "br1", "role": "client", "oob": null, "loopback": null, "interfaces": [{"name": "to_br1_access_1", "kind": "l2", "addresses": []}]},
+    {"id": "br1-server-1", "site": "br1", "role": "server", "oob": null, "loopback": null, "interfaces": [{"name": "to_br1_access_1", "kind": "l2", "addresses": []}]},
+    {"id": "br1-client-guest-1", "site": "br1", "role": "client", "oob": null, "loopback": null, "interfaces": [{"name": "to_br1_access_1", "kind": "l2", "addresses": []}]},
     {"id": "isp1-core-1", "site": null, "role": "isp", "asn": 65000, "oob": "172.31.255.20/24", "loopback": null, "interfaces": [
       {"name": "to_hq_edge_1", "kind": "routed", "addresses": ["192.0.2.1/31"]},
       {"name": "to_br1_edge_1", "kind": "routed", "addresses": ["192.0.2.3/31"]},

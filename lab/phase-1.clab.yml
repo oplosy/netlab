@@ -63,7 +63,7 @@ topology:
     hq-client-users-1:
       kind: linux
       image: netlab/client:0.1.0
-      mgmt-ipv4: 172.31.255.34
+      network-mode: none
       labels:
         netlab.inventory-node: hq-client-users-1
         netlab.inventory-role: client
@@ -71,7 +71,7 @@ topology:
     hq-server-1:
       kind: linux
       image: netlab/client:0.1.0
-      mgmt-ipv4: 172.31.255.35
+      network-mode: none
       labels:
         netlab.inventory-node: hq-server-1
         netlab.inventory-role: server
@@ -79,7 +79,7 @@ topology:
     hq-client-guest-1:
       kind: linux
       image: netlab/client:0.1.0
-      mgmt-ipv4: 172.31.255.36
+      network-mode: none
       labels:
         netlab.inventory-node: hq-client-guest-1
         netlab.inventory-role: client
@@ -135,7 +135,7 @@ topology:
     br1-client-users-1:
       kind: linux
       image: netlab/client:0.1.0
-      mgmt-ipv4: 172.31.255.54
+      network-mode: none
       labels:
         netlab.inventory-node: br1-client-users-1
         netlab.inventory-role: client
@@ -143,7 +143,7 @@ topology:
     br1-server-1:
       kind: linux
       image: netlab/client:0.1.0
-      mgmt-ipv4: 172.31.255.55
+      network-mode: none
       labels:
         netlab.inventory-node: br1-server-1
         netlab.inventory-role: server
@@ -151,7 +151,7 @@ topology:
     br1-client-guest-1:
       kind: linux
       image: netlab/client:0.1.0
-      mgmt-ipv4: 172.31.255.56
+      network-mode: none
       labels:
         netlab.inventory-node: br1-client-guest-1
         netlab.inventory-role: client

@@ -48,7 +48,11 @@ class ServicePlanTests(unittest.TestCase):
             self.assertIn("server 203.0.113.11 iburst prefer", config)
             self.assertIn(f"allow {aggregate}", config)
             self.assertNotIn("172.31.255.", config)
-        self.assertIn("bindaddress 203.0.113.11", render_internet())
+        internet_ntp = render_internet(INVENTORY)
+        self.assertIn("bindaddress 203.0.113.11", internet_ntp)
+        self.assertIn("allow 203.0.113.129/32", internet_ntp)
+        self.assertIn("allow 203.0.113.130/32", internet_ntp)
+        self.assertNotIn("allow 10.0.0.0/8", internet_ntp)
 
     def test_gateway_relays_each_vlan_to_local_kea_and_keeps_guest_exceptions(self) -> None:
         plan = build_gateway_plan(INVENTORY)
@@ -72,7 +76,21 @@ class ServicePlanTests(unittest.TestCase):
         plan = build_plan(INVENTORY)
         self.assertEqual(len(plan["sites"]), 6)
         self.assertEqual(len(plan["internet"]), 2)
+        self.assertEqual(len(plan["network_nodes"]), 7)
+        self.assertEqual(plan["network_nodes"][0]["oob"], "172.31.255.30/24")
         self.assertEqual(plan["aaa"]["oob_address"], "172.31.255.13")
+        self.assertEqual(len(plan["service_egress_nat"]), 2)
+        for item, public in zip(plan["service_egress_nat"], ("203.0.113.129", "203.0.113.130"), strict=True):
+            self.assertEqual(len(item["rules"]), 3)
+            self.assertEqual({rule["public_address"] for rule in item["rules"]}, {public})
+            self.assertEqual(
+                {(rule["source"], rule["destination"], rule["protocol"], rule["port"]) for rule in item["rules"]},
+                {
+                    ("10.10.20.11" if public.endswith("129") else "10.20.20.11", "203.0.113.10", "udp", 53),
+                    ("10.10.20.11" if public.endswith("129") else "10.20.20.11", "203.0.113.10", "tcp", 53),
+                    ("10.10.20.12" if public.endswith("129") else "10.20.20.12", "203.0.113.11", "udp", 123),
+                },
+            )
         for service in plan["internet"]:
             expected_interface = "eth3" if service["service"] == "dns" else "eth4"
             self.assertEqual(service["isp_interface"], expected_interface)
@@ -110,7 +128,7 @@ class ServicePlanTests(unittest.TestCase):
                 key, value = line.split("=", 1)
                 versions[key] = value
         service_dockerfile = (ROOT / "images/service/Dockerfile").read_text(encoding="utf-8")
-        for key in ("KEA_VERSION", "BIND9_VERSION", "BIND9_UTILS_VERSION", "CHRONY_VERSION",
+        for key in ("KEA_VERSION", "BIND9_VERSION", "BIND9_DNSUTILS_VERSION", "BIND9_UTILS_VERSION", "CHRONY_VERSION",
                     "FREERADIUS_VERSION", "DHCP_CLIENT_VERSION", "OPENSSH_CLIENT_VERSION",
                     "SSHPASS_VERSION"):
             self.assertIn(f"ARG {key}={versions[key]}", service_dockerfile)

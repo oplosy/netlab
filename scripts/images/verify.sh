@@ -39,6 +39,10 @@ for image in network-node client service; do
 done
 
 network_dockerfile=${REPO_ROOT}/images/network-node/Dockerfile
+service_dockerfile=${REPO_ROOT}/images/service/Dockerfile
+[[ ${BIND9_DNSUTILS_VERSION} == "${BIND9_VERSION}" ]] && pass 'BIND DNS utilities lock matches the BIND snapshot' || fail 'BIND DNS utilities must match the locked BIND version'
+grep -Fq "ARG BIND9_DNSUTILS_VERSION=${BIND9_DNSUTILS_VERSION}" "${service_dockerfile}" && grep -Fq "bind9-dnsutils=\${BIND9_DNSUTILS_VERSION}" "${service_dockerfile}" && pass 'BIND DNS utilities are version-pinned' || fail 'BIND DNS utilities package pin missing'
+grep -Fq "dpkg-query -W -f='\${Version}' bind9-dnsutils" "${service_dockerfile}" && grep -Fq "printf 'bind9-dnsutils=%s\\n'" "${service_dockerfile}" && pass 'BIND DNS utilities version is verified and recorded' || fail 'BIND DNS utilities component evidence missing'
 metadata_dir_line=$(grep -nF 'mkdir -p /run/netlab /var/log/netlab /usr/share/netlab' "${network_dockerfile}" | head -n1 | cut -d: -f1 || true)
 metadata_redirect_line=$(grep -nF '} > /usr/share/netlab/component-versions' "${network_dockerfile}" | head -n1 | cut -d: -f1 || true)
 if [[ ${metadata_dir_line} =~ ^[0-9]+$ && ${metadata_redirect_line} =~ ^[0-9]+$ && ${metadata_dir_line} -lt ${metadata_redirect_line} ]]; then
@@ -88,6 +92,36 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     'test -f /usr/lib/ipsec/plugins/libstrongswan-openssl.so && openssl ecparam -name secp384r1 -genkey -noout >/dev/null' \
     && pass 'runtime image has the locked OpenSSL provider and ECP-384 support' \
     || fail 'runtime OpenSSL provider/ECP-384 check failed'
+  docker run --rm --entrypoint bash -e NETLAB_SERVICE=observability "${NETLAB_SERVICE_IMAGE}" -ec \
+    '/usr/local/bin/netlab-service-entrypoint >/tmp/service.log 2>&1 & pid=$!; \
+     for _ in {1..50}; do curl --fail --silent http://127.0.0.1:8080/health >/dev/null && break; sleep 0.1; done; \
+     /usr/local/bin/netlab-service-healthcheck; \
+     kill "${pid}"; wait "${pid}" || true' \
+    && pass 'observability skeleton service remains healthy' \
+    || fail 'observability skeleton health check failed'
+  docker run --rm --entrypoint bash -e NETLAB_SERVICE=dhcp -e NETLAB_DATA_INTERFACE=eth0 "${NETLAB_SERVICE_IMAGE}" -ec \
+    '/usr/local/bin/netlab-service-entrypoint >/tmp/service.log 2>&1 & pid=$!; \
+     for _ in {1..50}; do [[ -d /run/kea && -d /var/lib/kea ]] && break; sleep 0.1; done; \
+     test -d /run/kea && test -d /var/lib/kea && test -w /var/lib/kea; \
+     kill "${pid}"; wait "${pid}" || true' \
+    && pass 'Kea runtime and lease database directories are prepared' \
+    || fail 'Kea runtime or lease database directory preparation failed'
+  docker run --rm --network none --entrypoint bash "${NETLAB_SERVICE_IMAGE}" -ec \
+    'NETLAB_SERVICE=dhcp /usr/local/bin/netlab-service-entrypoint >/tmp/service.log 2>&1 & pid=$!; \
+     sleep 1; kill -0 "${pid}"; \
+     kill "${pid}"; wait "${pid}" || true' \
+    && pass 'data-plane service waits for its Containerlab interface' \
+    || fail 'data-plane service did not wait for its Containerlab interface'
+  docker run --rm --network none --entrypoint bash "${NETLAB_SERVICE_IMAGE}" -ec \
+    'mkdir -p /run/netlab; touch /run/netlab/services-configured; \
+     NETLAB_SERVICE=dhcp NETLAB_DATA_INTERFACE=lo /usr/local/bin/netlab-service-entrypoint >/tmp/service.log 2>&1 & pid=$!; \
+     sleep 1; child=$(pgrep -xo kea-dhcp4); test -n "${child}"; kill -TERM "${child}"; \
+     for _ in {1..40}; do new_child=$(pgrep -xo kea-dhcp4 || true); \
+       [[ -n "${new_child}" && "${new_child}" != "${child}" ]] && break; sleep 0.1; done; \
+     kill -0 "${pid}"; test -n "${new_child}" && [[ "${new_child}" != "${child}" ]]; \
+     kill "${pid}"; wait "${pid}"' \
+    && pass 'service supervisor recovers daemon exits without exiting its container' \
+    || fail 'service supervisor did not recover a daemon exit'
   printf 'runtime verification completed against local Docker images\n'
 else
   printf '[BLOCKED] Docker CLI/daemon unavailable; runtime image inspection and clean-build comparison were not run.\n'

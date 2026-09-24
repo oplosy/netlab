@@ -43,6 +43,9 @@ def test_vrrp_master_preference_matches_rstp_distribution_root() -> None:
             assert gateway["unicast_peer"] != gateway["unicast_src_ip"]
         assert "check_unicast_src" in node["keepalived_config"]
         assert "advert_int 1" in node["keepalived_config"]
+        assert 'notify_master "/usr/local/sbin/netlab-dhcp-relay-reconcile"' in node["keepalived_config"]
+        assert 'notify_backup "/usr/local/sbin/netlab-dhcp-relay-reconcile"' in node["keepalived_config"]
+        assert 'notify_fault "/usr/local/sbin/netlab-dhcp-relay-reconcile"' in node["keepalived_config"]
 
 
 def test_vrrp_tracks_inventory_derived_remote_ospf_summary() -> None:
@@ -72,6 +75,7 @@ def test_dhcp_relay_hook_exposes_vlan_and_inventory_service_target() -> None:
     servers = {"hq": "10.10.20.10", "br1": "10.20.20.10"}
     assert all(hook["server"] == servers[hook["site"]] for hook in hooks)
     assert all(hook["enabled"] is True for hook in hooks)
+    assert all(hook["virtual_ip"].endswith(".1/24") for hook in hooks)
 
 
 def test_guest_forwarding_blocks_enterprise_and_oob_destinations() -> None:
