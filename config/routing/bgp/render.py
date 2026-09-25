@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render Phase 1 FRR BGP configuration from the authoritative inventory."""
+"""Render filtered WAN-210 eBGP sessions from authoritative inventory."""
 
 from __future__ import annotations
 
@@ -18,13 +18,10 @@ def load_inventory(path: Path = INVENTORY) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     sites = {site["id"]: site for site in data["sites"]}
     if set(sites) != {"hq", "br1"}:
-        raise ValueError("WAN-140 requires exactly the Phase 1 sites hq and br1")
-    isps = [
-        node for node in data["nodes"]
-        if node.get("role") == "isp" and node["asn"] == 65000
-    ]
-    if len(isps) != 1 or isps[0]["id"] != "isp1-core-1":
-        raise ValueError("WAN-140 requires ISP-1 isp1-core-1 in AS 65000")
+        raise ValueError("WAN-210 requires exactly the active sites hq and br1")
+    isps = {node["id"]: node for node in data["nodes"] if node.get("role") == "isp"}
+    if set(isps) != {"isp1-core-1", "isp2-core-1"}:
+        raise ValueError("WAN-210 requires ISP-1 and ISP-2")
     return data
 
 
@@ -32,157 +29,143 @@ def _ip(address: str) -> str:
     return str(ipaddress.ip_interface(address).ip)
 
 
-def _peer(data: dict[str, Any], site_id: str) -> tuple[int, str, str]:
-    node_id = {"hq": "hq-edge-1", "br1": "br1-edge-1"}[site_id]
-    edge = next(node for node in data["nodes"] if node["id"] == node_id)
-    link = next(
-        link
-        for link in data["links"]
-        if link["kind"] == "ebgp"
-        and any(endpoint["node"] == node_id for endpoint in link["endpoints"])
-    )
-    local = next(
-        endpoint for endpoint in link["endpoints"] if endpoint["node"] == node_id
-    )
-    remote = next(
-        endpoint for endpoint in link["endpoints"] if endpoint["node"] != node_id
-    )
-    return edge["asn"], _ip(local["address"]), _ip(remote["address"])
+def _interface_map(node: dict[str, Any]) -> dict[str, str]:
+    return {
+        interface["name"]: f"eth{index}"
+        for index, interface in enumerate(
+            (item for item in node.get("interfaces", []) if item.get("kind") in PHYSICAL_LINK_KINDS),
+            start=1,
+        )
+    }
+
+
+def _sessions(data: dict[str, Any], node_id: str) -> list[dict[str, Any]]:
+    nodes = {node["id"]: node for node in data["nodes"]}
+    result = []
+    for link in data["links"]:
+        if link.get("kind") != "ebgp":
+            continue
+        local = next((endpoint for endpoint in link["endpoints"] if endpoint["node"] == node_id), None)
+        if local is None:
+            continue
+        remote = next(endpoint for endpoint in link["endpoints"] if endpoint["node"] != node_id)
+        result.append({"local": local, "remote": remote, "peer": nodes[remote["node"]], "link": link})
+    return result
 
 
 def _underlay_interfaces(data: dict[str, Any], node_id: str) -> list[str]:
     node = next(node for node in data["nodes"] if node["id"] == node_id)
-    mapping = {
-        interface["name"]: f"eth{index}"
-        for index, interface in enumerate(
-            (
-                interface
-                for interface in node.get("interfaces", [])
-                if interface.get("kind") in PHYSICAL_LINK_KINDS
-            ),
-            start=1,
-        )
-    }
+    mapping = _interface_map(node)
     lines: list[str] = []
-    for link in data["links"]:
-        if link["kind"] != "ebgp":
-            continue
-        local = next(
-            (endpoint for endpoint in link["endpoints"] if endpoint["node"] == node_id),
-            None,
-        )
-        if local is None:
-            continue
-        peer = next(
-            endpoint for endpoint in link["endpoints"] if endpoint["node"] != node_id
-        )
+    for session in _sessions(data, node_id):
+        local, remote = session["local"], session["remote"]
         interface = mapping[local["interface"]]
-        peer_name = peer["node"].replace("-", "_")
-        description = f"to_{peer_name}_{peer['interface']}"
-        lines.extend([
-            f"interface {interface}",
-            f" description {description}",
-            f" ip address {local['address']}",
-            "!",
-        ])
+        peer_name = remote["node"].replace("-", "_")
+        description = f"to_{peer_name}_{remote['interface']}"
+        lines.extend([f"interface {interface}", f" description {description}", f" ip address {local['address']}", "!"])
     return lines
 
 
-def _site_endpoint_interface(data: dict[str, Any], node_id: str) -> list[str]:
-    node = next(node for node in data["nodes"] if node["id"] == node_id)
-    site = next(site for site in data["sites"] if site["id"] == node["site"])
+def _endpoint(data: dict[str, Any], node_id: str) -> str:
+    node = next(item for item in data["nodes"] if item["id"] == node_id)
+    site = next(item for item in data["sites"] if item["id"] == node["site"])
+    return site["public_endpoint"]
+
+
+def _edge_index(node_id: str) -> int:
+    return int(node_id.rsplit("-", 1)[-1])
+
+
+def _router_id(node: dict[str, Any]) -> str:
+    return _ip(node["loopback"]) if node.get("loopback") else _ip(node["interfaces"][0]["addresses"][0])
+
+
+def _prefix_filters(site_id: str, endpoint: str) -> list[str]:
     return [
-        "interface lo",
-        " description stable_site_public_endpoint",
-        f" ip address {site['public_endpoint']}",
-        "!",
+        f"ip prefix-list {site_id.upper()}-ENDPOINT seq 10 permit {endpoint}",
+        f"ip prefix-list {site_id.upper()}-ENDPOINT seq 100 deny 0.0.0.0/0 le 32",
+        "ip prefix-list DENY-ALL seq 10 deny 0.0.0.0/0 le 32",
     ]
 
 
 def configs(data: dict[str, Any]) -> dict[str, str]:
     sites = {site["id"]: site for site in data["sites"]}
-    isp = next(node for node in data["nodes"] if node.get("role") == "isp")
-    isp_router_id = _ip(isp["interfaces"][0]["addresses"][0])
+    routers = [node for node in data["nodes"] if node.get("role") in {"isp", "edge"}]
     result: dict[str, str] = {}
-    isp_lines = [
-        "! Generated from inventory; do not edit.",
-        *_underlay_interfaces(data, isp["id"]),
-        "ip route 0.0.0.0/0 Null0",
-        "ip route 203.0.113.0/25 Null0",
-    ]
-    for site_id in ("hq", "br1"):
-        endpoint = sites[site_id]["public_endpoint"]
-        isp_lines.extend(
-            [
-                f"ip prefix-list {site_id.upper()}-ENDPOINT seq 10 permit {endpoint}",
-                f"ip prefix-list {site_id.upper()}-ENDPOINT seq 100 deny "
-                "0.0.0.0/0 le 32",
-            ]
-        )
-    isp_lines.extend(
-        [
-            "ip prefix-list ISP-DEFAULT-ONLY seq 10 permit 0.0.0.0/0",
-            "ip prefix-list ISP-DEFAULT-ONLY seq 100 deny 0.0.0.0/0 le 32",
-            "router bgp 65000",
-            f" bgp router-id {isp_router_id}",
-            " no bgp ebgp-requires-policy",
-        ]
-    )
-    for site_id in ("hq", "br1"):
-        asn, peer_ip, _ = _peer(data, site_id)
-        isp_lines.extend(
-            [
-                f" neighbor {peer_ip} remote-as {asn}",
-                f" neighbor {peer_ip} description {site_id.upper()}-EDGE-1",
-                f" neighbor {peer_ip} maximum-prefix 1",
-                f" neighbor {peer_ip} default-originate",
-                f" neighbor {peer_ip} prefix-list {site_id.upper()}-ENDPOINT in",
-                f" neighbor {peer_ip} prefix-list ISP-DEFAULT-ONLY out",
-            ]
-        )
-    isp_lines.append(" address-family ipv4 unicast")
-    for site_id in ("hq", "br1"):
-        _, peer_ip, _ = _peer(data, site_id)
-        isp_lines.append(f"  neighbor {peer_ip} activate")
-    isp_lines.extend([" exit-address-family", "!"])
-    result[isp["id"]] = "\n".join(isp_lines) + "\n"
-
-    for site_id, node_id in (("hq", "hq-edge-1"), ("br1", "br1-edge-1")):
-        site = sites[site_id]
-        _, _, peer_ip = _peer(data, site_id)
-        endpoint = site["public_endpoint"]
-        edge = next(node for node in data["nodes"] if node["id"] == node_id)
-        router_id = _ip(edge["loopback"])
-        prefix_name = "ISP-DEFAULT"
-        lines = [
-            "! Generated from inventory; do not edit.",
-            *_underlay_interfaces(data, node_id),
-            *_site_endpoint_interface(data, node_id),
-            f"ip prefix-list {prefix_name} seq 10 permit 0.0.0.0/0",
-            f"ip prefix-list {prefix_name} seq 100 deny 0.0.0.0/0 le 32",
-            f"ip prefix-list {site_id.upper()}-ENDPOINT seq 10 permit {endpoint}",
-            f"ip prefix-list {site_id.upper()}-ENDPOINT seq 100 deny 0.0.0.0/0 le 32",
-            "route-map ISP-IN permit 10",
-            f" match ip address prefix-list {prefix_name}",
-            f"route-map {site_id.upper()}-OUT permit 10",
-            f" match ip address prefix-list {site_id.upper()}-ENDPOINT",
-            f"route-map {site_id.upper()}-OUT deny 100",
-            f"router bgp {site['asn']}",
-            f" bgp router-id {router_id}",
-            " no bgp ebgp-requires-policy",
-            f" neighbor {peer_ip} remote-as 65000",
-            " neighbor {} description ISP1-CORE-1".format(peer_ip),
-            f" neighbor {peer_ip} maximum-prefix 1",
-            f" neighbor {peer_ip} prefix-list {prefix_name} in",
-            f" neighbor {peer_ip} prefix-list {site_id.upper()}-ENDPOINT out",
-            " address-family ipv4 unicast",
-            f"  neighbor {peer_ip} activate",
-            f"  neighbor {peer_ip} route-map ISP-IN in",
-            f"  neighbor {peer_ip} route-map {site_id.upper()}-OUT out",
-            f"  network {endpoint}",
-            " exit-address-family",
-            "!",
-        ]
+    for router in routers:
+        node_id = router["id"]
+        sessions = _sessions(data, node_id)
+        lines = ["! Generated from inventory; do not edit.", *_underlay_interfaces(data, node_id)]
+        if router["role"] == "isp":
+            isp_asn = router["asn"]
+            isp1 = isp_asn == 65000
+            if isp1:
+                lines.extend(["ip route 0.0.0.0/0 Null0", "ip route 203.0.113.0/25 Null0"])
+            for site_id, site in sites.items():
+                lines.extend(_prefix_filters(site_id, site["public_endpoint"]))
+            if isp1:
+                lines.extend([
+                    "ip prefix-list ISP-DEFAULT-ONLY seq 10 permit 0.0.0.0/0",
+                    "ip prefix-list ISP-DEFAULT-ONLY seq 100 deny 0.0.0.0/0 le 32",
+                ])
+            lines.extend([f"router bgp {isp_asn}", f" bgp router-id {_router_id(router)}", " no bgp ebgp-requires-policy"])
+            for session in sessions:
+                site_id = session["peer"].get("site")
+                edge_id = session["peer"]["id"]
+                peer_ip = _ip(session["remote"]["address"])
+                edge1 = _edge_index(edge_id) == 1
+                lines.extend([
+                    f" neighbor {peer_ip} remote-as {session['peer']['asn']}",
+                    f" neighbor {peer_ip} description {edge_id.upper()}",
+                    f" neighbor {peer_ip} maximum-prefix 1",
+                    f" neighbor {peer_ip} prefix-list {'%s-ENDPOINT' % site_id.upper() if edge1 else 'DENY-ALL'} in",
+                    f" neighbor {peer_ip} prefix-list {'ISP-DEFAULT-ONLY' if isp1 else 'DENY-ALL'} out",
+                ])
+                if isp1:
+                    lines.append(f" neighbor {peer_ip} default-originate")
+            lines.append(" address-family ipv4 unicast")
+            lines.extend(f"  neighbor {_ip(item['remote']['address'])} activate" for item in sessions)
+            lines.extend([" exit-address-family", "!"])
+        else:
+            site_id = router["site"]
+            edge1 = _edge_index(node_id) == 1
+            endpoint = sites[site_id]["public_endpoint"]
+            if edge1:
+                lines.extend(["interface lo", " description stable_site_public_endpoint", f" ip address {endpoint}", "!"])
+            lines.extend(_prefix_filters(site_id, endpoint))
+            lines.extend([
+                "ip prefix-list ISP-DEFAULT seq 10 permit 0.0.0.0/0",
+                "ip prefix-list ISP-DEFAULT seq 100 deny 0.0.0.0/0 le 32",
+                "route-map ISP-IN permit 10",
+                " match ip address prefix-list ISP-DEFAULT",
+                f"route-map {site_id.upper()}-OUT permit 10",
+                f" match ip address prefix-list {site_id.upper()}-ENDPOINT",
+                f"route-map {site_id.upper()}-OUT deny 100",
+                f"router bgp {router['asn']}",
+                f" bgp router-id {_router_id(router)}",
+                " no bgp ebgp-requires-policy",
+            ])
+            for session in sessions:
+                peer_ip = _ip(session["remote"]["address"])
+                provider = session["peer"]
+                lines.extend([
+                    f" neighbor {peer_ip} remote-as {provider['asn']}",
+                    f" neighbor {peer_ip} description {provider['id'].upper()}",
+                    f" neighbor {peer_ip} maximum-prefix 1",
+                    f" neighbor {peer_ip} prefix-list ISP-DEFAULT in",
+                    f" neighbor {peer_ip} prefix-list {'%s-ENDPOINT' % site_id.upper() if edge1 else 'DENY-ALL'} out",
+                ])
+            lines.append(" address-family ipv4 unicast")
+            for session in sessions:
+                peer_ip = _ip(session["remote"]["address"])
+                lines.extend([
+                    f"  neighbor {peer_ip} activate",
+                    f"  neighbor {peer_ip} route-map ISP-IN in",
+                    f"  neighbor {peer_ip} route-map {site_id.upper()}-OUT out",
+                ])
+            if edge1:
+                lines.append(f"  network {endpoint}")
+            lines.extend([" exit-address-family", "!"])
         result[node_id] = "\n".join(lines) + "\n"
     return result
 

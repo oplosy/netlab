@@ -7,7 +7,7 @@ scrape_configs:
     metrics_path: /snmp
     params: {auth: [netlab], module: [if_mib]}
     static_configs:
-      - targets: [172.31.255.20, 172.31.255.30, 172.31.255.31, 172.31.255.32, 172.31.255.33, 172.31.255.50, 172.31.255.51, 172.31.255.52, 172.31.255.53]
+      - targets: [172.31.255.20, 172.31.255.21, 172.31.255.30, 172.31.255.31, 172.31.255.32, 172.31.255.33, 172.31.255.34, 172.31.255.50, 172.31.255.51, 172.31.255.52, 172.31.255.53, 172.31.255.54]
     relabel_configs:
       - {source_labels: [__address__], target_label: __param_target}
       - {source_labels: [__param_target], target_label: instance}

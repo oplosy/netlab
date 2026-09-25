@@ -15,11 +15,11 @@ def _plan() -> dict:
 def test_every_distribution_gets_all_vips_and_inventory_addresses() -> None:
     plan = _plan()
     assert len(plan["nodes"]) == 4
-    assert len(plan["routed_endpoints"]) == 8
+    assert len(plan["routed_endpoints"]) == 16
     for node in plan["nodes"]:
         assert [gateway["vlan_id"] for gateway in node["gateways"]] == [10, 20, 30, 99]
-        assert len(node["routed_interfaces"]) == 1
-        assert node["routed_interfaces"][0]["interface"] == "eth1"
+        assert len(node["routed_interfaces"]) == 2
+        assert all(item["interface"].startswith("eth") for item in node["routed_interfaces"])
         for gateway in node["gateways"]:
             assert gateway["ovs_port"] == f"svi{gateway['vlan_id']}"
             if node["node"].endswith("dist-1"):

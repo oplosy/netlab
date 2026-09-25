@@ -273,9 +273,9 @@ def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]
             endpoint = physical.get((node["id"], interface["name"]))
             if endpoint is None:
                 raise ValueError(f"{node['id']} routed interface {interface['name']} has no physical mapping")
-            routed.append({"interface": endpoint, "address": str(ipaddress.ip_interface(addresses[0]))})
-        if len(routed) != 1:
-            raise ValueError(f"{node['id']} must have exactly one routed edge link")
+            routed.append({"interface": endpoint, "interface_name": interface["name"], "address": str(ipaddress.ip_interface(addresses[0]))})
+        if not routed:
+            raise ValueError(f"{node['id']} must have at least one routed edge link")
 
         planned_nodes.append({
             "node": node["id"],

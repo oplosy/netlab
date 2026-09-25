@@ -19,7 +19,19 @@ topology:
       labels:
         netlab.inventory-node: hq-edge-1
         netlab.inventory-role: edge
-        netlab.interface-map: eth1=to_hq_dist_1,eth2=to_hq_dist_2,eth3=to_isp1_core_1
+        netlab.interface-map: eth1=to_hq_dist_1,eth2=to_hq_dist_2,eth3=to_isp1_core_1,eth4=to_isp2_core_1
+      env:
+        NETLAB_NODE_ROLE: edge
+        OVS_DATAPATH_MODE: kernel
+        NETLAB_INVENTORY_ROLE: edge
+    hq-edge-2:
+      kind: linux
+      image: netlab/network-node:0.1.0
+      mgmt-ipv4: 172.31.255.34
+      labels:
+        netlab.inventory-node: hq-edge-2
+        netlab.inventory-role: edge
+        netlab.interface-map: eth1=to_hq_dist_1,eth2=to_hq_dist_2,eth3=to_isp1_core_1,eth4=to_isp2_core_1
       env:
         NETLAB_NODE_ROLE: edge
         OVS_DATAPATH_MODE: kernel
@@ -31,7 +43,7 @@ topology:
       labels:
         netlab.inventory-node: hq-dist-1
         netlab.inventory-role: dist
-        netlab.interface-map: eth1=to_hq_edge_1,eth2=to_hq_dist_2_member_1,eth3=to_hq_dist_2_member_2,eth4=to_hq_access_1_member_1,eth5=to_hq_access_1_member_2
+        netlab.interface-map: eth1=to_hq_edge_1,eth2=to_hq_dist_2_member_1,eth3=to_hq_dist_2_member_2,eth4=to_hq_access_1_member_1,eth5=to_hq_access_1_member_2,eth6=to_hq_edge_2
       env:
         NETLAB_NODE_ROLE: distribution
         OVS_DATAPATH_MODE: kernel
@@ -43,7 +55,7 @@ topology:
       labels:
         netlab.inventory-node: hq-dist-2
         netlab.inventory-role: dist
-        netlab.interface-map: eth1=to_hq_edge_1,eth2=to_hq_dist_1_member_1,eth3=to_hq_dist_1_member_2,eth4=to_hq_access_1_member_1,eth5=to_hq_access_1_member_2
+        netlab.interface-map: eth1=to_hq_edge_1,eth2=to_hq_dist_1_member_1,eth3=to_hq_dist_1_member_2,eth4=to_hq_access_1_member_1,eth5=to_hq_access_1_member_2,eth6=to_hq_edge_2
       env:
         NETLAB_NODE_ROLE: distribution
         OVS_DATAPATH_MODE: kernel
@@ -91,7 +103,19 @@ topology:
       labels:
         netlab.inventory-node: br1-edge-1
         netlab.inventory-role: edge
-        netlab.interface-map: eth1=to_br1_dist_1,eth2=to_br1_dist_2,eth3=to_isp1_core_1
+        netlab.interface-map: eth1=to_br1_dist_1,eth2=to_br1_dist_2,eth3=to_isp1_core_1,eth4=to_isp2_core_1
+      env:
+        NETLAB_NODE_ROLE: edge
+        OVS_DATAPATH_MODE: kernel
+        NETLAB_INVENTORY_ROLE: edge
+    br1-edge-2:
+      kind: linux
+      image: netlab/network-node:0.1.0
+      mgmt-ipv4: 172.31.255.54
+      labels:
+        netlab.inventory-node: br1-edge-2
+        netlab.inventory-role: edge
+        netlab.interface-map: eth1=to_br1_dist_1,eth2=to_br1_dist_2,eth3=to_isp1_core_1,eth4=to_isp2_core_1
       env:
         NETLAB_NODE_ROLE: edge
         OVS_DATAPATH_MODE: kernel
@@ -103,7 +127,7 @@ topology:
       labels:
         netlab.inventory-node: br1-dist-1
         netlab.inventory-role: dist
-        netlab.interface-map: eth1=to_br1_edge_1,eth2=to_br1_dist_2_member_1,eth3=to_br1_dist_2_member_2,eth4=to_br1_access_1_member_1,eth5=to_br1_access_1_member_2
+        netlab.interface-map: eth1=to_br1_edge_1,eth2=to_br1_dist_2_member_1,eth3=to_br1_dist_2_member_2,eth4=to_br1_access_1_member_1,eth5=to_br1_access_1_member_2,eth6=to_br1_edge_2
       env:
         NETLAB_NODE_ROLE: distribution
         OVS_DATAPATH_MODE: kernel
@@ -115,7 +139,7 @@ topology:
       labels:
         netlab.inventory-node: br1-dist-2
         netlab.inventory-role: dist
-        netlab.interface-map: eth1=to_br1_edge_1,eth2=to_br1_dist_1_member_1,eth3=to_br1_dist_1_member_2,eth4=to_br1_access_1_member_1,eth5=to_br1_access_1_member_2
+        netlab.interface-map: eth1=to_br1_edge_1,eth2=to_br1_dist_1_member_1,eth3=to_br1_dist_1_member_2,eth4=to_br1_access_1_member_1,eth5=to_br1_access_1_member_2,eth6=to_br1_edge_2
       env:
         NETLAB_NODE_ROLE: distribution
         OVS_DATAPATH_MODE: kernel
@@ -163,7 +187,19 @@ topology:
       labels:
         netlab.inventory-node: isp1-core-1
         netlab.inventory-role: isp
-        netlab.interface-map: eth1=to_hq_edge_1,eth2=to_br1_edge_1,eth3=to_isp1_dns_1,eth4=to_isp1_ntp_1
+        netlab.interface-map: eth1=to_hq_edge_1,eth2=to_br1_edge_1,eth3=to_isp1_dns_1,eth4=to_isp1_ntp_1,eth5=to_hq_edge_2,eth6=to_br1_edge_2
+      env:
+        NETLAB_NODE_ROLE: router
+        OVS_DATAPATH_MODE: kernel
+        NETLAB_INVENTORY_ROLE: isp
+    isp2-core-1:
+      kind: linux
+      image: netlab/network-node:0.1.0
+      mgmt-ipv4: 172.31.255.21
+      labels:
+        netlab.inventory-node: isp2-core-1
+        netlab.inventory-role: isp
+        netlab.interface-map: eth1=to_hq_edge_1,eth2=to_hq_edge_2,eth3=to_br1_edge_1,eth4=to_br1_edge_2
       env:
         NETLAB_NODE_ROLE: router
         OVS_DATAPATH_MODE: kernel
@@ -621,3 +657,113 @@ topology:
       netlab.inventory-kind: routed
       netlab.inventory-bundle: ''
       netlab.inventory-addresses: isp1-core-1:to_isp1_ntp_1=203.0.113.12/31;svc-ntp-1:to_isp1_core_1=203.0.113.13/31
+  - type: veth
+    endpoints:
+    - node: hq-edge-2
+      interface: eth1
+    - node: hq-dist-1
+      interface: eth6
+    labels:
+      netlab.inventory-link: hq-edge-dist1-2
+      netlab.inventory-kind: routed
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: hq-edge-2:to_hq_dist_1=10.10.252.4/31;hq-dist-1:to_hq_edge_2=10.10.252.5/31
+  - type: veth
+    endpoints:
+    - node: hq-edge-2
+      interface: eth2
+    - node: hq-dist-2
+      interface: eth6
+    labels:
+      netlab.inventory-link: hq-edge-dist2-2
+      netlab.inventory-kind: routed
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: hq-edge-2:to_hq_dist_2=10.10.252.6/31;hq-dist-2:to_hq_edge_2=10.10.252.7/31
+  - type: veth
+    endpoints:
+    - node: hq-edge-1
+      interface: eth4
+    - node: isp2-core-1
+      interface: eth1
+    labels:
+      netlab.inventory-link: hq-isp2-edge1
+      netlab.inventory-kind: ebgp
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: hq-edge-1:to_isp2_core_1=198.51.100.0/31;isp2-core-1:to_hq_edge_1=198.51.100.1/31
+  - type: veth
+    endpoints:
+    - node: hq-edge-2
+      interface: eth4
+    - node: isp2-core-1
+      interface: eth2
+    labels:
+      netlab.inventory-link: hq-isp2-edge2
+      netlab.inventory-kind: ebgp
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: hq-edge-2:to_isp2_core_1=198.51.100.2/31;isp2-core-1:to_hq_edge_2=198.51.100.3/31
+  - type: veth
+    endpoints:
+    - node: hq-edge-2
+      interface: eth3
+    - node: isp1-core-1
+      interface: eth5
+    labels:
+      netlab.inventory-link: hq-isp1-edge2
+      netlab.inventory-kind: ebgp
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: hq-edge-2:to_isp1_core_1=192.0.2.4/31;isp1-core-1:to_hq_edge_2=192.0.2.5/31
+  - type: veth
+    endpoints:
+    - node: br1-edge-2
+      interface: eth1
+    - node: br1-dist-1
+      interface: eth6
+    labels:
+      netlab.inventory-link: br1-edge-dist1-2
+      netlab.inventory-kind: routed
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: br1-edge-2:to_br1_dist_1=10.20.252.4/31;br1-dist-1:to_br1_edge_2=10.20.252.5/31
+  - type: veth
+    endpoints:
+    - node: br1-edge-2
+      interface: eth2
+    - node: br1-dist-2
+      interface: eth6
+    labels:
+      netlab.inventory-link: br1-edge-dist2-2
+      netlab.inventory-kind: routed
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: br1-edge-2:to_br1_dist_2=10.20.252.6/31;br1-dist-2:to_br1_edge_2=10.20.252.7/31
+  - type: veth
+    endpoints:
+    - node: br1-edge-1
+      interface: eth4
+    - node: isp2-core-1
+      interface: eth3
+    labels:
+      netlab.inventory-link: br1-isp2-edge1
+      netlab.inventory-kind: ebgp
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: br1-edge-1:to_isp2_core_1=198.51.100.4/31;isp2-core-1:to_br1_edge_1=198.51.100.5/31
+  - type: veth
+    endpoints:
+    - node: br1-edge-2
+      interface: eth4
+    - node: isp2-core-1
+      interface: eth4
+    labels:
+      netlab.inventory-link: br1-isp2-edge2
+      netlab.inventory-kind: ebgp
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: br1-edge-2:to_isp2_core_1=198.51.100.6/31;isp2-core-1:to_br1_edge_2=198.51.100.7/31
+  - type: veth
+    endpoints:
+    - node: br1-edge-2
+      interface: eth3
+    - node: isp1-core-1
+      interface: eth6
+    labels:
+      netlab.inventory-link: br1-isp1-edge2
+      netlab.inventory-kind: ebgp
+      netlab.inventory-bundle: ''
+      netlab.inventory-addresses: br1-edge-2:to_isp1_core_1=192.0.2.6/31;isp1-core-1:to_br1_edge_2=192.0.2.7/31

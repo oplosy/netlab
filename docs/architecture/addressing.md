@@ -19,7 +19,7 @@ Interface descriptions must identify the peer and peer interface:
 | Domain | ASN |
 |---|---:|
 | ISP 1 | 65000 |
-| ISP 2, reserved | 65001 |
+| ISP 2 | 65001 |
 | Headquarters | 65100 |
 | Branch 1 | 65101 |
 | Branch 2, reserved | 65102 |
@@ -73,6 +73,14 @@ files.
 
 The three underlay blocks are documentation prefixes and are used only inside
 the isolated lab.
+
+WAN-210 activates ISP-2 and allocates HQ/BR1 edge-2. The inventory assigns
+`10.10.252.4/31` and `10.10.252.6/31` to HQ edge-2 distribution links,
+`10.20.252.4/31` and `10.20.252.6/31` to BR1 edge-2 distribution links,
+`192.0.2.4/31` and `192.0.2.6/31` to edge-2 ISP-1 links, and
+`198.51.100.0/31` through `198.51.100.6/31` to the eight ISP-2 endpoints.
+OOB addresses are `172.31.255.21` (ISP-2), `172.31.255.34` (HQ edge-2), and
+`172.31.255.54` (BR1 edge-2).
 
 The initial public endpoint assignments are `203.0.113.129/32` for HQ,
 `203.0.113.130/32` for Branch 1, and `203.0.113.131/32` for Branch 2. A site

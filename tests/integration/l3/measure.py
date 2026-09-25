@@ -131,36 +131,34 @@ def _restore_client(docker: str, container: str, address: str, defaults: list[st
 def _check_routed_links(docker: str, plan: dict[str, Any], data: dict[str, Any]) -> None:
     nodes = {node["id"]: node for node in data["nodes"]}
     for item in plan["nodes"]:
-        routed = item["routed_interfaces"][0]
-        local = ipaddress.ip_interface(routed["address"])
-        peer_endpoint = next(
-            endpoint
-            for link in data["links"]
-            if link.get("kind") == "routed"
-            and any(candidate["node"] == item["node"] for candidate in link["endpoints"])
-            for endpoint in link["endpoints"]
-            if endpoint["node"] != item["node"]
-        )
-        peer_node = nodes[peer_endpoint["node"]]
-        physical_kinds = {"routed", "ebgp", "l2", "access"}
-        peer_index = 1
-        for interface in peer_node["interfaces"]:
-            if interface["kind"] in physical_kinds:
-                if interface["name"] == peer_endpoint["interface"]:
-                    break
-                peer_index += 1
-        peer_device = f"eth{peer_index}"
-        peer = ipaddress.ip_interface(peer_endpoint["address"])
-        local_container = item["container"]
-        peer_container = f"clab-{LAB_NAME}-{peer_node['id']}"
-        local_addresses = _exec(docker, local_container, "ip", "-o", "-4", "address", "show", "dev", routed["interface"]).stdout
-        peer_addresses = _exec(docker, peer_container, "ip", "-o", "-4", "address", "show", "dev", peer_device).stdout
-        if str(local) not in local_addresses or str(peer) not in peer_addresses:
-            raise RuntimeError(f"routed link addresses are missing on {item['node']} or {peer_node['id']}")
-        route = _exec(docker, local_container, "ip", "route", "get", str(peer.ip)).stdout
-        if f"dev {routed['interface']}" not in route or f"src {local.ip}" not in route:
-            raise RuntimeError(f"{item['node']} route lookup for {peer.ip} did not use its routed edge link")
-        print(f"{item['node']} routed /31 {local} <-> {peer} configured and selected by the route table")
+        for routed in item["routed_interfaces"]:
+            local = ipaddress.ip_interface(routed["address"])
+            link = next(
+                link for link in data["links"]
+                if link.get("kind") == "routed"
+                and any(endpoint["node"] == item["node"] and endpoint["interface"] == routed["interface_name"] for endpoint in link["endpoints"])
+            )
+            peer_endpoint = next(endpoint for endpoint in link["endpoints"] if endpoint["node"] != item["node"])
+            peer_node = nodes[peer_endpoint["node"]]
+            physical_kinds = {"routed", "ebgp", "l2", "access"}
+            peer_index = 1
+            for interface in peer_node["interfaces"]:
+                if interface["kind"] in physical_kinds:
+                    if interface["name"] == peer_endpoint["interface"]:
+                        break
+                    peer_index += 1
+            peer_device = f"eth{peer_index}"
+            peer = ipaddress.ip_interface(peer_endpoint["address"])
+            local_container = item["container"]
+            peer_container = f"clab-{LAB_NAME}-{peer_node['id']}"
+            local_addresses = _exec(docker, local_container, "ip", "-o", "-4", "address", "show", "dev", routed["interface"]).stdout
+            peer_addresses = _exec(docker, peer_container, "ip", "-o", "-4", "address", "show", "dev", peer_device).stdout
+            if str(local) not in local_addresses or str(peer) not in peer_addresses:
+                raise RuntimeError(f"routed link addresses are missing on {item['node']} or {peer_node['id']}")
+            route = _exec(docker, local_container, "ip", "route", "get", str(peer.ip)).stdout
+            if f"dev {routed['interface']}" not in route or f"src {local.ip}" not in route:
+                raise RuntimeError(f"{item['node']} route lookup for {peer.ip} did not use its routed edge link")
+            print(f"{item['node']} routed /31 {local} <-> {peer} configured and selected by the route table")
 
 def verify_site(docker: str, site_id: str, data: dict[str, Any], plan: dict[str, Any]) -> None:
     planned = [item for item in plan["nodes"] if item["site"] == site_id]

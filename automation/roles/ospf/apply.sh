@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Apply inventory-rendered OSPF and BFD configuration to Phase 1 routers.
+# Apply inventory-rendered OSPF and BFD configuration to every edge and distribution router.
 set -Eeuo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
@@ -9,9 +9,11 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/netlab-ospf.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 
 "${PYTHON}" "${ROOT}/config/routing/ospf/render.py" --output-dir "${tmp}"
-for node in hq-edge-1 br1-edge-1 hq-dist-1 hq-dist-2 br1-dist-1 br1-dist-2; do
+for config in "${tmp}"/*.conf; do
+  node=${config##*/}
+  node=${node%.conf}
   container="clab-netlab-phase-1-${node}"
-  [[ -s "${tmp}/${node}.conf" ]] || { echo "missing rendered config for ${node}" >&2; exit 2; }
+  [[ -s "${config}" ]] || { echo "missing rendered config for ${node}" >&2; exit 2; }
   "${DOCKER}" inspect --type container "${container}" >/dev/null || {
     echo "required lab router is not running: ${container}" >&2
     exit 2
@@ -53,7 +55,7 @@ for node in hq-edge-1 br1-edge-1 hq-dist-1 hq-dist-2 br1-dist-1 br1-dist-2; do
       exit 1
     fi
   '
-  "${DOCKER}" cp "${tmp}/${node}.conf" "${container}:/tmp/netlab-ospf.conf"
+  "${DOCKER}" cp "${config}" "${container}:/tmp/netlab-ospf.conf"
   "${DOCKER}" exec "${container}" vtysh -f /tmp/netlab-ospf.conf
   echo "applied OSPF/BFD policy: ${node}"
 done

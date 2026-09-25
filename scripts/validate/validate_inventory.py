@@ -103,7 +103,7 @@ def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) ->
             errors.append(f"ASN {value!r} is outside the private ASN range 64512-65534")
     expected_asns = {
         65000: ("ISP-1", "isp", False),
-        65001: ("ISP-2", "isp", True),
+        65001: ("ISP-2", "isp", False),
         65100: ("Headquarters", "enterprise", False),
         65101: ("Branch 1", "enterprise", False),
         65102: ("Branch 2", "enterprise", True),

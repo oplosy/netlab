@@ -87,14 +87,13 @@ def _render_swanctl(peer: dict[str, Any], remote: dict[str, Any]) -> str:
 
 def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]:
     sites = {site["id"]: site for site in data["sites"]}
-    edges = {node["site"]: node for node in data["nodes"] if node.get("role") == "edge"}
-    if set(edges) != {"hq", "br1"}:
-        raise ValueError("VPN-150 requires exactly the HQ and BR1 edge nodes")
+    edges = {node["id"]: node for node in data["nodes"] if node.get("role") == "edge"}
     link_matches = [link for link in data["links"] if link.get("kind") == "xfrm"]
     if len(link_matches) != 1:
         raise ValueError("VPN-150 requires exactly one HQ-to-BR1 XFRM link")
     link = link_matches[0]
     endpoint_map = {endpoint["node"]: endpoint for endpoint in link["endpoints"]}
+    edges = {site_id: edges[next(node_id for node_id in endpoint_map if edges[node_id].get("site") == site_id)] for site_id in ("hq", "br1")}
     peers: list[dict[str, Any]] = []
     for site_id, remote_id in (("hq", "br1"), ("br1", "hq")):
         node = edges[site_id]

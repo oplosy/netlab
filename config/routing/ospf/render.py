@@ -68,18 +68,23 @@ def build_plan(data: dict[str, Any], lab_name: str = "netlab-phase-1") -> dict[s
                     raise ValueError(f"{node['id']} routed OSPF interface {intf['name']} is incomplete")
                 network = ipaddress.ip_interface(addresses[0]).network
                 interfaces.append({"name": name, "area": area, "bfd": True, "network": str(network)})
-            interfaces.append({"name": "xfrm0", "area": 0, "bfd": True, "network": None})
+            if any(
+                link.get("kind") == "xfrm"
+                and any(endpoint["node"] == node["id"] for endpoint in link["endpoints"])
+                for link in data["links"]
+            ):
+                interfaces.append({"name": "xfrm0", "area": 0, "bfd": True, "network": None})
         else:
             routed = [item for item in node.get("interfaces", []) if item.get("kind") == "routed"]
-            if len(routed) != 1:
-                raise ValueError(f"{node['id']} must have exactly one routed edge adjacency")
-            routed_item = routed[0]
-            name = _interface_map(node).get(routed_item["name"])
-            addresses = routed_item.get("addresses", [])
-            if name is None or len(addresses) != 1:
-                raise ValueError(f"{node['id']} routed OSPF interface {routed_item['name']} is incomplete")
-            network = ipaddress.ip_interface(addresses[0]).network
-            interfaces.append({"name": name, "area": area, "bfd": True, "network": str(network)})
+            if not routed:
+                raise ValueError(f"{node['id']} must have at least one routed edge adjacency")
+            for routed_item in routed:
+                name = _interface_map(node).get(routed_item["name"])
+                addresses = routed_item.get("addresses", [])
+                if name is None or len(addresses) != 1:
+                    raise ValueError(f"{node['id']} routed OSPF interface {routed_item['name']} is incomplete")
+                network = ipaddress.ip_interface(addresses[0]).network
+                interfaces.append({"name": name, "area": area, "bfd": True, "network": str(network)})
             for intf in node.get("interfaces", []):
                 if intf.get("kind") != "svi":
                     continue
@@ -100,7 +105,10 @@ def build_plan(data: dict[str, Any], lab_name: str = "netlab-phase-1") -> dict[s
             "interfaces": interfaces,
         }
 
-    expected = {"hq-edge-1", "br1-edge-1", "hq-dist-1", "hq-dist-2", "br1-dist-1", "br1-dist-2"}
+    expected = {
+        node["id"] for node in data["nodes"]
+        if node.get("role") in {"edge", "dist"} and node.get("site") in AREA_BY_SITE
+    }
     if set(planned) != expected:
         raise ValueError(f"OSPF-130 expects the six Phase 1 edge/distribution nodes; got {sorted(planned)}")
     if len({item["router_id"] for item in planned.values()}) != len(planned):
@@ -136,9 +144,10 @@ def render_node(item: dict[str, Any]) -> str:
     if item["role"] == "edge":
         lines.extend([
             f" area {item['area']} range {item['aggregate']}",
-            # Also require a BGP-originated default; an OOB kernel default is not Internet reachability.
-            " default-information originate route-map OSPF-VALID-INTERNET-DEFAULT",
         ])
+        if item["node"].endswith("-edge-1"):
+            # Keep Phase 1 egress on edge-1 until WAN-220 enables failover policy.
+            lines.append(" default-information originate route-map OSPF-VALID-INTERNET-DEFAULT")
     lines.append("!")
     return "\n".join(lines) + "\n"
 

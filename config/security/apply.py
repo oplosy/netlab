@@ -181,6 +181,17 @@ def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
         f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
         f'iifname "{wan_iface}" ip saddr {peer_ip} tcp dport 179 counter accept',
     ]
+    for link in data["links"]:
+        if link.get("kind") != "ebgp":
+            continue
+        local = next((endpoint for endpoint in link["endpoints"] if endpoint["node"] == node["id"]), None)
+        if local is None or local["interface"] == next(item for item in isp_link["endpoints"] if item["node"] == node["id"])["interface"]:
+            continue
+        peer = next(endpoint for endpoint in link["endpoints"] if endpoint["node"] != node["id"])
+        input_rules.append(
+            f'iifname "{mapping[local["interface"]]}" ip saddr '
+            f'{ipaddress.ip_interface(peer["address"]).ip} tcp dport 179 counter accept'
+        )
     remote_public = str(ipaddress.ip_interface(remote["public_endpoint"]).ip)
     input_rules.extend([
         f'iifname "{wan_iface}" ip saddr {remote_public} udp dport {{ 500, 4500 }} counter accept',
@@ -230,19 +241,55 @@ def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
     return "\n".join(inet_table), "\n".join(nat_table)
 
 
+def _render_secondary_edge(data: dict[str, Any], node: dict[str, Any]) -> str:
+    """Keep a WAN-210 secondary edge control-plane-only until WAN-230 adds XFRM."""
+    mapping = _interface_map(node)
+    input_rules = [
+        f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
+        f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
+        f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
+    ]
+    for link in data["links"]:
+        if link.get("kind") != "ebgp":
+            continue
+        local = next((endpoint for endpoint in link["endpoints"] if endpoint["node"] == node["id"]), None)
+        if local is None:
+            continue
+        peer = next(endpoint for endpoint in link["endpoints"] if endpoint["node"] != node["id"])
+        input_rules.append(
+            f'iifname "{mapping[local["interface"]]}" ip saddr '
+            f'{ipaddress.ip_interface(peer["address"]).ip} tcp dport 179 counter accept'
+        )
+    for iface, peer_ip in _linked_peer(data, node["id"], "routed"):
+        input_rules.extend([
+            f'iifname "{iface}" ip saddr {peer_ip} ip protocol ospf counter accept',
+            f'iifname "{iface}" ip saddr {peer_ip} udp dport {{ 3784, 3785 }} counter accept',
+        ])
+    return "\n".join([
+        "table inet netlab_sec170 {",
+        *_drop_chain(node["id"], "input", input_rules, "input"),
+        "  chain forward { type filter hook forward priority -10; policy drop; }",
+        "  chain output { type filter hook output priority -10; policy accept; }",
+        "}",
+        "",
+    ])
+
+
 def _render_isp(data: dict[str, Any], node: dict[str, Any]) -> str:
     input_rules = [
         f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
         f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
         f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
     ]
-    for site_id, edge_id in (("hq", "hq-edge-1"), ("br1", "br1-edge-1")):
-        edge = next(item for item in data["nodes"] if item["id"] == edge_id)
-        link = next(link for link in data["links"] if link["kind"] == "ebgp" and any(item["node"] == edge_id for item in link["endpoints"]))
-        remote = next(item for item in link["endpoints"] if item["node"] == node["id"])
-        edge_ep = next(item for item in link["endpoints"] if item["node"] == edge_id)
-        iface = _interface_map(node)[remote["interface"]]
-        peer_ip = str(ipaddress.ip_interface(edge_ep["address"]).ip)
+    for link in data["links"]:
+        if link.get("kind") != "ebgp":
+            continue
+        local = next((endpoint for endpoint in link["endpoints"] if endpoint["node"] == node["id"]), None)
+        if local is None:
+            continue
+        peer = next(endpoint for endpoint in link["endpoints"] if endpoint["node"] != node["id"])
+        iface = _interface_map(node)[local["interface"]]
+        peer_ip = str(ipaddress.ip_interface(peer["address"]).ip)
         input_rules.append(f'iifname "{iface}" ip saddr {peer_ip} tcp dport 179 counter accept')
     forward_rules: list[str] = []
     for source_site in data["sites"]:
@@ -250,7 +297,11 @@ def _render_isp(data: dict[str, Any], node: dict[str, Any]) -> str:
         source_public = str(ipaddress.ip_interface(source_site["public_endpoint"]).ip)
         destination_public = str(ipaddress.ip_interface(destination_site["public_endpoint"]).ip)
         source_edge_id = "hq-edge-1" if source_site["id"] == "hq" else "br1-edge-1"
-        underlay = next(link for link in data["links"] if link["kind"] == "ebgp" and any(item["node"] == source_edge_id for item in link["endpoints"]))
+        underlay = next(
+            link for link in data["links"]
+            if link["kind"] == "ebgp"
+            and {item["node"] for item in link["endpoints"]} == {source_edge_id, node["id"]}
+        )
         source_endpoint = next(item for item in underlay["endpoints"] if item["node"] == node["id"])
         source_iface = _interface_map(node)[source_endpoint["interface"]]
         forward_rules.extend([
@@ -260,7 +311,11 @@ def _render_isp(data: dict[str, Any], node: dict[str, Any]) -> str:
     for site in data["sites"]:
         public_ip = str(ipaddress.ip_interface(site["public_endpoint"]).ip)
         edge_id = "hq-edge-1" if site["id"] == "hq" else "br1-edge-1"
-        link = next(link for link in data["links"] if link["kind"] == "ebgp" and any(item["node"] == edge_id for item in link["endpoints"]))
+        link = next(
+            link for link in data["links"]
+            if link["kind"] == "ebgp"
+            and {item["node"] for item in link["endpoints"]} == {edge_id, node["id"]}
+        )
         edge_ep = next(item for item in link["endpoints"] if item["node"] == edge_id)
         local = next(item for item in link["endpoints"] if item["node"] == node["id"])
         iface = _interface_map(node)[local["interface"]]
@@ -288,8 +343,16 @@ def render_plan(data: dict[str, Any]) -> dict[str, dict[str, str]]:
         if role == "dist":
             result[node["id"]] = {"inet": _render_dist(data, node)}
         elif role == "edge":
-            inet, nat = _render_edge(data, node)
-            result[node["id"]] = {"inet": inet, "nat": nat}
+            has_xfrm = any(
+                link.get("kind") == "xfrm"
+                and any(endpoint["node"] == node["id"] for endpoint in link["endpoints"])
+                for link in data["links"]
+            )
+            if has_xfrm:
+                inet, nat = _render_edge(data, node)
+                result[node["id"]] = {"inet": inet, "nat": nat}
+            else:
+                result[node["id"]] = {"inet": _render_secondary_edge(data, node)}
         elif role in {"access", "isp"}:
             # Access nodes have no routed data interfaces; they still expose management only on OOB.
             result[node["id"]] = {"inet": _render_isp(data, node) if role == "isp" else _render_access(node)}
@@ -398,4 +461,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

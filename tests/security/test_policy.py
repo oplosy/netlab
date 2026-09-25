@@ -11,10 +11,11 @@ SPEC.loader.exec_module(sec170)
 
 
 def test_all_infrastructure_nodes_default_deny_and_correlated_rate_limited_logs() -> None:
-    plan = sec170.render_plan(sec170.load_inventory())
+    data = sec170.load_inventory()
+    plan = sec170.render_plan(data)
     assert set(plan) == {
-        "hq-dist-1", "hq-dist-2", "br1-dist-1", "br1-dist-2",
-        "hq-edge-1", "br1-edge-1", "hq-access-1", "br1-access-1", "isp1-core-1",
+        node["id"] for node in data["nodes"]
+        if node.get("role") in {"dist", "edge", "access", "isp"}
     }
     for node_id, tables in plan.items():
         policy = tables["inet"]
@@ -56,6 +57,7 @@ def test_control_plane_is_interface_and_peer_scoped_and_ssh_is_oob_only() -> Non
     plan = sec170.render_plan(sec170.load_inventory())
     hq_edge = plan["hq-edge-1"]["inet"]
     assert 'iifname "eth3" ip saddr 192.0.2.1 tcp dport 179 counter accept' in hq_edge
+    assert 'iifname "eth4" ip saddr 198.51.100.1 tcp dport 179 counter accept' in hq_edge
     assert 'iifname "eth1" ip saddr 10.10.252.1 ip protocol ospf counter accept' in hq_edge
     assert 'iifname "eth2" ip saddr 10.10.252.3 ip protocol ospf counter accept' in hq_edge
     assert 'iifname "xfrm0" ip saddr 10.255.0.1 ip protocol ospf counter accept' in hq_edge
@@ -82,6 +84,17 @@ def test_isp_forwards_only_advertised_endpoints_to_simulated_services() -> None:
     assert 'iifname "eth1" ip saddr 203.0.113.129 ip daddr 203.0.113.11 udp dport 123 counter accept' in forward
     assert 'iifname "eth2" ip saddr 203.0.113.130 ip daddr 203.0.113.10 udp dport 53 counter accept' in forward
     assert "ip saddr 10.0.0.0/8" not in forward
+
+
+def test_secondary_edges_allow_only_bgp_ospf_and_oob_management() -> None:
+    plan = sec170.render_plan(sec170.load_inventory())
+    for node_id in ("hq-edge-2", "br1-edge-2"):
+        policy = plan[node_id]["inet"]
+        assert policy.count("tcp dport 179 counter accept") == 2
+        assert policy.count("ip protocol ospf counter accept") == 2
+        assert 'chain forward { type filter hook forward priority -10; policy drop; }' in policy
+        assert "xfrm0" not in policy
+        assert "NAT" not in plan[node_id]
 
 
 def test_site_services_can_only_reach_their_upstream_dns_and_ntp() -> None:

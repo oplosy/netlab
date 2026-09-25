@@ -26,7 +26,7 @@ def test_plan_has_areas_passive_vlans_and_only_routed_bfd_adjacencies() -> None:
     data = ospf_render.load_inventory()
     plan = ospf_render.build_plan(data)["nodes"]
 
-    assert set(plan) == {"hq-edge-1", "br1-edge-1", "hq-dist-1", "hq-dist-2", "br1-dist-1", "br1-dist-2"}
+    assert set(plan) == {"hq-edge-1", "hq-edge-2", "br1-edge-1", "br1-edge-2", "hq-dist-1", "hq-dist-2", "br1-dist-1", "br1-dist-2"}
     assert plan["hq-edge-1"]["area"] == 10
     assert plan["br1-edge-1"]["area"] == 20
     assert plan["hq-edge-1"]["aggregate"] == "10.10.0.0/16"
@@ -59,6 +59,8 @@ def test_edge_default_is_conditional_and_site_summary_is_only_aggregate() -> Non
         assert "match source-protocol bgp" in config
         assert "10.10.10.0/24" not in config
         assert "10.20.10.0/24" not in config
+    for node_id in ("hq-edge-2", "br1-edge-2"):
+        assert "default-information originate" not in configs[node_id]
 
 
 def test_config_does_not_run_ospf_on_oob_or_isp_interfaces() -> None:
@@ -75,6 +77,16 @@ def test_router_ids_must_be_unique() -> None:
     dist2["loopback"] = dist1["loopback"]
     with pytest.raises(ValueError, match="router IDs must be unique"):
         ospf_render.build_plan(data)
+
+
+def test_secondary_edge_and_distribution_adjacencies_are_inventory_driven() -> None:
+    plan = ospf_render.build_plan(ospf_render.load_inventory())["nodes"]
+    for edge_id in ("hq-edge-2", "br1-edge-2"):
+        item = plan[edge_id]
+        assert len([link for link in item["interfaces"] if link.get("bfd")]) == 2
+        assert all(link["name"] != "xfrm0" for link in item["interfaces"])
+    for dist_id in ("hq-dist-1", "hq-dist-2", "br1-dist-1", "br1-dist-2"):
+        assert len([link for link in plan[dist_id]["interfaces"] if link.get("bfd")]) == 2
 
 
 def test_all_gateway_vrrp_peers_use_the_one_advert_failover_timer() -> None:
