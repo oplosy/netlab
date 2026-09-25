@@ -12,8 +12,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-from config.switching.apply import build_plan  # noqa: E402
-from tests.integration.l2.measure import (  # noqa: E402
+from config.switching.apply import build_plan
+from tests.integration.l2.measure import (
     FOLLOW_ON_TIMEOUT_SECONDS,
     PING_INTERVAL,
     POST_RECOVERY_HOLD_SECONDS,
@@ -41,8 +41,27 @@ def test_access_ports_are_single_vlan_and_guest_is_not_shared() -> None:
     data = _inventory()
     plan = build_plan(data)
     access = [item for item in plan if "access_vlan" in item]
-    assert len(access) == 6
-    assert sorted(item["access_vlan"] for item in access) == [10, 10, 20, 20, 30, 30]
+
+    nodes = {node["id"]: node for node in data["nodes"]}
+    switch_ids = {node_id for node_id, node in nodes.items() if node.get("role") in {"dist", "access"}}
+    vlan_ids = {vlan["id"]: int(vlan["vlan_id"]) for vlan in data["vlans"]}
+    physical_kinds = {"routed", "ebgp", "l2", "access"}
+    ports: dict[tuple[str, str], str] = {}
+    for node_id, node in nodes.items():
+        physical = [interface for interface in node.get("interfaces", [])
+                    if interface.get("kind") in physical_kinds]
+        ports.update({(node_id, interface["name"]): f"eth{index}"
+                      for index, interface in enumerate(physical, start=1)})
+
+    expected = []
+    for link in data["links"]:
+        if link.get("kind") != "access":
+            continue
+        switch_end = next(endpoint for endpoint in link["endpoints"] if endpoint["node"] in switch_ids)
+        expected.append((switch_end["node"], ports[(switch_end["node"], switch_end["interface"])], vlan_ids[link["vlan"]]))
+
+    actual = [(item["node"], item["argv"][4], item["access_vlan"]) for item in access]
+    assert sorted(actual) == sorted(expected)
     for item in access:
         assert "vlan_mode=access" in item["argv"]
         assert f"tag={item['access_vlan']}" in item["argv"]
@@ -68,7 +87,7 @@ def test_distribution_peer_bundle_cannot_span_sites_or_access_nodes() -> None:
     bundles = {bundle["id"]: bundle for bundle in data["bundles"]}
     configured_ids = {item["bundle"] for item in plan if "bundle" in item}
     assert configured_ids == set(bundles)
-    for bundle_id, bundle in bundles.items():
+    for bundle in bundles.values():
         roles = {
             node["id"]: node["role"]
             for node in data["nodes"]
