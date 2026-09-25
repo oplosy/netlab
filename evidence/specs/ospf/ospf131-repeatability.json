@@ -1,0 +1,135 @@
+{
+  "task": "OSPF-131",
+  "source": "tests/integration/ospf/measure.py",
+  "created_at_utc": "2026-09-25T08:02:20.131987+00:00",
+  "runtime": "Containerlab Phase 1 on WSL2 / Docker Engine; live measurements",
+  "configuration": {
+    "advert_int_seconds": 1,
+    "down_timer_adverts": 1,
+    "peer_values_match": true
+  },
+  "acceptance": {
+    "maximum_packet_interruption_seconds": 3.0,
+    "required_consecutive_live_runs": 3
+  },
+  "runs": [
+    {
+      "run": 1,
+      "bfd_failure_detection_seconds": 0.778,
+      "bfd_recovery_seconds": 2.258,
+      "continuity_probe_streams": {
+        "hq-dist-1": {
+          "target": "10.10.10.2",
+          "sent": 80,
+          "received": 25,
+          "loss_percent": 68.75,
+          "max_reply_gap_seconds": 13.878
+        },
+        "hq-dist-2": {
+          "target": "10.10.10.3",
+          "sent": 80,
+          "received": 80,
+          "loss_percent": 0.0,
+          "max_reply_gap_seconds": 0.1
+        },
+        "hq-active-vip": {
+          "target": "10.10.10.1",
+          "sent": 80,
+          "received": 73,
+          "loss_percent": 8.75,
+          "max_reply_gap_seconds": 1.854
+        }
+      },
+      "surviving_path_packet_interruptions_seconds": {
+        "hq-dist-2": 0.0,
+        "hq-active-vip": 1.754
+      },
+      "estimated_packet_interruption_seconds": 1.754,
+      "packet_continuity_threshold_passed": true,
+      "vip_takeover_seconds_after_bfd_detection": 2.561,
+      "vrrp_failover_threshold_passed": true,
+      "preferred_vip_returned_after_route_recovery": true,
+      "preferred_vip_return_seconds_after_bfd_unblock": 15.261,
+      "target_route_recovery_seconds_after_bfd_unblock": 12.533
+    },
+    {
+      "run": 2,
+      "bfd_failure_detection_seconds": 0.768,
+      "bfd_recovery_seconds": 1.357,
+      "continuity_probe_streams": {
+        "hq-dist-1": {
+          "target": "10.10.10.2",
+          "sent": 80,
+          "received": 25,
+          "loss_percent": 68.75,
+          "max_reply_gap_seconds": 13.879
+        },
+        "hq-dist-2": {
+          "target": "10.10.10.3",
+          "sent": 80,
+          "received": 80,
+          "loss_percent": 0.0,
+          "max_reply_gap_seconds": 0.1
+        },
+        "hq-active-vip": {
+          "target": "10.10.10.1",
+          "sent": 80,
+          "received": 75,
+          "loss_percent": 6.25,
+          "max_reply_gap_seconds": 1.353
+        }
+      },
+      "surviving_path_packet_interruptions_seconds": {
+        "hq-dist-2": 0.0,
+        "hq-active-vip": 1.253
+      },
+      "estimated_packet_interruption_seconds": 1.253,
+      "packet_continuity_threshold_passed": true,
+      "vip_takeover_seconds_after_bfd_detection": 2.077,
+      "vrrp_failover_threshold_passed": true,
+      "preferred_vip_returned_after_route_recovery": true,
+      "preferred_vip_return_seconds_after_bfd_unblock": 14.265,
+      "target_route_recovery_seconds_after_bfd_unblock": 11.538
+    },
+    {
+      "run": 3,
+      "bfd_failure_detection_seconds": 0.774,
+      "bfd_recovery_seconds": 1.076,
+      "continuity_probe_streams": {
+        "hq-dist-1": {
+          "target": "10.10.10.2",
+          "sent": 80,
+          "received": 26,
+          "loss_percent": 67.5,
+          "max_reply_gap_seconds": 13.63
+        },
+        "hq-dist-2": {
+          "target": "10.10.10.3",
+          "sent": 80,
+          "received": 80,
+          "loss_percent": 0.0,
+          "max_reply_gap_seconds": 0.1
+        },
+        "hq-active-vip": {
+          "target": "10.10.10.1",
+          "sent": 80,
+          "received": 73,
+          "loss_percent": 8.75,
+          "max_reply_gap_seconds": 1.854
+        }
+      },
+      "surviving_path_packet_interruptions_seconds": {
+        "hq-dist-2": 0.0,
+        "hq-active-vip": 1.754
+      },
+      "estimated_packet_interruption_seconds": 1.754,
+      "packet_continuity_threshold_passed": true,
+      "vip_takeover_seconds_after_bfd_detection": 2.526,
+      "vrrp_failover_threshold_passed": true,
+      "preferred_vip_returned_after_route_recovery": true,
+      "preferred_vip_return_seconds_after_bfd_unblock": 14.087,
+      "target_route_recovery_seconds_after_bfd_unblock": 11.278
+    }
+  ],
+  "all_runs_passed": true
+}
