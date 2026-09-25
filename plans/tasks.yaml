@@ -510,7 +510,7 @@ tasks:
     phase: phase-1
     title: Build the end-to-end evidence suite
     type: test
-    status: planned
+    status: complete
     depends_on: [OSPF-130, OSPF-131, VPN-150, SEC-170, OBS-180]
     parallel_group: runtime-exclusive
     runtime_lock: lab
@@ -529,7 +529,7 @@ tasks:
       - "Teardown executes even after a failed test"
     verify:
       - "make evidence-phase-1"
-    commit: "test(TEST-190): add phase one evidence suite"
+    commit: "fix(TEST-190): stabilize phase-one acceptance"
 
   - id: DOC-195
     phase: phase-1
