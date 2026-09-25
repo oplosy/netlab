@@ -567,6 +567,7 @@ tasks:
     depends_on: [DOC-195]
     parallel_group: phase-2-a
     allowed_paths:
+      - docs/architecture/addressing.md
       - inventory/**
       - lab/**
       - scripts/validate/**
