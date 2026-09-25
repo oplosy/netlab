@@ -115,3 +115,16 @@ def test_interrupted_stage_is_recorded_as_failure(tmp_path: Path, monkeypatch) -
     assert result["return_code"] == 130
     assert run.failed
     assert (tmp_path / result["stderr_file"]).read_text(encoding="utf-8").strip() == "command interrupted by operator"
+
+
+def test_stage_python_environment_is_an_executable_path(tmp_path: Path, monkeypatch) -> None:
+    captured: dict = {}
+
+    def successful(*args, **kwargs):
+        captured.update(kwargs)
+        return phase1.subprocess.CompletedProcess(args[0], 0, "", "")
+
+    monkeypatch.setattr(phase1.subprocess, "run", successful)
+    EvidenceRun(tmp_path).run("python-env", ["make", "lab-up"])
+
+    assert captured["env"]["PYTHON"] == phase1.PYTHON_COMMAND[-1]

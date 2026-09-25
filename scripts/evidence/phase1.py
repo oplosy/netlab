@@ -66,7 +66,8 @@ class EvidenceRun:
         }
         try:
             env = os.environ.copy()
-            env["PYTHON"] = " ".join(PYTHON_COMMAND)
+            # Bash apply scripts treat PYTHON as one executable path, not a shell command.
+            env["PYTHON"] = PYTHON_COMMAND[-1]
             env.update(extra_env or {})
             result = subprocess.run(command, cwd=ROOT, env=env, text=True, capture_output=True, timeout=timeout, check=False)
             stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
