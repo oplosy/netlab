@@ -14,6 +14,13 @@ ospf_render = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = ospf_render
 SPEC.loader.exec_module(ospf_render)
 
+GATEWAY_PATH = ROOT / "config" / "gateway" / "apply.py"
+GATEWAY_SPEC = importlib.util.spec_from_file_location("gateway_apply", GATEWAY_PATH)
+assert GATEWAY_SPEC and GATEWAY_SPEC.loader
+gateway_apply = importlib.util.module_from_spec(GATEWAY_SPEC)
+sys.modules[GATEWAY_SPEC.name] = gateway_apply
+GATEWAY_SPEC.loader.exec_module(gateway_apply)
+
 
 def test_plan_has_areas_passive_vlans_and_only_routed_bfd_adjacencies() -> None:
     data = ospf_render.load_inventory()
@@ -68,6 +75,16 @@ def test_router_ids_must_be_unique() -> None:
     dist2["loopback"] = dist1["loopback"]
     with pytest.raises(ValueError, match="router IDs must be unique"):
         ospf_render.build_plan(data)
+
+
+def test_all_gateway_vrrp_peers_use_the_one_advert_failover_timer() -> None:
+    data = gateway_apply.load_inventory(gateway_apply.DEFAULT_INVENTORY)
+    plan = gateway_apply.build_plan(data)
+
+    for node in plan["nodes"]:
+        instances = node["keepalived_config"].split("vrrp_instance ")[1:]
+        assert len(instances) == 4
+        assert all("down_timer_adverts 1" in item for item in instances)
 
 
 def test_apply_enables_only_frr_ospf_and_bfd_daemons_idempotently() -> None:
