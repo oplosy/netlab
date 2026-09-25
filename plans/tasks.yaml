@@ -569,6 +569,7 @@ tasks:
     allowed_paths:
       - inventory/**
       - lab/**
+      - automation/roles/bgp/**
       - config/isp/**
       - config/routing/bgp/**
       - tests/integration/bgp/**
