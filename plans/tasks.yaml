@@ -573,6 +573,7 @@ tasks:
       - scripts/validate/**
       - config/gateway/**
       - config/ipsec/**
+      - config/security/**
       - automation/roles/bgp/**
       - automation/roles/ospf/**
       - automation/roles/gateway/**
@@ -582,6 +583,7 @@ tasks:
       - tests/integration/bgp/**
       - tests/integration/l3/**
       - tests/integration/ospf/**
+      - tests/security/**
     acceptance:
       - "HQ and BR1 edge-1 and edge-2 establish filtered eBGP sessions to both ISPs"
       - "Each site edge-2 has routed links to both site distribution nodes"
