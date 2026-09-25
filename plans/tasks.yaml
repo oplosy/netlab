@@ -574,6 +574,7 @@ tasks:
       - config/gateway/**
       - config/ipsec/**
       - config/security/**
+      - observability/prometheus.yml
       - automation/roles/bgp/**
       - automation/roles/ospf/**
       - automation/roles/gateway/**
@@ -583,6 +584,8 @@ tasks:
       - tests/integration/bgp/**
       - tests/integration/l3/**
       - tests/integration/ospf/**
+      - tests/integration/observability/**
+      - tests/integration/services/**
       - tests/security/**
     acceptance:
       - "HQ and BR1 edge-1 and edge-2 establish filtered eBGP sessions to both ISPs"
