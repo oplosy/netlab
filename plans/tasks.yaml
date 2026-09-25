@@ -535,7 +535,7 @@ tasks:
     phase: phase-1
     title: Publish rebuild and operations runbooks
     type: docs
-    status: planned
+    status: complete
     depends_on: [TEST-190]
     parallel_group: phase-close
     allowed_paths:
