@@ -77,6 +77,10 @@ def _keepalived_config(
             "  }",
             "  check_unicast_src",
             "  advert_int 1",
+            # Keepalived defaults to three adverts to follow the VRRP RFC.
+            # The lab uses one to fit the measured site failover within its
+            # three-second limit; every peer for these instances matches.
+            "  down_timer_adverts 1",
             "  garp_master_delay 1",
             "  garp_master_repeat 3",
             "  virtual_ipaddress {",
