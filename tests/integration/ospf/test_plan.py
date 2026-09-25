@@ -95,3 +95,13 @@ def test_apply_enables_only_frr_ospf_and_bfd_daemons_idempotently() -> None:
         assert f'pgrep -x {daemon}' in script
     assert "vtysh -f /tmp/netlab-ospf.conf" in script
     assert "ip route del default dev eth0" in script
+
+
+def test_apply_persists_live_bgp_config_before_frr_reload() -> None:
+    script = (ROOT / "automation" / "roles" / "ospf" / "apply.sh").read_text(encoding="utf-8")
+
+    persist = script.index('vtysh -c "write memory"')
+    reload = script.index("/usr/lib/frr/frrinit.sh reload")
+
+    assert "if pgrep -x bgpd" in script[persist - 80:persist]
+    assert persist < reload

@@ -328,6 +328,34 @@ tasks:
       - "make test-ospf"
     commit: "fix(OSPF-131): stabilize BFD gateway failover"
 
+  - id: OSPF-132
+    phase: phase-1
+    title: Preserve eBGP routing while enabling OSPF and BFD daemons
+    type: fix
+    status: complete
+    depends_on: [OSPF-130, OSPF-131, WAN-140]
+    parallel_group: runtime-exclusive
+    runtime_lock: lab
+    allowed_paths:
+      - plans/tasks.yaml
+      - automation/roles/ospf/**
+      - tests/integration/ospf/**
+      - evidence/specs/ospf/**
+    deliverables:
+      - "OSPF/BFD daemon enablement preserves existing BGP configuration and default routes"
+      - "Repeatable post-OSPF service reachability evidence"
+    acceptance:
+      - "Applying OSPF twice leaves both site eBGP sessions established"
+      - "HQ and Branch 1 retain the BGP-learned default after OSPF apply"
+      - "Site-local NTP services synchronize through the simulated ISP path"
+    verify:
+      - "make lab-up"
+      - "bash automation/roles/ipsec/apply.sh"
+      - "Apply OSPF twice and inspect BGP summary/default route on both site edges"
+      - "make test-services"
+      - "make verify-clean"
+    commit: "fix(OSPF-132): preserve BGP during daemon enablement"
+
   - id: WAN-140
     phase: phase-1
     title: Implement ISP simulation and eBGP policy
