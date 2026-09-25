@@ -10,8 +10,11 @@ advanced network automation.
 
 ## Project status
 
-Architecture and implementation planning are in progress. No runnable lab has
-been implemented yet.
+The Phase 1 lab is implemented and integrated on `integration/phase-1`. Its
+latest full acceptance run passed 23 required stages and all 25 quantitative
+thresholds. The operational procedure is in the [Phase 1 runbook](docs/runbooks/phase-1.md),
+and the [curated acceptance report](evidence/reports/phase-1.md) records the
+verified results and limits.
 
 ## Locked baseline
 
@@ -34,7 +37,3 @@ See [architecture overview](docs/architecture/overview.md),
 `main` is never a working branch and is never pushed to directly. Each bounded
 task runs in its own branch and worktree. A phase is delivered through a pull
 request from its integration branch to `main`.
-
-The remote repository is currently empty and has no real `main` commit. The
-one-time bootstrap requirement is recorded in the implementation plan; it must
-be resolved before the first pull request can be created.
