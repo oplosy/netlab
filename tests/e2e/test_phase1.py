@@ -7,6 +7,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "evidence"))
 import phase1
 from phase1 import EvidenceRun, evaluate_ipsec, evaluate_ospf, evaluate_ospf_repeatability
+from wait_ospf_routes import route_is_present
+from wait_observability_ready import body_is_ready
 
 
 def ospf_result(*, gap: float = 1.2, continuity: bool = True, vrrp: bool = True) -> dict:
@@ -128,3 +130,13 @@ def test_stage_python_environment_is_an_executable_path(tmp_path: Path, monkeypa
     EvidenceRun(tmp_path).run("python-env", ["make", "lab-up"])
 
     assert captured["env"]["PYTHON"] == phase1.PYTHON_COMMAND[-1]
+
+
+def test_ospf_route_probe_rejects_network_not_in_table() -> None:
+    assert route_is_present("O>* 10.20.0.0/16 via 10.255.0.1, xfrm0", "10.20.0.0/16")
+    assert not route_is_present("% Network not in table", "10.20.0.0/16")
+
+
+def test_observability_readiness_requires_ready_marker() -> None:
+    assert body_is_ready("Prometheus Server is Ready.", "ready")
+    assert not body_is_ready("starting", "ready")

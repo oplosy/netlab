@@ -240,12 +240,13 @@ def main() -> int:
                 ("apply-gateway", PYTHON_COMMAND + ["config/gateway/apply.py"]),
                 ("test-l2-plan", PYTHON_COMMAND + ["-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/integration/l2/test_switching_plan.py"]),
                 ("test-l2", ["python3", "tests/integration/l2/measure.py", "--site", "all"]),
+                # L3 acceptance temporarily owns client IPv4 configuration; run
+                # before SVC-160 obtains DHCP leases on those client interfaces.
+                ("test-l3", ["make", "test-l3"]),
                 ("test-services", ["make", "test-services"]),
                 ("test-security", ["make", "test-security", "SEC_RUNTIME_PYTHON=python3"]),
                 ("observability-up", ["make", "observability-up", "OBS_RUNTIME_PYTHON=python3"]),
                 ("test-observability", ["make", "test-observability", "OBS_RUNTIME_PYTHON=python3"]),
-                # L3 failover intentionally leaves the standby active until teardown.
-                ("test-l3", ["make", "test-l3"]),
             ]
             ospf_passes = 0
             for name, command in commands:
@@ -264,7 +265,24 @@ def main() -> int:
                     evaluate_ipsec(run)
                 if run.failed:
                     break
+                if name == "observability-up":
+                    readiness = run.run(
+                        "wait-observability-ready",
+                        PYTHON_COMMAND + ["scripts/evidence/wait_observability_ready.py"],
+                        timeout=55,
+                    )
+                    if readiness["status"] != "pass":
+                        run.threshold("observability_services_ready", False, "==", True)
+                        break
                 if name == "apply-gateway":
+                    route_wait = run.run(
+                        "wait-ospf-summary-routes",
+                        PYTHON_COMMAND + ["scripts/evidence/wait_ospf_routes.py"],
+                        timeout=40,
+                    )
+                    if route_wait["status"] != "pass":
+                        run.threshold("ospf_site_summary_routes_ready", False, "==", True)
+                        break
                     ospf_path = output_dir / "ospf.json"
                     measure_result = run.run(
                         "measure-ospf-live",
