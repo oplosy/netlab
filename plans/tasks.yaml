@@ -569,12 +569,22 @@ tasks:
     allowed_paths:
       - inventory/**
       - lab/**
+      - scripts/validate/**
+      - config/gateway/**
+      - config/ipsec/**
       - automation/roles/bgp/**
+      - automation/roles/ospf/**
+      - automation/roles/gateway/**
       - config/isp/**
       - config/routing/bgp/**
+      - config/routing/ospf/**
       - tests/integration/bgp/**
+      - tests/integration/l3/**
+      - tests/integration/ospf/**
     acceptance:
-      - "Both providers establish filtered eBGP sessions"
+      - "HQ and BR1 edge-1 and edge-2 establish filtered eBGP sessions to both ISPs"
+      - "Each site edge-2 has routed links to both site distribution nodes"
+      - "Phase 1 endpoint and IPsec traffic remain on edge-1 until WAN-230 enables secondary overlay endpoints"
       - "Phase 1 behavior remains green before failover policy is enabled"
     verify:
       - "make test-bgp"
