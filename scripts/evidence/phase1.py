@@ -254,7 +254,7 @@ def main() -> int:
                     name,
                     command,
                     expect_empty_output=name == "verify-no-observability-containers-at-start",
-                    required=name != "test-l2-plan",
+                    required=True,
                     extra_env=None,
                 )
                 if result["status"] == "fail":
