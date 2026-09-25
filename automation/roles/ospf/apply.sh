@@ -33,6 +33,10 @@ for node in hq-edge-1 br1-edge-1 hq-dist-1 hq-dist-2 br1-dist-1 br1-dist-2; do
     pgrep -x ospfd >/dev/null 2>&1 || reload=1
     pgrep -x bfdd >/dev/null 2>&1 || reload=1
     if [ "$reload" -eq 1 ]; then
+      # Preserve the live BGP config before FRR reload reconciles from frr.conf.
+      if pgrep -x bgpd >/dev/null 2>&1; then
+        vtysh -c "write memory"
+      fi
       # FRR reload starts newly enabled daemons without restarting running ones.
       /usr/lib/frr/frrinit.sh reload
     fi
