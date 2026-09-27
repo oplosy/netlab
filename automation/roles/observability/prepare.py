@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Render ignored runtime credentials and Compose SNMP agent sidecars."""
+
 from __future__ import annotations
 
 import argparse
@@ -13,11 +14,19 @@ import yaml
 ROOT = Path(__file__).resolve().parents[3]
 RUNTIME = ROOT / "artifacts" / "observability"
 AGENT_NODES = {
-    "isp1-core-1": "172.31.255.20", "hq-edge-1": "172.31.255.30",
-    "hq-dist-1": "172.31.255.31", "hq-dist-2": "172.31.255.32",
-    "hq-access-1": "172.31.255.33", "br1-edge-1": "172.31.255.50",
-    "br1-dist-1": "172.31.255.51", "br1-dist-2": "172.31.255.52",
+    "isp1-core-1": "172.31.255.20",
+    "hq-edge-1": "172.31.255.30",
+    "hq-dist-1": "172.31.255.31",
+    "hq-dist-2": "172.31.255.32",
+    "hq-access-1": "172.31.255.33",
+    "br1-edge-1": "172.31.255.50",
+    "br1-dist-1": "172.31.255.51",
+    "br1-dist-2": "172.31.255.52",
     "br1-access-1": "172.31.255.53",
+    "br2-edge-1": "172.31.255.70",
+    "br2-dist-1": "172.31.255.71",
+    "br2-dist-2": "172.31.255.72",
+    "br2-access-1": "172.31.255.73",
 }
 
 
@@ -44,12 +53,24 @@ def render(check: bool = False) -> list[Path]:
     interface_module = yaml.safe_load(
         (ROOT / "observability" / "snmp-if_mib.yml").read_text(encoding="utf-8")
     )["modules"]["if_mib"]
-    exporter = {"auths": {"netlab": {
-        "version": 3, "security_level": "authPriv", "username": credentials["snmp_username"],
-        "password": auth, "auth_protocol": "SHA", "priv_protocol": "AES", "priv_password": privacy,
-    }}, "modules": {"if_mib": interface_module}}
+    exporter = {
+        "auths": {
+            "netlab": {
+                "version": 3,
+                "security_level": "authPriv",
+                "username": credentials["snmp_username"],
+                "password": auth,
+                "auth_protocol": "SHA",
+                "priv_protocol": "AES",
+                "priv_password": privacy,
+            }
+        },
+        "modules": {"if_mib": interface_module},
+    }
     generated[RUNTIME / "snmp.yml"] = yaml.safe_dump(exporter, sort_keys=False)
-    generated[RUNTIME / "runtime.env"] = f"GRAFANA_ADMIN_PASSWORD={credentials['grafana_admin_password']}\n"
+    generated[RUNTIME / "runtime.env"] = (
+        f"GRAFANA_ADMIN_PASSWORD={credentials['grafana_admin_password']}\n"
+    )
     services: dict[str, dict[str, object]] = {}
     for node, address in AGENT_NODES.items():
         (RUNTIME / "agents" / node / "var-lib-snmp").mkdir(parents=True, exist_ok=True)
@@ -70,14 +91,23 @@ def render(check: bool = False) -> list[Path]:
             "volumes": [
                 f"../artifacts/observability/agents/{node}.conf:/run/netlab-snmp/{node}.conf:ro",
                 f"../artifacts/observability/agents/{node}.users.conf:/run/netlab-snmp/{node}.users.conf:ro",
-                f"../artifacts/observability/agents/{node}/var-lib-snmp:/var/lib/snmp"],
+                f"../artifacts/observability/agents/{node}/var-lib-snmp:/var/lib/snmp",
+            ],
             "restart": "unless-stopped",
         }
         if node == "hq-edge-1":
-            service["build"] = {"context": ".", "dockerfile": "agent.Dockerfile", "args": {
-                "UBUNTU_SNAPSHOT": "20260905T000000Z", "SNMPD_VERSION": "5.9.4+dfsg-1.1ubuntu3.2"}}
+            service["build"] = {
+                "context": ".",
+                "dockerfile": "agent.Dockerfile",
+                "args": {
+                    "UBUNTU_SNAPSHOT": "20260905T000000Z",
+                    "SNMPD_VERSION": "5.9.4+dfsg-1.1ubuntu3.2",
+                },
+            }
         services[f"snmp-agent-{node}"] = service
-    generated[RUNTIME / "compose.agents.yaml"] = yaml.safe_dump({"services": services}, sort_keys=False)
+    generated[RUNTIME / "compose.agents.yaml"] = yaml.safe_dump(
+        {"services": services}, sort_keys=False
+    )
     changed: list[Path] = []
     for path, content in generated.items():
         if check:
@@ -97,7 +127,10 @@ def main() -> int:
     args = parser.parse_args()
     changed = render(check=args.check)
     if changed:
-        print("runtime files missing or stale: " + ", ".join(str(path.relative_to(ROOT)) for path in changed))
+        print(
+            "runtime files missing or stale: "
+            + ", ".join(str(path.relative_to(ROOT)) for path in changed)
+        )
         return 1
     print("observability runtime files are ready (ignored, mode 0600)")
     return 0

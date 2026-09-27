@@ -21,14 +21,16 @@ from tests.integration.l2.measure import (
 
 
 def _inventory() -> dict:
-    return json.loads((ROOT / "inventory" / "inventory.yaml").read_text(encoding="utf-8"))
+    return json.loads(
+        (ROOT / "inventory" / "inventory.yaml").read_text(encoding="utf-8")
+    )
 
 
 def test_every_lacp_bundle_has_two_members_and_one_declared_peer_pair() -> None:
     data = _inventory()
     plan = build_plan(data)
     bundle_config = [item for item in plan if "bundle" in item]
-    assert len(bundle_config) == 12
+    assert len(bundle_config) == len(data["bundles"]) * 2
     for item in bundle_config:
         assert len(item["members"]) == 2
         assert item["argv"][0:3] == ["ovs-vsctl", "--may-exist", "add-port"]
@@ -43,22 +45,41 @@ def test_access_ports_are_single_vlan_and_guest_is_not_shared() -> None:
     access = [item for item in plan if "access_vlan" in item]
 
     nodes = {node["id"]: node for node in data["nodes"]}
-    switch_ids = {node_id for node_id, node in nodes.items() if node.get("role") in {"dist", "access"}}
+    switch_ids = {
+        node_id
+        for node_id, node in nodes.items()
+        if node.get("role") in {"dist", "access"}
+    }
     vlan_ids = {vlan["id"]: int(vlan["vlan_id"]) for vlan in data["vlans"]}
     physical_kinds = {"routed", "ebgp", "l2", "access"}
     ports: dict[tuple[str, str], str] = {}
     for node_id, node in nodes.items():
-        physical = [interface for interface in node.get("interfaces", [])
-                    if interface.get("kind") in physical_kinds]
-        ports.update({(node_id, interface["name"]): f"eth{index}"
-                      for index, interface in enumerate(physical, start=1)})
+        physical = [
+            interface
+            for interface in node.get("interfaces", [])
+            if interface.get("kind") in physical_kinds
+        ]
+        ports.update(
+            {
+                (node_id, interface["name"]): f"eth{index}"
+                for index, interface in enumerate(physical, start=1)
+            }
+        )
 
     expected = []
     for link in data["links"]:
         if link.get("kind") != "access":
             continue
-        switch_end = next(endpoint for endpoint in link["endpoints"] if endpoint["node"] in switch_ids)
-        expected.append((switch_end["node"], ports[(switch_end["node"], switch_end["interface"])], vlan_ids[link["vlan"]]))
+        switch_end = next(
+            endpoint for endpoint in link["endpoints"] if endpoint["node"] in switch_ids
+        )
+        expected.append(
+            (
+                switch_end["node"],
+                ports[(switch_end["node"], switch_end["interface"])],
+                vlan_ids[link["vlan"]],
+            )
+        )
 
     actual = [(item["node"], item["argv"][4], item["access_vlan"]) for item in access]
     assert sorted(actual) == sorted(expected)
@@ -78,7 +99,9 @@ def test_rstp_root_is_deterministic_and_site_local() -> None:
     assert "other_config:rstp-priority=8192" in bridge["br1-dist-2"]
     assert "other_config:rstp-priority=32768" in bridge["hq-access-1"]
     assert all("netlab-phase-1-" in item["container"] for item in plan)
-    assert sum(bool(item.get("bridge_setup")) for item in plan) == 6
+    assert sum(bool(item.get("bridge_setup")) for item in plan) == sum(
+        node.get("role") in {"dist", "access"} for node in data["nodes"]
+    )
 
 
 def test_distribution_peer_bundle_cannot_span_sites_or_access_nodes() -> None:
@@ -94,9 +117,7 @@ def test_distribution_peer_bundle_cannot_span_sites_or_access_nodes() -> None:
             if node["id"] in bundle["peer_nodes"]
         }
         peer_sites = {
-            node["site"]
-            for node in data["nodes"]
-            if node["id"] in bundle["peer_nodes"]
+            node["site"] for node in data["nodes"] if node["id"] in bundle["peer_nodes"]
         }
         assert len(roles) == 2
         assert len(peer_sites) == 1
@@ -119,7 +140,7 @@ def test_plan_has_only_scoped_container_operations() -> None:
     assert plan
     assert all(item["argv"][0] == "ovs-vsctl" for item in plan)
     assert {item["node"] for item in plan} == {
-        "hq-dist-1", "hq-dist-2", "hq-access-1", "br1-dist-1", "br1-dist-2", "br1-access-1"
+        node["id"] for node in data["nodes"] if node.get("role") in {"dist", "access"}
     }
 
 

@@ -15,11 +15,19 @@ PHYSICAL_LINK_KINDS = {"routed", "ebgp", "l2", "access"}
 AREA_BY_SITE = {"hq": 10, "br1": 20}
 
 
+def _areas(data: dict[str, Any]) -> dict[str, int]:
+    areas = {
+        site["id"]: int(site.get("ospf_area", AREA_BY_SITE.get(site["id"], -1)))
+        for site in data["sites"]
+    }
+    if any(area < 0 for area in areas.values()):
+        raise ValueError("every site must declare an OSPF area")
+    return areas
+
+
 def load_inventory(path: Path = INVENTORY) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
-    sites = {site["id"]: site for site in data["sites"]}
-    if set(sites) != set(AREA_BY_SITE):
-        raise ValueError("OSPF-130 requires exactly the Phase 1 sites hq and br1")
+    _areas(data)
     return data
 
 
@@ -27,16 +35,22 @@ def _interface_map(node: dict[str, Any]) -> dict[str, str]:
     return {
         interface["name"]: f"eth{index}"
         for index, interface in enumerate(
-            (item for item in node.get("interfaces", []) if item.get("kind") in PHYSICAL_LINK_KINDS),
+            (
+                item
+                for item in node.get("interfaces", [])
+                if item.get("kind") in PHYSICAL_LINK_KINDS
+            ),
             start=1,
         )
     }
 
 
-def build_plan(data: dict[str, Any], lab_name: str = "netlab-phase-1") -> dict[str, Any]:
+def build_plan(
+    data: dict[str, Any], lab_name: str = "netlab-phase-1"
+) -> dict[str, Any]:
     sites = {site["id"]: site for site in data["sites"]}
-    if set(sites) != set(AREA_BY_SITE):
-        raise ValueError("OSPF-130 requires exactly the Phase 1 sites hq and br1")
+    areas = _areas(data)
+    sites = {site["id"]: site for site in data["sites"]}
     nodes = {node["id"]: node for node in data["nodes"]}
     planned: dict[str, dict[str, Any]] = {}
 
@@ -45,9 +59,9 @@ def build_plan(data: dict[str, Any], lab_name: str = "netlab-phase-1") -> dict[s
         if role not in {"edge", "dist"}:
             continue
         site_id = node.get("site")
-        if site_id not in AREA_BY_SITE:
+        if site_id not in areas:
             raise ValueError(f"{node['id']} has unsupported OSPF site {site_id!r}")
-        area = AREA_BY_SITE[site_id]
+        area = areas[site_id]
         interfaces: list[dict[str, Any]] = []
         if role == "edge":
             internal_links = {
@@ -55,7 +69,11 @@ def build_plan(data: dict[str, Any], lab_name: str = "netlab-phase-1") -> dict[s
                 for link in data["links"]
                 if link.get("kind") == "routed"
                 and any(peer["node"] == node["id"] for peer in link["endpoints"])
-                and any(nodes[peer["node"]].get("role") == "dist" for peer in link["endpoints"] if peer["node"] != node["id"])
+                and any(
+                    nodes[peer["node"]].get("role") == "dist"
+                    for peer in link["endpoints"]
+                    if peer["node"] != node["id"]
+                )
                 for endpoint in link["endpoints"]
                 if endpoint["node"] == node["id"]
             }
@@ -65,34 +83,77 @@ def build_plan(data: dict[str, Any], lab_name: str = "netlab-phase-1") -> dict[s
                 name = _interface_map(node).get(intf["name"])
                 addresses = intf.get("addresses", [])
                 if name is None or len(addresses) != 1:
-                    raise ValueError(f"{node['id']} routed OSPF interface {intf['name']} is incomplete")
+                    raise ValueError(
+                        f"{node['id']} routed OSPF interface {intf['name']} is incomplete"
+                    )
                 network = ipaddress.ip_interface(addresses[0]).network
-                interfaces.append({"name": name, "address": str(ipaddress.ip_interface(addresses[0])), "area": area, "bfd": True, "network": str(network)})
+                interfaces.append(
+                    {
+                        "name": name,
+                        "address": str(ipaddress.ip_interface(addresses[0])),
+                        "area": area,
+                        "bfd": True,
+                        "network": str(network),
+                    }
+                )
             for link in data["links"]:
-                if link.get("kind") != "xfrm" or not any(endpoint["node"] == node["id"] for endpoint in link["endpoints"]):
+                if link.get("kind") != "xfrm" or not any(
+                    endpoint["node"] == node["id"] for endpoint in link["endpoints"]
+                ):
                     continue
                 cost = int(link.get("ospf_cost", 100))
                 if not 1 <= cost <= 65535:
                     raise ValueError(f"{link['id']} OSPF cost must be in 1..65535")
-                interfaces.append({"name": "xfrm0", "area": 0, "bfd": True, "network": None, "cost": cost})
+                endpoint = next(
+                    item for item in link["endpoints"] if item["node"] == node["id"]
+                )
+                interfaces.append(
+                    {
+                        "name": endpoint["interface"],
+                        "area": 0,
+                        "bfd": True,
+                        "network": None,
+                        "cost": cost,
+                    }
+                )
         else:
-            routed = [item for item in node.get("interfaces", []) if item.get("kind") == "routed"]
+            routed = [
+                item
+                for item in node.get("interfaces", [])
+                if item.get("kind") == "routed"
+            ]
             if not routed:
-                raise ValueError(f"{node['id']} must have at least one routed edge adjacency")
+                raise ValueError(
+                    f"{node['id']} must have at least one routed edge adjacency"
+                )
             for routed_item in routed:
                 name = _interface_map(node).get(routed_item["name"])
                 addresses = routed_item.get("addresses", [])
                 if name is None or len(addresses) != 1:
-                    raise ValueError(f"{node['id']} routed OSPF interface {routed_item['name']} is incomplete")
+                    raise ValueError(
+                        f"{node['id']} routed OSPF interface {routed_item['name']} is incomplete"
+                    )
                 network = ipaddress.ip_interface(addresses[0]).network
-                interfaces.append({"name": name, "area": area, "bfd": True, "network": str(network)})
+                interfaces.append(
+                    {"name": name, "area": area, "bfd": True, "network": str(network)}
+                )
             for intf in node.get("interfaces", []):
                 if intf.get("kind") != "svi":
                     continue
                 if len(intf.get("addresses", [])) != 1:
-                    raise ValueError(f"{node['id']} {intf['name']} needs exactly one SVI address")
+                    raise ValueError(
+                        f"{node['id']} {intf['name']} needs exactly one SVI address"
+                    )
                 prefix = ipaddress.ip_interface(intf["addresses"][0]).network
-                interfaces.append({"name": intf["name"], "area": area, "bfd": False, "network": str(prefix), "passive": True})
+                interfaces.append(
+                    {
+                        "name": intf["name"],
+                        "area": area,
+                        "bfd": False,
+                        "network": str(prefix),
+                        "passive": True,
+                    }
+                )
 
         router_id = ipaddress.ip_interface(node["loopback"]).ip
         planned[node["id"]] = {
@@ -107,11 +168,14 @@ def build_plan(data: dict[str, Any], lab_name: str = "netlab-phase-1") -> dict[s
         }
 
     expected = {
-        node["id"] for node in data["nodes"]
-        if node.get("role") in {"edge", "dist"} and node.get("site") in AREA_BY_SITE
+        node["id"]
+        for node in data["nodes"]
+        if node.get("role") in {"edge", "dist"} and node.get("site") in areas
     }
     if set(planned) != expected:
-        raise ValueError(f"OSPF-130 expects the six Phase 1 edge/distribution nodes; got {sorted(planned)}")
+        raise ValueError(
+            f"OSPF-130 expects the six Phase 1 edge/distribution nodes; got {sorted(planned)}"
+        )
     if len({item["router_id"] for item in planned.values()}) != len(planned):
         raise ValueError("OSPF router IDs must be unique")
     return {"nodes": planned}
@@ -142,24 +206,33 @@ def render_node(item: dict[str, Any]) -> str:
             lines.append(" no ip ospf passive")
         lines.append("!")
 
-    lines.extend([
-        "router ospf",
-        f" ospf router-id {item['router_id']}",
-        " passive-interface default",
-    ])
+    lines.extend(
+        [
+            "router ospf",
+            f" ospf router-id {item['router_id']}",
+            " passive-interface default",
+        ]
+    )
     if item["role"] == "edge":
-        lines.extend([
-            f" area {item['area']} range {item['aggregate']}",
-        ])
+        lines.extend(
+            [
+                f" area {item['area']} range {item['aggregate']}",
+            ]
+        )
         if item["node"].endswith("-edge-1"):
             # Keep Phase 1 egress on edge-1 until WAN-220 enables failover policy.
-            lines.append(" default-information originate route-map OSPF-VALID-INTERNET-DEFAULT")
+            lines.append(
+                " default-information originate route-map OSPF-VALID-INTERNET-DEFAULT"
+            )
     lines.append("!")
     return "\n".join(lines) + "\n"
 
 
 def configs(data: dict[str, Any]) -> dict[str, str]:
-    return {node_id: render_node(item) for node_id, item in build_plan(data)["nodes"].items()}
+    return {
+        node_id: render_node(item)
+        for node_id, item in build_plan(data)["nodes"].items()
+    }
 
 
 def main() -> int:

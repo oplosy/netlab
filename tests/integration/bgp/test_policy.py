@@ -19,9 +19,12 @@ from config.routing.bgp.render import configs, load_inventory  # noqa: E402
 
 def _peer(data: dict, site_id: str) -> str:
     node_id = {"hq": "hq-edge-1", "br1": "br1-edge-1"}[site_id]
-    link = next(link for link in data["links"] if link["kind"] == "ebgp" and any(
-        endpoint["node"] == node_id for endpoint in link["endpoints"]
-    ))
+    link = next(
+        link
+        for link in data["links"]
+        if link["kind"] == "ebgp"
+        and any(endpoint["node"] == node_id for endpoint in link["endpoints"])
+    )
     remote = next(
         endpoint for endpoint in link["endpoints"] if endpoint["node"] != node_id
     )
@@ -34,13 +37,21 @@ def test_rendered_policy_builds_full_mesh_with_one_endpoint_per_edge() -> None:
     sites = {site["id"]: site for site in data["sites"]}
 
     ebgp_links = [link for link in data["links"] if link["kind"] == "ebgp"]
-    assert len(ebgp_links) == 8
-    for site_id in ("hq", "br1"):
+    assert len(ebgp_links) == 12
+    for site_id in sites:
         for edge_index in (1, 2):
             node_id = f"{site_id}-edge-{edge_index}"
-            endpoint = next(node["public_endpoint"] for node in data["nodes"] if node["id"] == node_id)
+            endpoint = next(
+                node["public_endpoint"]
+                for node in data["nodes"]
+                if node["id"] == node_id
+            )
             config = rendered[node_id]
-            peers = [line for line in config.splitlines() if line.startswith(" neighbor ") and " remote-as " in line]
+            peers = [
+                line
+                for line in config.splitlines()
+                if line.startswith(" neighbor ") and " remote-as " in line
+            ]
             assert len(peers) == 2
             assert "maximum-prefix 1" in config
             assert "ip prefix-list ISP-DEFAULT seq 10 permit 0.0.0.0/0" in config
@@ -58,14 +69,35 @@ def test_isp_exports_only_declared_site_endpoints_and_imports_only_them() -> Non
     sites = {site["id"]: site for site in data["sites"]}
     for isp_id in ("isp1-core-1", "isp2-core-1"):
         config = rendered[isp_id]
-        for site_id in ("hq", "br1"):
-            endpoints = sorted(node["public_endpoint"] for node in data["nodes"] if node.get("site") == site_id and node.get("role") == "edge")
+        for site_id in sites:
+            endpoints = sorted(
+                node["public_endpoint"]
+                for node in data["nodes"]
+                if node.get("site") == site_id and node.get("role") == "edge"
+            )
             for index, endpoint in enumerate(endpoints, start=1):
-                assert f"ip prefix-list {site_id.upper()}-ENDPOINT seq {index * 10} permit {endpoint}" in config
+                assert (
+                    f"ip prefix-list {site_id.upper()}-ENDPOINT seq {index * 10} permit {endpoint}"
+                    in config
+                )
             for edge_index in (1, 2):
                 edge_id = f"{site_id}-edge-{edge_index}"
-                link = next(link for link in data["links"] if link["kind"] == "ebgp" and any(endpoint["node"] == edge_id for endpoint in link["endpoints"]) and any(endpoint["node"] == isp_id for endpoint in link["endpoints"]))
-                peer = next(endpoint for endpoint in link["endpoints"] if endpoint["node"] == edge_id)
+                link = next(
+                    link
+                    for link in data["links"]
+                    if link["kind"] == "ebgp"
+                    and any(
+                        endpoint["node"] == edge_id for endpoint in link["endpoints"]
+                    )
+                    and any(
+                        endpoint["node"] == isp_id for endpoint in link["endpoints"]
+                    )
+                )
+                peer = next(
+                    endpoint
+                    for endpoint in link["endpoints"]
+                    if endpoint["node"] == edge_id
+                )
                 peer_ip = str(ipaddress.ip_interface(peer["address"]).ip)
                 expected_filter = f"{site_id.upper()}-ENDPOINT"
                 assert f"neighbor {peer_ip} prefix-list {expected_filter} in" in config
@@ -142,38 +174,67 @@ def test_live_sessions_policy_and_rejection_of_injected_routes() -> None:
     injected_sites: list[tuple[str, str, str]] = []
     isp_injected = False
     try:
-        expected_isp_prefixes = {node["public_endpoint"] for node in data["nodes"] if node.get("role") == "edge"}
+        expected_isp_prefixes = {
+            node["public_endpoint"]
+            for node in data["nodes"]
+            if node.get("role") == "edge"
+        }
         deadline = time.monotonic() + 45
         for link in (item for item in data["links"] if item["kind"] == "ebgp"):
-            edge = next(endpoint for endpoint in link["endpoints"] if "edge" in endpoint["node"])
-            isp = next(endpoint for endpoint in link["endpoints"] if endpoint["node"].startswith("isp"))
+            edge = next(
+                endpoint for endpoint in link["endpoints"] if "edge" in endpoint["node"]
+            )
+            isp = next(
+                endpoint
+                for endpoint in link["endpoints"]
+                if endpoint["node"].startswith("isp")
+            )
             edge_peer = str(ipaddress.ip_interface(isp["address"]).ip)
             isp_peer = str(ipaddress.ip_interface(edge["address"]).ip)
             while time.monotonic() < deadline:
                 edge_state = _vtysh(edge["node"], f"show bgp neighbors {edge_peer}")
                 isp_state = _vtysh(isp["node"], f"show bgp neighbors {isp_peer}")
-                if "BGP state = Established" in edge_state and "BGP state = Established" in isp_state:
+                if (
+                    "BGP state = Established" in edge_state
+                    and "BGP state = Established" in isp_state
+                ):
                     break
                 time.sleep(0.5)
-            assert "BGP state = Established" in edge_state, f"{edge['node']} to {isp['node']} is not Established"
-            assert "BGP state = Established" in isp_state, f"{isp['node']} to {edge['node']} is not Established"
+            assert "BGP state = Established" in edge_state, (
+                f"{edge['node']} to {isp['node']} is not Established"
+            )
+            assert "BGP state = Established" in isp_state, (
+                f"{isp['node']} to {edge['node']} is not Established"
+            )
         for isp_id in ("isp1-core-1", "isp2-core-1"):
             deadline = time.monotonic() + 20
-            while time.monotonic() < deadline and _prefixes(isp_id) != expected_isp_prefixes:
+            while (
+                time.monotonic() < deadline
+                and _prefixes(isp_id) != expected_isp_prefixes
+            ):
                 time.sleep(0.5)
-            assert _prefixes(isp_id) == expected_isp_prefixes, f"{isp_id} learned a non-endpoint route"
+            assert _prefixes(isp_id) == expected_isp_prefixes, (
+                f"{isp_id} learned a non-endpoint route"
+            )
         for node_id in ("hq-edge-1", "hq-edge-2", "br1-edge-1", "br1-edge-2"):
             assert "0.0.0.0/0" in _prefixes(node_id), (
                 f"{node_id} did not receive a provider default"
             )
-        for site_id, node_id in (("hq", "hq-edge-1"), ("br1", "br1-edge-1"), ("hq", "hq-edge-2"), ("br1", "br1-edge-2")):
+        for site_id, node_id in (
+            ("hq", "hq-edge-1"),
+            ("br1", "br1-edge-1"),
+            ("hq", "hq-edge-2"),
+            ("br1", "br1-edge-2"),
+        ):
             peer = _peer(data, site_id)
             neighbor = _vtysh(node_id, f"show bgp neighbors {peer}")
             assert "BGP state = Established" in neighbor, (
                 f"{node_id} eBGP session is not established"
             )
             deadline = time.monotonic() + 20
-            while time.monotonic() < deadline and _prefixes(node_id, peer) != {"0.0.0.0/0"}:
+            while time.monotonic() < deadline and _prefixes(node_id, peer) != {
+                "0.0.0.0/0"
+            }:
                 time.sleep(0.5)
             assert _prefixes(node_id, peer) == {"0.0.0.0/0"}, (
                 f"{node_id} imported a non-default route"
@@ -181,7 +242,11 @@ def test_live_sessions_policy_and_rejection_of_injected_routes() -> None:
             remote_site_id = "br1" if site_id == "hq" else "hq"
             edge_number = node_id.rsplit("-", 1)[-1]
             remote_node = f"{remote_site_id}-edge-{edge_number}"
-            remote_endpoint = next(node["public_endpoint"] for node in data["nodes"] if node["id"] == remote_node).split("/")[0]
+            remote_endpoint = next(
+                node["public_endpoint"]
+                for node in data["nodes"]
+                if node["id"] == remote_node
+            ).split("/")[0]
             route = _route_get(node_id, remote_endpoint)
             assert f"via {peer} dev eth3" in route, (
                 f"{node_id} routes the IKE peer over OOB instead of ISP eth3: {route}"

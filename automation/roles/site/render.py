@@ -119,7 +119,7 @@ def render_site(
         "nodes": nodes,
         "vlans": vlans,
         "prefixes": [
-            item for item in data.get("prefixes", []) if item.get("site") == site_id
+            item for item in data.get("prefixes", []) if item.get("owner") == site_id
         ],
         "links": links,
         "bundles": bundles,
