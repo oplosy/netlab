@@ -1,0 +1,8 @@
+template: branch-site
+site:
+  id: br2
+  name: Branch 2
+  aggregate: 10.30.0.0/16
+  ospf_area: 30
+  asn: 65102
+  public_endpoint: 203.0.113.133/32
