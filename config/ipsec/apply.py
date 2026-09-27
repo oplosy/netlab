@@ -49,8 +49,9 @@ def _reported_xfrm_if_id(output: str) -> int | None:
 
 
 def _render_swanctl(peer: dict[str, Any], remote: dict[str, Any]) -> str:
+    connection = peer["connection"]
     return f"""connections {{
-  {PEER_CONNECTION} {{
+  {connection} {{
     version = 2
     local_addrs = {peer['public_endpoint'].ip}
     remote_addrs = {remote['public_endpoint'].ip}
@@ -69,12 +70,12 @@ def _render_swanctl(peer: dict[str, Any], remote: dict[str, Any]) -> str:
     }}
 
     children {{
-      {PEER_CONNECTION} {{
+      {connection} {{
         local_ts = 0.0.0.0/0
         remote_ts = 0.0.0.0/0
         esp_proposals = aes256gcm16-ecp384
-        if_id_in = {XFRM_IF_ID}
-        if_id_out = {XFRM_IF_ID}
+        if_id_in = {peer['xfrm_if_id']}
+        if_id_out = {peer['xfrm_if_id']}
         rekey_time = 6m
         life_time = 7m
         rand_time = 0s
@@ -88,48 +89,61 @@ def _render_swanctl(peer: dict[str, Any], remote: dict[str, Any]) -> str:
 def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]:
     sites = {site["id"]: site for site in data["sites"]}
     edges = {node["id"]: node for node in data["nodes"] if node.get("role") == "edge"}
-    link_matches = [link for link in data["links"] if link.get("kind") == "xfrm"]
-    if len(link_matches) != 1:
-        raise ValueError("VPN-150 requires exactly one HQ-to-BR1 XFRM link")
-    link = link_matches[0]
-    endpoint_map = {endpoint["node"]: endpoint for endpoint in link["endpoints"]}
-    edges = {site_id: edges[next(node_id for node_id in endpoint_map if edges[node_id].get("site") == site_id)] for site_id in ("hq", "br1")}
     peers: list[dict[str, Any]] = []
-    for site_id, remote_id in (("hq", "br1"), ("br1", "hq")):
-        node = edges[site_id]
-        site = sites[site_id]
-        endpoint = endpoint_map.get(node["id"])
-        remote_endpoint = endpoint_map.get(edges[remote_id]["id"])
-        if endpoint is None or remote_endpoint is None:
-            raise ValueError(f"XFRM link is missing {site_id} or {remote_id} endpoint")
-        xfrm_address = _ip(endpoint["address"], f"{site_id} XFRM address")
-        remote_address = _ip(remote_endpoint["address"], f"{remote_id} XFRM address")
-        if xfrm_address.network != remote_address.network or xfrm_address.ip == remote_address.ip:
-            raise ValueError("XFRM peers must use distinct addresses from the same prefix")
-        public_endpoint = _ip(site["public_endpoint"], f"{site_id} public endpoint")
-        remote_public = _ip(sites[remote_id]["public_endpoint"], f"{remote_id} public endpoint")
-        peers.append(
-            {
-                "site": site_id,
-                "node": node["id"],
-                "container": f"clab-{lab_name}-{node['id']}",
-                "identity": f"{node['id']}.netlab",
-                "certificate": f"{node['id']}.cert.pem",
-                "xfrm_interface": XFRM_INTERFACE,
-                "xfrm_if_id": XFRM_IF_ID,
-                "address": str(xfrm_address),
-                "peer_address": str(remote_address.ip),
-                "public_endpoint": public_endpoint,
-                "remote_public_endpoint": remote_public,
-                "remote_node": edges[remote_id]["id"],
-                "remote_container": f"clab-{lab_name}-{edges[remote_id]['id']}",
-                "remote_identity": f"{edges[remote_id]['id']}.netlab",
-                "remote_certificate": f"{edges[remote_id]['id']}.cert.pem",
-                "swanctl_config": "",
-            }
-        )
+    xfrm_links = [link for link in data["links"] if link.get("kind") == "xfrm"]
+    if len(xfrm_links) != 2:
+        raise ValueError("WAN-230 requires exactly two HQ-to-BR1 XFRM links")
+    seen_nodes: set[str] = set()
+    for link in xfrm_links:
+        endpoint_map = {endpoint["node"]: endpoint for endpoint in link["endpoints"]}
+        if len(endpoint_map) != 2 or len(link["endpoints"]) != 2:
+            raise ValueError(f"XFRM link {link.get('id')} must have exactly two distinct endpoints")
+        local_id, remote_id = sorted(endpoint_map)
+        local_node, remote_node = edges.get(local_id), edges.get(remote_id)
+        if local_node is None or remote_node is None or {local_node.get("site"), remote_node.get("site")} != {"hq", "br1"}:
+            raise ValueError(f"XFRM link {link.get('id')} must connect one HQ and one BR1 edge")
+        if local_id in seen_nodes or remote_id in seen_nodes:
+            raise ValueError("each edge must terminate exactly one XFRM link")
+        seen_nodes.update((local_id, remote_id))
+        pair_id = link["id"].replace("-", "_")
+        if_id = XFRM_IF_ID if local_node["id"].endswith("-edge-1") else XFRM_IF_ID + 1
+        for node, remote_node_data in ((local_node, remote_node), (remote_node, local_node)):
+            site_id = node["site"]
+            endpoint = endpoint_map[node["id"]]
+            remote_endpoint = endpoint_map[remote_node_data["id"]]
+            xfrm_address = _ip(endpoint["address"], f"{site_id} XFRM address")
+            remote_address = _ip(remote_endpoint["address"], f"{remote_node_data['id']} XFRM address")
+            if xfrm_address.network != remote_address.network or xfrm_address.ip == remote_address.ip:
+                raise ValueError("XFRM peers must use distinct addresses from the same prefix")
+            public_endpoint = _ip(node["public_endpoint"], f"{node['id']} public endpoint")
+            remote_public = _ip(remote_node_data["public_endpoint"], f"{remote_node_data['id']} public endpoint")
+            peers.append(
+                {
+                    "site": site_id,
+                    "node": node["id"],
+                    "container": f"clab-{lab_name}-{node['id']}",
+                    "identity": f"{node['id']}.netlab",
+                    "certificate": f"{node['id']}.cert.pem",
+                    "xfrm_interface": XFRM_INTERFACE,
+                    "xfrm_if_id": if_id,
+                    "connection": f"{PEER_CONNECTION}-{pair_id}",
+                    "link": link["id"],
+                    "ospf_cost": int(link.get("ospf_cost", 100)),
+                    "address": str(xfrm_address),
+                    "peer_address": str(remote_address.ip),
+                    "public_endpoint": public_endpoint,
+                    "remote_public_endpoint": remote_public,
+                    "remote_node": remote_node_data["id"],
+                    "remote_container": f"clab-{lab_name}-{remote_node_data['id']}",
+                    "remote_identity": f"{remote_node_data['id']}.netlab",
+                    "remote_certificate": f"{remote_node_data['id']}.cert.pem",
+                    "swanctl_config": "",
+                }
+            )
+    if seen_nodes != set(edges):
+        raise ValueError(f"every active edge must terminate one XFRM link; missing {sorted(set(edges) - seen_nodes)}")
     for peer in peers:
-        remote = next(item for item in peers if item["site"] != peer["site"])
+        remote = next(item for item in peers if item["node"] == peer["remote_node"])
         peer["swanctl_config"] = _render_swanctl(peer, remote)
     return {"lab_name": lab_name, "peers": peers, "mtu": OVERLAY_MTU, "tcp_mss": TCP_MSS}
 
@@ -167,18 +181,20 @@ def _read_remote(docker: str, container: str, path: str) -> bytes:
 
 
 def _prepare_pki(docker: str, plan: dict[str, Any]) -> None:
-    hq = next(peer for peer in plan["peers"] if peer["site"] == "hq")
-    br1 = next(peer for peer in plan["peers"] if peer["site"] == "br1")
+    ca_peer = next(peer for peer in plan["peers"] if peer["node"] == "hq-edge-1")
     helper = PKI_HELPER.read_bytes()
-    for peer in (hq, br1):
+    for peer in plan["peers"]:
         _write_remote(docker, peer["container"], "/tmp/netlab-ipsec-pki.sh", helper, "0700")
-    _exec(docker, hq["container"], "bash", "/tmp/netlab-ipsec-pki.sh", "init-ca", hq["identity"])
-    _exec(docker, br1["container"], "bash", "/tmp/netlab-ipsec-pki.sh", "create-request", br1["identity"])
-    csr = _read_remote(docker, br1["container"], f"{PKI_DIR}/{br1['node']}.csr.pem")
-    _write_remote(docker, hq["container"], f"{PKI_DIR}/{br1['node']}.csr.pem", csr)
-    _exec(docker, hq["container"], "bash", "/tmp/netlab-ipsec-pki.sh", "sign-request", br1["identity"])
+    _exec(docker, ca_peer["container"], "bash", "/tmp/netlab-ipsec-pki.sh", "init-ca", ca_peer["identity"])
+    for peer in plan["peers"]:
+        if peer["node"] == ca_peer["node"]:
+            continue
+        _exec(docker, peer["container"], "bash", "/tmp/netlab-ipsec-pki.sh", "create-request", peer["identity"])
+        csr = _read_remote(docker, peer["container"], f"{PKI_DIR}/{peer['node']}.csr.pem")
+        _write_remote(docker, ca_peer["container"], f"{PKI_DIR}/{peer['node']}.csr.pem", csr)
+        _exec(docker, ca_peer["container"], "bash", "/tmp/netlab-ipsec-pki.sh", "sign-request", peer["identity"])
 
-    for peer in (hq, br1):
+    for peer in plan["peers"]:
         _exec(docker, peer["container"], "install", "-d", "-m", "0755", "/etc/swanctl/x509ca", "/etc/swanctl/x509")
         _exec(docker, peer["container"], "install", "-d", "-m", "0700", "/etc/swanctl/private")
         _exec(
@@ -188,8 +204,8 @@ def _prepare_pki(docker: str, plan: dict[str, Any]) -> None:
             f"{PKI_DIR}/{peer['node']}.key.pem",
             f"/etc/swanctl/private/{peer['node']}.key.pem",
         )
-        cert = _read_remote(docker, hq["container"], f"{PKI_DIR}/{peer['node']}.cert.pem")
-        ca_cert = _read_remote(docker, hq["container"], f"{PKI_DIR}/ca.cert.pem")
+        cert = _read_remote(docker, ca_peer["container"], f"{PKI_DIR}/{peer['node']}.cert.pem")
+        ca_cert = _read_remote(docker, ca_peer["container"], f"{PKI_DIR}/ca.cert.pem")
         _write_remote(docker, peer["container"], f"/etc/swanctl/x509/{peer['certificate']}", cert, "0644")
         _write_remote(docker, peer["container"], "/etc/swanctl/x509ca/netlab-ca.cert.pem", ca_cert, "0644")
         _write_remote(docker, peer["container"], CONFIG_PATH, peer["swanctl_config"].encode(), "0644")

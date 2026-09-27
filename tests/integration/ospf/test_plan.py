@@ -43,10 +43,13 @@ def test_plan_has_areas_passive_vlans_and_only_routed_bfd_adjacencies() -> None:
                 assert "ip ospf passive" in section
                 assert "ip ospf bfd" not in section
             else:
-                assert f"interface {interface['name']}\n ip ospf area {interface['area']}" in config
+                assert f"interface {interface['name']}\n" in config
                 section = config.split(f"interface {interface['name']}\n", 1)[1].split("\n!", 1)[0]
+                assert f"ip ospf area {interface['area']}" in section
                 assert "no ip ospf passive" in section
                 assert "ip ospf bfd" in section
+                if "address" in interface:
+                    assert f"ip address {interface['address']}" in section
 
 
 def test_edge_default_is_conditional_and_site_summary_is_only_aggregate() -> None:
@@ -81,10 +84,17 @@ def test_router_ids_must_be_unique() -> None:
 
 def test_secondary_edge_and_distribution_adjacencies_are_inventory_driven() -> None:
     plan = ospf_render.build_plan(ospf_render.load_inventory())["nodes"]
+    for edge_id in ("hq-edge-1", "br1-edge-1"):
+        assert sum("address" in link for link in plan[edge_id]["interfaces"]) == 2
+        xfrm = next(link for link in plan[edge_id]["interfaces"] if link["name"] == "xfrm0")
+        assert xfrm["area"] == 0 and xfrm["cost"] == 10 and xfrm["bfd"]
     for edge_id in ("hq-edge-2", "br1-edge-2"):
-        item = plan[edge_id]
-        assert len([link for link in item["interfaces"] if link.get("bfd")]) == 2
-        assert all(link["name"] != "xfrm0" for link in item["interfaces"])
+        assert sum("address" in link for link in plan[edge_id]["interfaces"]) == 2
+        xfrm = next(link for link in plan[edge_id]["interfaces"] if link["name"] == "xfrm0")
+        assert xfrm["area"] == 0 and xfrm["cost"] == 100 and xfrm["bfd"]
+        assert len([link for link in plan[edge_id]["interfaces"] if link.get("bfd")]) == 3
+        config = ospf_render.render_node(plan[edge_id])
+        assert "ip ospf cost 100" in config
     for dist_id in ("hq-dist-1", "hq-dist-2", "br1-dist-1", "br1-dist-2"):
         assert len([link for link in plan[dist_id]["interfaces"] if link.get("bfd")]) == 2
 

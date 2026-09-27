@@ -86,15 +86,16 @@ def test_isp_forwards_only_advertised_endpoints_to_simulated_services() -> None:
     assert "ip saddr 10.0.0.0/8" not in forward
 
 
-def test_secondary_edges_allow_only_bgp_ospf_and_oob_management() -> None:
+def test_secondary_edges_enforce_the_same_tunnel_policy_with_edge_specific_endpoints() -> None:
     plan = sec170.render_plan(sec170.load_inventory())
-    for node_id in ("hq-edge-2", "br1-edge-2"):
+    for node_id, remote in (("hq-edge-2", "203.0.113.132"), ("br1-edge-2", "203.0.113.131")):
         policy = plan[node_id]["inet"]
         assert policy.count("tcp dport 179 counter accept") == 2
-        assert policy.count("ip protocol ospf counter accept") == 2
-        assert 'chain forward { type filter hook forward priority -10; policy drop; }' in policy
-        assert "xfrm0" not in policy
+        assert policy.count("ip protocol ospf counter accept") >= 3
+        assert f"ip saddr {remote} udp dport {{ 500, 4500 }} counter accept" in policy
+        assert 'iifname "xfrm0"' in policy
         assert "NAT" not in plan[node_id]
+        assert "203.0.113.131" in plan[node_id]["nat"] if node_id == "hq-edge-2" else "203.0.113.132" in plan[node_id]["nat"]
 
 
 def test_site_services_can_only_reach_their_upstream_dns_and_ntp() -> None:
@@ -136,6 +137,8 @@ def test_isp_forwards_only_exact_inter_site_ike_and_esp_peers() -> None:
     assert 'iifname "eth1" ip saddr 203.0.113.129 ip daddr 203.0.113.130 udp dport { 500, 4500 } counter accept' in forward
     assert 'iifname "eth1" ip saddr 203.0.113.129 ip daddr 203.0.113.130 ip protocol esp counter accept' in forward
     assert 'iifname "eth2" ip saddr 203.0.113.130 ip daddr 203.0.113.129 udp dport { 500, 4500 } counter accept' in forward
+    assert 'ip saddr 203.0.113.131 ip daddr 203.0.113.132 udp dport { 500, 4500 } counter accept' in forward
+    assert 'ip saddr 203.0.113.131 ip daddr 203.0.113.132 ip protocol esp counter accept' in forward
     assert "ip saddr 10.0.0.0/8" not in forward
 
 

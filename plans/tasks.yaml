@@ -623,10 +623,20 @@ tasks:
     depends_on: [WAN-220]
     parallel_group: phase-2-c
     allowed_paths:
+      - inventory/inventory.yaml
+      - docs/architecture/addressing.md
+      - config/routing/bgp/**
       - config/ipsec/**
       - config/routing/ospf/**
+      - config/security/**
       - automation/roles/ipsec/**
+      - scripts/pki/**
+      - scripts/validate/**
+      - mk/ipsec.mk
       - tests/integration/ipsec/**
+      - tests/integration/bgp/**
+      - tests/integration/ospf/**
+      - tests/security/**
     acceptance:
       - "Both overlay paths encrypt traffic"
       - "OSPF cost selects the intended healthy underlay"

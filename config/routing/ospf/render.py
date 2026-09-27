@@ -67,13 +67,14 @@ def build_plan(data: dict[str, Any], lab_name: str = "netlab-phase-1") -> dict[s
                 if name is None or len(addresses) != 1:
                     raise ValueError(f"{node['id']} routed OSPF interface {intf['name']} is incomplete")
                 network = ipaddress.ip_interface(addresses[0]).network
-                interfaces.append({"name": name, "area": area, "bfd": True, "network": str(network)})
-            if any(
-                link.get("kind") == "xfrm"
-                and any(endpoint["node"] == node["id"] for endpoint in link["endpoints"])
-                for link in data["links"]
-            ):
-                interfaces.append({"name": "xfrm0", "area": 0, "bfd": True, "network": None})
+                interfaces.append({"name": name, "address": str(ipaddress.ip_interface(addresses[0])), "area": area, "bfd": True, "network": str(network)})
+            for link in data["links"]:
+                if link.get("kind") != "xfrm" or not any(endpoint["node"] == node["id"] for endpoint in link["endpoints"]):
+                    continue
+                cost = int(link.get("ospf_cost", 100))
+                if not 1 <= cost <= 65535:
+                    raise ValueError(f"{link['id']} OSPF cost must be in 1..65535")
+                interfaces.append({"name": "xfrm0", "area": 0, "bfd": True, "network": None, "cost": cost})
         else:
             routed = [item for item in node.get("interfaces", []) if item.get("kind") == "routed"]
             if not routed:
@@ -127,12 +128,17 @@ def render_node(item: dict[str, Any]) -> str:
     ]
     for interface in item["interfaces"]:
         name = interface["name"]
-        lines.extend([f"interface {name}", f" ip ospf area {interface['area']}"])
+        lines.append(f"interface {name}")
+        if "address" in interface:
+            lines.append(f" ip address {interface['address']}")
+        lines.append(f" ip ospf area {interface['area']}")
         if interface.get("passive"):
             lines.append(" ip ospf passive")
         else:
             lines.append(" ip ospf network point-to-point")
             lines.append(" ip ospf bfd")
+            if "cost" in interface:
+                lines.append(f" ip ospf cost {interface['cost']}")
             lines.append(" no ip ospf passive")
         lines.append("!")
 

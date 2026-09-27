@@ -70,8 +70,15 @@ def _underlay_interfaces(data: dict[str, Any], node_id: str) -> list[str]:
 
 def _endpoint(data: dict[str, Any], node_id: str) -> str:
     node = next(item for item in data["nodes"] if item["id"] == node_id)
-    site = next(item for item in data["sites"] if item["id"] == node["site"])
-    return site["public_endpoint"]
+    return node["public_endpoint"]
+
+
+def _site_endpoints(data: dict[str, Any], site_id: str) -> list[str]:
+    return sorted(
+        node["public_endpoint"]
+        for node in data["nodes"]
+        if node.get("role") == "edge" and node.get("site") == site_id
+    )
 
 
 def _edge_index(node_id: str) -> int:
@@ -82,9 +89,9 @@ def _router_id(node: dict[str, Any]) -> str:
     return _ip(node["loopback"]) if node.get("loopback") else _ip(node["interfaces"][0]["addresses"][0])
 
 
-def _prefix_filters(site_id: str, endpoint: str) -> list[str]:
+def _prefix_filters(site_id: str, endpoints: list[str]) -> list[str]:
     return [
-        f"ip prefix-list {site_id.upper()}-ENDPOINT seq 10 permit {endpoint}",
+        *(f"ip prefix-list {site_id.upper()}-ENDPOINT seq {(index + 1) * 10} permit {endpoint}" for index, endpoint in enumerate(endpoints)),
         f"ip prefix-list {site_id.upper()}-ENDPOINT seq 100 deny 0.0.0.0/0 le 32",
         "ip prefix-list DENY-ALL seq 10 deny 0.0.0.0/0 le 32",
     ]
@@ -105,7 +112,7 @@ def configs(data: dict[str, Any]) -> dict[str, str]:
             if isp1:
                 lines.append("ip route 203.0.113.0/25 Null0")
             for site_id, site in sites.items():
-                lines.extend(_prefix_filters(site_id, site["public_endpoint"]))
+                lines.extend(_prefix_filters(site_id, _site_endpoints(data, site_id)))
             lines.extend([
                 "ip prefix-list ISP-DEFAULT-ONLY seq 10 permit 0.0.0.0/0",
                 "ip prefix-list ISP-DEFAULT-ONLY seq 100 deny 0.0.0.0/0 le 32",
@@ -120,7 +127,7 @@ def configs(data: dict[str, Any]) -> dict[str, str]:
                     f" neighbor {peer_ip} remote-as {session['peer']['asn']}",
                     f" neighbor {peer_ip} description {edge_id.upper()}",
                     f" neighbor {peer_ip} maximum-prefix 1",
-                    f" neighbor {peer_ip} prefix-list {'%s-ENDPOINT' % site_id.upper() if edge1 else 'DENY-ALL'} in",
+                    f" neighbor {peer_ip} prefix-list {'%s-ENDPOINT' % site_id.upper()} in",
                     f" neighbor {peer_ip} prefix-list ISP-DEFAULT-ONLY out",
                 ])
                 lines.append(f" neighbor {peer_ip} default-originate")
@@ -130,10 +137,12 @@ def configs(data: dict[str, Any]) -> dict[str, str]:
         else:
             site_id = router["site"]
             edge1 = _edge_index(node_id) == 1
-            endpoint = sites[site_id]["public_endpoint"]
+            endpoint = _endpoint(data, node_id)
             if edge1:
                 lines.extend(["interface lo", " description stable_site_public_endpoint", f" ip address {endpoint}", "!"])
-            lines.extend(_prefix_filters(site_id, endpoint))
+            else:
+                lines.extend(["interface lo", " description edge_specific_public_endpoint", f" ip address {endpoint}", "!"])
+            lines.extend(_prefix_filters(site_id, _site_endpoints(data, site_id)))
             lines.extend([
                 "ip prefix-list ISP-DEFAULT seq 10 permit 0.0.0.0/0",
                 "ip prefix-list ISP-DEFAULT seq 100 deny 0.0.0.0/0 le 32",
@@ -167,7 +176,7 @@ def configs(data: dict[str, Any]) -> dict[str, str]:
                     f" neighbor {peer_ip} description {provider['id'].upper()}",
                     f" neighbor {peer_ip} maximum-prefix 1",
                     f" neighbor {peer_ip} prefix-list ISP-DEFAULT in",
-                    f" neighbor {peer_ip} prefix-list {'%s-ENDPOINT' % site_id.upper() if edge1 else 'DENY-ALL'} out",
+                    f" neighbor {peer_ip} prefix-list {site_id.upper()}-ENDPOINT out",
                 ])
             lines.append(" address-family ipv4 unicast")
             for session in sessions:
@@ -177,8 +186,7 @@ def configs(data: dict[str, Any]) -> dict[str, str]:
                     f"  neighbor {peer_ip} route-map {session['peer']['id'].upper().replace('-CORE-1', '')}-IN in",
                     f"  neighbor {peer_ip} route-map {session['peer']['id'].upper().replace('-CORE-1', '')}-OUT out",
                 ])
-            if edge1:
-                lines.append(f"  network {endpoint}")
+            lines.append(f"  network {endpoint}")
             lines.extend([" exit-address-family", "!"])
         result[node_id] = "\n".join(lines) + "\n"
     return result

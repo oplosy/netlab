@@ -70,6 +70,7 @@
         "site": {"type": ["string", "null"]},
         "role": {"enum": ["edge", "dist", "access", "client", "server", "isp", "service"]},
         "asn": {"type": ["integer", "null"]},
+        "public_endpoint": {"$ref": "#/$defs/cidr"},
         "oob": {"type": ["string", "null"], "anyOf": [{"$ref": "#/$defs/cidr"}, {"type": "null"}]},
         "loopback": {"type": ["string", "null"], "anyOf": [{"$ref": "#/$defs/cidr"}, {"type": "null"}]},
         "interfaces": {"type": "array", "items": {"$ref": "#/$defs/interface"}},
@@ -109,6 +110,7 @@
       "properties": {
         "id": {"$ref": "#/$defs/id"}, "kind": {"enum": ["routed", "ebgp", "xfrm", "l2", "access"]},
         "prefix": {"$ref": "#/$defs/id"}, "bundle": {"$ref": "#/$defs/id"},
+        "ospf_cost": {"type": "integer", "minimum": 1, "maximum": 65535},
         "vlan": {"$ref": "#/$defs/id"},
         "endpoints": {"type": "array", "items": {"$ref": "#/$defs/endpoint"}, "minItems": 2, "maxItems": 2}
       },

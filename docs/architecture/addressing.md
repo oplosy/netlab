@@ -82,10 +82,16 @@ WAN-210 activates ISP-2 and allocates HQ/BR1 edge-2. The inventory assigns
 OOB addresses are `172.31.255.21` (ISP-2), `172.31.255.34` (HQ edge-2), and
 `172.31.255.54` (BR1 edge-2).
 
-The initial public endpoint assignments are `203.0.113.129/32` for HQ,
-`203.0.113.130/32` for Branch 1, and `203.0.113.131/32` for Branch 2. A site
-exports only its own endpoint. The IPsec peer address therefore remains stable
-when Phase 2 adds a second provider.
+WAN-210 assigns the stable site endpoints `203.0.113.129/32` to HQ edge-1 and
+`203.0.113.130/32` to Branch 1 edge-1. WAN-230 assigns separate endpoints
+`203.0.113.131/32` to HQ edge-2 and `203.0.113.132/32` to Branch 1 edge-2.
+Each edge advertises only its own `/32`; this keeps the IKE peer address
+deterministic while both edge pairs maintain independent encrypted overlays.
+
+The primary HQ/BR1 XFRM link uses `10.255.0.0/31` at OSPF cost 10. The
+secondary edge-2 XFRM link uses `10.255.0.2/31` at OSPF cost 100, so OSPF uses
+edge-1 while both paths are healthy and can move to edge-2 after primary-path
+failure.
 
 ## Out-of-band management
 

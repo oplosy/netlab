@@ -23,4 +23,21 @@ Date: 2026-09-24
 
 ## Scope and limitations
 
-This is live verification of the HQ–BR1 pair in the Phase 1 lab. It does not claim verification of future sites or a Windows-native Docker runtime. The normal `make test-ipsec` target is not yet present in the integration branch; the executable live acceptance script was run directly.
+This is live verification of the HQ–BR1 edge-1 pair in the Phase 1 lab. It does not claim verification of future sites, edge-2, or a Windows-native Docker runtime.
+
+## WAN-230 redundant overlay acceptance
+
+Deploy the topology rendered from the checked-out task branch, then run:
+
+```sh
+make lab-up PYTHON=python3
+make test-ipsec-redundancy PYTHON=python3
+```
+
+The test applies the inventory-derived IPsec, OSPF, and security plans, checks
+their static plans, and then verifies both IKE/CHILD SAs, encrypted ESP traffic
+for each edge pair, OSPF selection of the cost-10 edge-1 path, failover to the
+cost-100 edge-2 path after taking the primary XFRM links down, and recovery to
+edge-1. It writes the sanitized route/packet summary to
+`evidence/specs/ipsec/wan-230-latest.json`. Runtime keys and the temporary PCAP
+remain outside Git.

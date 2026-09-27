@@ -206,6 +206,8 @@ def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) ->
                     addresses[oob_address] = f"node {node_id} OOB"
         if node.get("loopback"):
             record_address(node["loopback"], f"node {node_id} loopback")
+        if node.get("public_endpoint"):
+            record_address(node["public_endpoint"], f"node {node_id} public endpoint")
         interface_names: set[str] = set()
         for interface in node.get("interfaces", []):
             name = interface.get("name")
@@ -423,6 +425,19 @@ def validate_inventory(data: dict[str, Any], schema_path: Path | None = None) ->
             endpoint_id = f"{site_id}-public-endpoint"
             if endpoint_id not in prefix_map or prefix_map[endpoint_id].get("cidr") != site.get("public_endpoint"):
                 errors.append(f"site {site_id} public endpoint does not match prefix {endpoint_id}")
+
+    edge_nodes = [node for node in nodes if node.get("role") == "edge" and node.get("site") in site_map]
+    for site_id in site_map:
+        site_edges = sorted((node for node in edge_nodes if node.get("site") == site_id), key=lambda node: node["id"])
+        if len(site_edges) != 2:
+            errors.append(f"site {site_id} must have exactly two WAN edge nodes")
+            continue
+        if site_edges[0].get("public_endpoint") != site_map[site_id].get("public_endpoint"):
+            errors.append(f"site {site_id} edge-1 public endpoint must remain its stable site endpoint")
+        for edge in site_edges:
+            endpoint_id = f"{site_id}-public-endpoint" if edge["id"].endswith("-edge-1") else f"{edge['id']}-public-endpoint"
+            if endpoint_id not in prefix_map or prefix_map[endpoint_id].get("cidr") != edge.get("public_endpoint"):
+                errors.append(f"edge {edge['id']} public endpoint does not match prefix {endpoint_id}")
 
     return errors
 

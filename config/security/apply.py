@@ -162,15 +162,16 @@ def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
     site = next(item for item in data["sites"] if item["id"] == site_id)
     remote = next(item for item in data["sites"] if item["id"] != site_id)
     mapping = _interface_map(node)
-    public_ip = str(ipaddress.ip_interface(site["public_endpoint"]).ip)
+    public_ip = str(ipaddress.ip_interface(node["public_endpoint"]).ip)
     own_users = next(item["prefix"] for item in data["vlans"] if item["site"] == site_id and int(item["vlan_id"]) == 10)
     remote_users = next(item["prefix"] for item in data["vlans"] if item["site"] == remote["id"] and int(item["vlan_id"]) == 10)
     own_guests = next(item["prefix"] for item in data["vlans"] if item["site"] == site_id and int(item["vlan_id"]) == 30)
-    isp_link = next(link for link in data["links"] if link["kind"] == "ebgp" and any(item["node"] == node["id"] for item in link["endpoints"]))
-    local = next(item for item in isp_link["endpoints"] if item["node"] == node["id"])
-    peer = next(item for item in isp_link["endpoints"] if item["node"] != node["id"])
-    wan_iface = mapping[local["interface"]]
-    peer_ip = str(ipaddress.ip_interface(peer["address"]).ip)
+    isp_links = [link for link in data["links"] if link["kind"] == "ebgp" and any(item["node"] == node["id"] for item in link["endpoints"])]
+    wan_ifaces: dict[str, str] = {}
+    for link in isp_links:
+        local = next(item for item in link["endpoints"] if item["node"] == node["id"])
+        peer = next(item for item in link["endpoints"] if item["node"] != node["id"])
+        wan_ifaces[local["interface"]] = mapping[local["interface"]]
     ospf_peers = _linked_peer(data, node["id"], "routed")
     xfrm = next(link for link in data["links"] if link.get("kind") == "xfrm" and any(item["node"] == node["id"] for item in link["endpoints"]))
     remote_xfrm = next(item for item in xfrm["endpoints"] if item["node"] != node["id"])
@@ -179,23 +180,26 @@ def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
         f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
         f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
         f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
-        f'iifname "{wan_iface}" ip saddr {peer_ip} tcp dport 179 counter accept',
     ]
     for link in data["links"]:
         if link.get("kind") != "ebgp":
             continue
         local = next((endpoint for endpoint in link["endpoints"] if endpoint["node"] == node["id"]), None)
-        if local is None or local["interface"] == next(item for item in isp_link["endpoints"] if item["node"] == node["id"])["interface"]:
+        if local is None:
             continue
         peer = next(endpoint for endpoint in link["endpoints"] if endpoint["node"] != node["id"])
         input_rules.append(
             f'iifname "{mapping[local["interface"]]}" ip saddr '
             f'{ipaddress.ip_interface(peer["address"]).ip} tcp dport 179 counter accept'
         )
-    remote_public = str(ipaddress.ip_interface(remote["public_endpoint"]).ip)
+    remote_edge = next(item for item in data["nodes"] if item["id"] == remote_xfrm["node"])
+    remote_public = str(ipaddress.ip_interface(remote_edge["public_endpoint"]).ip)
+    for interface in wan_ifaces.values():
+        input_rules.extend([
+            f'iifname "{interface}" ip saddr {remote_public} udp dport {{ 500, 4500 }} counter accept',
+            f'iifname "{interface}" ip saddr {remote_public} ip protocol esp counter accept',
+        ])
     input_rules.extend([
-        f'iifname "{wan_iface}" ip saddr {remote_public} udp dport {{ 500, 4500 }} counter accept',
-        f'iifname "{wan_iface}" ip saddr {remote_public} ip protocol esp counter accept',
         f'iifname "xfrm0" ip saddr {remote_xfrm_ip} ip protocol ospf counter accept',
         f'iifname "xfrm0" ip saddr {remote_xfrm_ip} udp dport {{ 3784, 3785 }} counter accept',
         f'iifname "xfrm0" ip saddr {remote_xfrm_ip} ip protocol icmp icmp type echo-request counter accept',
@@ -207,7 +211,7 @@ def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
             f'iifname "{iface}" ip saddr {address} ip protocol icmp icmp type echo-request counter accept',
         ])
     forward_rules = [
-        f'iifname "xfrm0" oifname {{ {", ".join(sorted(set(mapping.values()) - {wan_iface}))} }} ip daddr {own_users} ip protocol icmp counter accept',
+        f'iifname "xfrm0" oifname {{ {", ".join(sorted(set(mapping.values()) - set(wan_ifaces.values())))} }} ip daddr {own_users} ip protocol icmp counter accept',
         f'oifname "xfrm0" ip saddr {own_users} ip daddr {remote_users} ip protocol icmp counter accept',
         f'ip saddr {own_guests} ip daddr {SIM_DNS} udp dport 53 counter accept',
         f'ip saddr {own_guests} ip daddr {SIM_DNS} tcp dport 53 counter accept',
@@ -231,9 +235,9 @@ def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
         "table ip netlab_sec170_nat {",
         "  chain postrouting {",
         "    type nat hook postrouting priority srcnat; policy accept;",
-        f'    oifname "{wan_iface}" ip saddr {own_guests} ip daddr {SIM_DNS} udp dport 53 counter snat to {public_ip}',
-        f'    oifname "{wan_iface}" ip saddr {own_guests} ip daddr {SIM_DNS} tcp dport 53 counter snat to {public_ip}',
-        f'    oifname "{wan_iface}" ip saddr {own_guests} ip daddr {SIM_NTP} udp dport 123 counter snat to {public_ip}',
+        *(f'    oifname "{interface}" ip saddr {own_guests} ip daddr {SIM_DNS} udp dport 53 counter snat to {public_ip}' for interface in wan_ifaces.values()),
+        *(f'    oifname "{interface}" ip saddr {own_guests} ip daddr {SIM_DNS} tcp dport 53 counter snat to {public_ip}' for interface in wan_ifaces.values()),
+        *(f'    oifname "{interface}" ip saddr {own_guests} ip daddr {SIM_NTP} udp dport 123 counter snat to {public_ip}' for interface in wan_ifaces.values()),
         "  }",
         "}",
         "",
@@ -292,38 +296,31 @@ def _render_isp(data: dict[str, Any], node: dict[str, Any]) -> str:
         peer_ip = str(ipaddress.ip_interface(peer["address"]).ip)
         input_rules.append(f'iifname "{iface}" ip saddr {peer_ip} tcp dport 179 counter accept')
     forward_rules: list[str] = []
-    for source_site in data["sites"]:
-        destination_site = next(site for site in data["sites"] if site["id"] != source_site["id"])
-        source_public = str(ipaddress.ip_interface(source_site["public_endpoint"]).ip)
-        destination_public = str(ipaddress.ip_interface(destination_site["public_endpoint"]).ip)
-        source_edge_id = "hq-edge-1" if source_site["id"] == "hq" else "br1-edge-1"
-        underlay = next(
-            link for link in data["links"]
-            if link["kind"] == "ebgp"
-            and {item["node"] for item in link["endpoints"]} == {source_edge_id, node["id"]}
-        )
-        source_endpoint = next(item for item in underlay["endpoints"] if item["node"] == node["id"])
-        source_iface = _interface_map(node)[source_endpoint["interface"]]
-        forward_rules.extend([
-            f'iifname "{source_iface}" ip saddr {source_public} ip daddr {destination_public} udp dport {{ 500, 4500 }} counter accept',
-            f'iifname "{source_iface}" ip saddr {source_public} ip daddr {destination_public} ip protocol esp counter accept',
-        ])
-    for site in data["sites"]:
-        public_ip = str(ipaddress.ip_interface(site["public_endpoint"]).ip)
-        edge_id = "hq-edge-1" if site["id"] == "hq" else "br1-edge-1"
-        link = next(
-            link for link in data["links"]
-            if link["kind"] == "ebgp"
-            and {item["node"] for item in link["endpoints"]} == {edge_id, node["id"]}
-        )
-        edge_ep = next(item for item in link["endpoints"] if item["node"] == edge_id)
-        local = next(item for item in link["endpoints"] if item["node"] == node["id"])
+    nodes = {item["id"]: item for item in data["nodes"]}
+    site_by_id = {site["id"]: site for site in data["sites"]}
+    for link in data["links"]:
+        if link.get("kind") != "ebgp":
+            continue
+        local = next((item for item in link["endpoints"] if item["node"] == node["id"]), None)
+        if local is None:
+            continue
+        edge_ep = next(item for item in link["endpoints"] if item["node"] != node["id"])
+        edge = nodes[edge_ep["node"]]
         iface = _interface_map(node)[local["interface"]]
-        # Only advertised site endpoints may reach the simulator DNS and NTP hosts.
+        source_public = str(ipaddress.ip_interface(edge["public_endpoint"]).ip)
+        for remote in data["nodes"]:
+            if remote.get("role") != "edge" or remote["site"] == edge["site"]:
+                continue
+            destination_public = str(ipaddress.ip_interface(remote["public_endpoint"]).ip)
+            forward_rules.extend([
+                f'iifname "{iface}" ip saddr {source_public} ip daddr {destination_public} udp dport {{ 500, 4500 }} counter accept',
+                f'iifname "{iface}" ip saddr {source_public} ip daddr {destination_public} ip protocol esp counter accept',
+            ])
+        # Only advertised endpoint sources may reach simulated DNS and NTP.
         forward_rules.extend([
-            f'iifname "{iface}" ip saddr {public_ip} ip daddr {SIM_DNS} udp dport 53 counter accept',
-            f'iifname "{iface}" ip saddr {public_ip} ip daddr {SIM_DNS} tcp dport 53 counter accept',
-            f'iifname "{iface}" ip saddr {public_ip} ip daddr {SIM_NTP} udp dport 123 counter accept',
+            f'iifname "{iface}" ip saddr {source_public} ip daddr {SIM_DNS} udp dport 53 counter accept',
+            f'iifname "{iface}" ip saddr {source_public} ip daddr {SIM_DNS} tcp dport 53 counter accept',
+            f'iifname "{iface}" ip saddr {source_public} ip daddr {SIM_NTP} udp dport 123 counter accept',
         ])
     lines = [
         "table inet netlab_sec170 {",

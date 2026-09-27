@@ -96,7 +96,7 @@ def test_rendered_policy_prefers_isp1_and_prepares_isp2_backup() -> None:
     for edge_id, peers in sessions.items():
         edge = next(node for node in data["nodes"] if node["id"] == edge_id)
         site_id = edge["site"]
-        endpoint = sites[site_id]["public_endpoint"]
+        endpoint = edge["public_endpoint"]
         config = rendered[edge_id]
         for provider_id, peer in peers.items():
             provider_name = "ISP1" if provider_id == PRIMARY_PROVIDER else "ISP2"
@@ -106,10 +106,7 @@ def test_rendered_policy_prefers_isp1_and_prepares_isp2_backup() -> None:
                 f"set local-preference {PROVIDER_LOCAL_PREFERENCE[provider_id]}" in config
             )
             assert f"neighbor {peer['peer']} maximum-prefix 1" in config
-            if edge_id.endswith("edge-1"):
-                assert f"neighbor {peer['peer']} prefix-list {site_id.upper()}-ENDPOINT out" in config
-            else:
-                assert f"neighbor {peer['peer']} prefix-list DENY-ALL out" in config
+            assert f"neighbor {peer['peer']} prefix-list {site_id.upper()}-ENDPOINT out" in config
 
         assert "ip prefix-list ISP-DEFAULT seq 10 permit 0.0.0.0/0" in config
         assert "route-map ISP1-IN permit 10" in config
@@ -119,12 +116,9 @@ def test_rendered_policy_prefers_isp1_and_prepares_isp2_backup() -> None:
         assert f"route-map ISP1-OUT permit 10" in config
         assert f"match ip address prefix-list {site_id.upper()}-ENDPOINT" in config
         assert f"route-map ISP2-OUT permit 10" in config
-        if edge_id.endswith("edge-1"):
-            assert f"set as-path prepend {edge['asn']} {edge['asn']}" in config
-            assert f"ip address {endpoint}" in config
-        else:
-            assert f"ip address {endpoint}" not in config
-            assert f"network {endpoint}" not in config
+        assert f"set as-path prepend {edge['asn']} {edge['asn']}" in config
+        assert f"ip address {endpoint}" in config
+        assert f"network {endpoint}" in config
 
 
 def test_both_isps_advertise_only_default_and_limit_neighbor_prefixes() -> None:
@@ -158,7 +152,7 @@ def test_live_provider_preference_failover_and_route_leak_rejection() -> None:
     data = load_inventory()
     nodes = {node["id"]: node for node in data["nodes"]}
     sessions = _link_sessions(data)
-    site_endpoints = {site["public_endpoint"] for site in data["sites"]}
+    site_endpoints = {node["public_endpoint"] for node in data["nodes"] if node.get("role") == "edge"}
     down_interfaces: list[tuple[str, str]] = []
     injected_routes: list[tuple[str, int, str, list[str]]] = []
 
@@ -223,22 +217,19 @@ def test_live_provider_preference_failover_and_route_leak_rejection() -> None:
         for provider_id in (PRIMARY_PROVIDER, BACKUP_PROVIDER):
             provider = next(node for node in data["nodes"] if node["id"] == provider_id)
             for edge_id, peers in sessions.items():
-                expected = site_endpoints.intersection(
-                    {next(site["public_endpoint"] for site in data["sites"] if site["id"] == nodes[edge_id]["site"])}
-                ) if edge_id.endswith("edge-1") else set()
+                expected = {nodes[edge_id]["public_endpoint"]}
                 output = _vtysh(provider_id, f"show bgp ipv4 unicast neighbors {peers[provider_id]['endpoint']} routes")
                 advertised = {
                     f"{match.group(1)}/32"
                     for match in re.finditer(r"^\s*[A-Za-z*>=]{1,3}\s+(\d{1,3}(?:\.\d{1,3}){3})/32\s", output, re.MULTILINE)
                 }
                 assert advertised == expected, f"{provider_id} received {advertised} from {edge_id}"
-                if edge_id.endswith("edge-1"):
-                    endpoint = next(iter(expected))
-                    route_line = next((line for line in output.splitlines() if endpoint in line), "")
-                    expected_as_count = 1 if provider_id == PRIMARY_PROVIDER else 3
-                    assert route_line.count(str(nodes[edge_id]["asn"])) == expected_as_count, (
-                        f"unexpected AS path at {provider_id} for {edge_id}: {route_line}"
-                    )
+                endpoint = next(iter(expected))
+                route_line = next((line for line in output.splitlines() if endpoint in line), "")
+                expected_as_count = 1 if provider_id == PRIMARY_PROVIDER else 3
+                assert route_line.count(str(nodes[edge_id]["asn"])) == expected_as_count, (
+                    f"unexpected AS path at {provider_id} for {edge_id}: {route_line}"
+                )
     finally:
         for container, interface in reversed(down_interfaces):
             _run("docker", "exec", container, "ip", "link", "set", "dev", interface, "up", check=False)

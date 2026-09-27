@@ -16,7 +16,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
     parser.add_argument("duration", type=float)
-    parser.add_argument("interfaces", nargs="+", choices=("eth1", "eth2"))
+    parser.add_argument("interfaces", nargs="+", choices=("eth1", "eth2", "eth3", "eth4", "eth5", "eth6"))
     args = parser.parse_args()
     if not 1 <= args.duration <= 60 or len(set(args.interfaces)) != len(args.interfaces):
         parser.error("duration must be 1..60 seconds and interfaces must be unique")
