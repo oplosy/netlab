@@ -121,7 +121,7 @@ def configs(data: dict[str, Any]) -> dict[str, str]:
                     f" neighbor {peer_ip} prefix-list {'%s-ENDPOINT' % site_id.upper() if edge1 else 'DENY-ALL'} in",
                     f" neighbor {peer_ip} prefix-list {'ISP-DEFAULT-ONLY' if isp1 else 'DENY-ALL'} out",
                 ])
-                if isp1:
+                if isp1 and edge1:
                     lines.append(f" neighbor {peer_ip} default-originate")
             lines.append(" address-family ipv4 unicast")
             lines.extend(f"  neighbor {_ip(item['remote']['address'])} activate" for item in sessions)

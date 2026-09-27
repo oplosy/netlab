@@ -72,8 +72,11 @@ def test_isp_exports_only_declared_site_endpoints_and_imports_only_them() -> Non
                 expected_filter = f"{site_id.upper()}-ENDPOINT" if edge_index == 1 else "DENY-ALL"
                 assert f"neighbor {peer_ip} prefix-list {expected_filter} in" in config
                 assert f"neighbor {peer_ip} maximum-prefix 1" in config
+                if edge_index == 1 and isp_id == "isp1-core-1":
+                    assert f"neighbor {peer_ip} default-originate" in config
+                else:
+                    assert f"neighbor {peer_ip} default-originate" not in config
         if isp_id == "isp1-core-1":
-            assert "default-originate" in config
             assert "ip prefix-list ISP-DEFAULT-ONLY seq 10 permit 0.0.0.0/0" in config
             assert "203.0.113.0/25 Null0" in config
         else:
