@@ -696,6 +696,9 @@ tasks:
     allowed_paths:
       - inventory/sites/br2/**
       - tests/integration/br2/**
+      - automation/roles/site/**
+      - mk/site-template.mk
+      - plans/tasks.yaml
     acceptance:
       - "Branch 2 uses 10.30.0.0/16, Area 30, and AS 65102"
       - "Branch 2 is produced from the shared site template"
