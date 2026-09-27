@@ -308,7 +308,7 @@ tasks:
     phase: phase-1
     title: Stabilize BFD-triggered gateway failover within three seconds
     type: fix
-    status: planned
+    status: complete
     depends_on: [OSPF-130, L3-120]
     parallel_group: runtime-exclusive
     runtime_lock: lab
@@ -566,7 +566,7 @@ tasks:
     phase: phase-2
     title: Add ISP 2 and redundant edge nodes
     type: feat
-    status: planned
+    status: complete
     depends_on: [DOC-195]
     parallel_group: phase-2-a
     allowed_paths:
@@ -604,7 +604,7 @@ tasks:
     phase: phase-2
     title: Add deterministic dual-provider BGP policy
     type: feat
-    status: planned
+    status: complete
     depends_on: [WAN-210]
     parallel_group: phase-2-b
     allowed_paths:
@@ -623,7 +623,7 @@ tasks:
     phase: phase-2
     title: Add redundant encrypted overlay paths
     type: feat
-    status: planned
+    status: complete
     depends_on: [WAN-220]
     parallel_group: phase-2-c
     allowed_paths:
