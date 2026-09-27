@@ -1,0 +1,14 @@
+# Declarative shape of a branch site. Addressing and runtime state remain in inventory.yaml.
+version: 1
+role_counts:
+  edge: 2
+  dist: 2
+  access: 1
+  client: 2
+  server: 1
+  service: 3
+vlan_ids: [10, 20, 30, 99]
+bundle_kinds:
+  access-uplink: 2
+  distribution-peer: 1
+runtime_fields: []
