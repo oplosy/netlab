@@ -669,7 +669,7 @@ tasks:
     phase: phase-3
     title: Extract a reusable branch site template
     type: refactor
-    status: planned
+    status: complete
     depends_on: [TEST-240]
     parallel_group: phase-3-a
     allowed_paths:
