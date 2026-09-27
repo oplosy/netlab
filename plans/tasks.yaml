@@ -648,14 +648,16 @@ tasks:
     phase: phase-2
     title: Verify provider and edge failover
     type: test
-    status: planned
+    status: complete
     depends_on: [WAN-230]
     parallel_group: runtime-exclusive
     runtime_lock: lab
     allowed_paths:
+      - mk/evidence.mk
       - tests/e2e/phase-2/**
       - scripts/evidence/**
       - evidence/reports/phase-2.md
+      - plans/tasks.yaml
     acceptance:
       - "Provider, edge, and tunnel failures converge within 10 seconds"
       - "Return path matches policy where symmetry is required"
