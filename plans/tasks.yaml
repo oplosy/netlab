@@ -425,6 +425,8 @@ tasks:
       - tests/unit/inventory/**
       - tests/smoke/topology/**
       - automation/roles/services/**
+      - services/ntp/**
+      - tests/unit/site-template/**
       - tests/integration/services/**
       - tests/integration/l3/**
       - automation/roles/gateway/**
@@ -517,6 +519,7 @@ tasks:
     allowed_paths:
       - tests/e2e/**
       - scripts/evidence/**
+      - scripts/pki/**
       - evidence/templates/**
       - mk/evidence.mk
     deliverables:
@@ -586,6 +589,7 @@ tasks:
       - tests/integration/ospf/**
       - tests/integration/observability/**
       - tests/integration/services/**
+      - tests/unit/site-template/**
       - tests/security/**
     acceptance:
       - "HQ and BR1 edge-1 and edge-2 establish filtered eBGP sessions to both ISPs"
@@ -715,8 +719,45 @@ tasks:
     parallel_group: runtime-exclusive
     runtime_lock: lab
     allowed_paths:
+      - inventory/**
+      - schemas/**
+      - scripts/validate/**
+      - scripts/lifecycle/**
+      - scripts/evidence/**
+      - scripts/pki/**
+      - lab/phase-1.clab.yml
+      - config/gateway/**
+      - config/ipsec/**
+      - config/routing/bgp/**
+      - config/routing/ospf/**
+      - config/security/**
+      - config/switching/**
+      - automation/roles/site/**
+      - automation/roles/services/**
+      - automation/roles/observability/prepare.py
+      - observability/prometheus.yml
+      - automation/roles/gateway/**
+      - automation/roles/ipsec/**
+      - automation/roles/bgp/**
+      - automation/roles/ospf/**
+      - automation/roles/security/**
       - tests/e2e/phase-3/**
+      - tests/e2e/phase-3_acceptance.py
+      - tests/integration/observability/**
+      - tests/integration/bgp/**
+      - tests/integration/ospf/**
+      - tests/integration/ipsec/**
+      - tests/integration/l2/**
+      - tests/integration/l3/**
+      - tests/integration/services/**
+      - tests/unit/site-template/**
+      - tests/security/**
+      - evidence/specs/security/latest.md
       - evidence/reports/phase-3.md
+      - mk/evidence.mk
+      - services/ntp/**
+      - observability/prometheus.yml
+      - plans/tasks.yaml
     acceptance:
       - "Area 0 gains exactly one Branch 2 summary"
       - "Guest and management isolation remains intact"

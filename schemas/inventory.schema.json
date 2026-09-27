@@ -28,7 +28,8 @@
         "project": {"const": "multi-site-enterprise-network-lab"},
         "source_of_truth": {"const": "git"},
         "phase": {"const": "phase-1"},
-        "addressing_plan": {"const": "docs/architecture/addressing.md"}
+        "addressing_plan": {"const": "docs/architecture/addressing.md"},
+        "site_template_sources": {"type": "object", "additionalProperties": {"type": "object", "required": ["site", "template"], "properties": {"site": {"type": "string"}, "template": {"type": "string"}}}}
       }
     },
     "asn": {

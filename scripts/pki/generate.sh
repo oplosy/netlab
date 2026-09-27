@@ -52,7 +52,7 @@ case "${mode}" in
     openssl verify -CAfile "${PKI_DIR}/ca.cert.pem" "${PKI_DIR}/hq-edge-1.cert.pem"
     ;;
   create-request)
-    [[ "${identity}" =~ ^(hq|br1)-edge-[12]\.netlab$ && "${identity}" != hq-edge-1.netlab ]] || {
+    [[ "${identity}" =~ ^((hq|br1)-edge-[12]|br2-edge-1)\.netlab$ && "${identity}" != hq-edge-1.netlab ]] || {
       echo "unexpected peer identity: ${identity}" >&2; exit 64;
     }
     key="${PKI_DIR}/${node}.key.pem"
@@ -67,7 +67,7 @@ case "${mode}" in
     chmod 0600 "${key}" "${csr}"
     ;;
   sign-request)
-    [[ "${identity}" =~ ^(hq|br1)-edge-[12]\.netlab$ && "${identity}" != hq-edge-1.netlab ]] || {
+    [[ "${identity}" =~ ^((hq|br1)-edge-[12]|br2-edge-1)\.netlab$ && "${identity}" != hq-edge-1.netlab ]] || {
       echo "unexpected peer identity: ${identity}" >&2; exit 64;
     }
     cert="${PKI_DIR}/${node}.cert.pem"
