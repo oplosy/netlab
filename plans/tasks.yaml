@@ -714,7 +714,7 @@ tasks:
     phase: phase-3
     title: Verify Branch 2 routing and isolation
     type: test
-    status: planned
+    status: complete
     depends_on: [SITE-320]
     parallel_group: runtime-exclusive
     runtime_lock: lab
