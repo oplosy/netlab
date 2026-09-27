@@ -676,6 +676,8 @@ tasks:
       - inventory/templates/**
       - automation/roles/site/**
       - tests/unit/site-template/**
+      - mk/site-template.mk
+      - plans/tasks.yaml
     acceptance:
       - "Branch 1 renders without behavioral changes"
       - "No generated runtime state is copied into the template"
