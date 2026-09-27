@@ -17,13 +17,13 @@ sys.path.insert(0, str(ROOT))
 from config.routing.bgp.render import configs, load_inventory  # noqa: E402
 
 
-def _peer(data: dict, site_id: str) -> str:
-    node_id = {"hq": "hq-edge-1", "br1": "br1-edge-1"}[site_id]
+def _peer(data: dict, node_id: str) -> str:
     link = next(
         link
         for link in data["links"]
         if link["kind"] == "ebgp"
         and any(endpoint["node"] == node_id for endpoint in link["endpoints"])
+        and any(endpoint["node"] == "isp1-core-1" for endpoint in link["endpoints"])
     )
     remote = next(
         endpoint for endpoint in link["endpoints"] if endpoint["node"] != node_id
@@ -226,7 +226,7 @@ def test_live_sessions_policy_and_rejection_of_injected_routes() -> None:
             ("hq", "hq-edge-2"),
             ("br1", "br1-edge-2"),
         ):
-            peer = _peer(data, site_id)
+            peer = _peer(data, node_id)
             neighbor = _vtysh(node_id, f"show bgp neighbors {peer}")
             assert "BGP state = Established" in neighbor, (
                 f"{node_id} eBGP session is not established"
