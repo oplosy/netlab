@@ -44,7 +44,8 @@ def test_rendered_policy_builds_full_mesh_and_keeps_endpoint_on_primary_edges() 
             assert len(peers) == 2
             assert "maximum-prefix 1" in config
             assert "ip prefix-list ISP-DEFAULT seq 10 permit 0.0.0.0/0" in config
-            assert "route-map ISP-IN permit 10" in config
+            assert "route-map ISP1-IN permit 10" in config
+            assert "route-map ISP2-IN permit 10" in config
             if edge_index == 1:
                 assert "interface lo" in config
                 assert f"ip address {endpoint}" in config
@@ -72,16 +73,13 @@ def test_isp_exports_only_declared_site_endpoints_and_imports_only_them() -> Non
                 expected_filter = f"{site_id.upper()}-ENDPOINT" if edge_index == 1 else "DENY-ALL"
                 assert f"neighbor {peer_ip} prefix-list {expected_filter} in" in config
                 assert f"neighbor {peer_ip} maximum-prefix 1" in config
-                if edge_index == 1 and isp_id == "isp1-core-1":
-                    assert f"neighbor {peer_ip} default-originate" in config
-                else:
-                    assert f"neighbor {peer_ip} default-originate" not in config
+                assert f"neighbor {peer_ip} default-originate" in config
         if isp_id == "isp1-core-1":
             assert "ip prefix-list ISP-DEFAULT-ONLY seq 10 permit 0.0.0.0/0" in config
             assert "203.0.113.0/25 Null0" in config
         else:
-            assert "default-originate" not in config
-            assert "neighbor 198.51.100.0 prefix-list DENY-ALL out" in config
+            assert "default-originate" in config
+            assert "neighbor 198.51.100.0 prefix-list ISP-DEFAULT-ONLY out" in config
 
 
 def test_apply_enables_bgpd_and_reloads_only_when_needed() -> None:
@@ -167,9 +165,12 @@ def test_live_sessions_policy_and_rejection_of_injected_routes() -> None:
             while time.monotonic() < deadline and _prefixes(isp_id) != expected_isp_prefixes:
                 time.sleep(0.5)
             assert _prefixes(isp_id) == expected_isp_prefixes, f"{isp_id} learned a non-endpoint route"
-        assert _prefixes("hq-edge-2") == set() and _prefixes("br1-edge-2") == set(), (
-            "WAN-210 secondary edges must not originate the stable endpoint or accept ISP defaults"
-        )
+        for node_id in ("hq-edge-1", "hq-edge-2", "br1-edge-1", "br1-edge-2"):
+            assert "0.0.0.0/0" in _prefixes(node_id), (
+                f"{node_id} did not receive a provider default"
+            )
+        assert "203.0.113.129/32" not in _prefixes("hq-edge-2")
+        assert "203.0.113.130/32" not in _prefixes("br1-edge-2")
         for site_id, node_id in (("hq", "hq-edge-1"), ("br1", "br1-edge-1")):
             peer = _peer(data, site_id)
             neighbor = _vtysh(node_id, f"show bgp neighbors {peer}")

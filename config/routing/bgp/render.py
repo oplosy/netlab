@@ -12,6 +12,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[3]
 INVENTORY = ROOT / "inventory" / "inventory.yaml"
 PHYSICAL_LINK_KINDS = {"routed", "ebgp", "l2", "access"}
+PRIMARY_PROVIDER = "isp1-core-1"
+PROVIDER_LOCAL_PREFERENCE = {"isp1-core-1": 200, "isp2-core-1": 100}
 
 
 def load_inventory(path: Path = INVENTORY) -> dict[str, Any]:
@@ -98,16 +100,16 @@ def configs(data: dict[str, Any]) -> dict[str, str]:
         lines = ["! Generated from inventory; do not edit.", *_underlay_interfaces(data, node_id)]
         if router["role"] == "isp":
             isp_asn = router["asn"]
-            isp1 = isp_asn == 65000
+            isp1 = node_id == PRIMARY_PROVIDER
+            lines.append("ip route 0.0.0.0/0 Null0")
             if isp1:
-                lines.extend(["ip route 0.0.0.0/0 Null0", "ip route 203.0.113.0/25 Null0"])
+                lines.append("ip route 203.0.113.0/25 Null0")
             for site_id, site in sites.items():
                 lines.extend(_prefix_filters(site_id, site["public_endpoint"]))
-            if isp1:
-                lines.extend([
-                    "ip prefix-list ISP-DEFAULT-ONLY seq 10 permit 0.0.0.0/0",
-                    "ip prefix-list ISP-DEFAULT-ONLY seq 100 deny 0.0.0.0/0 le 32",
-                ])
+            lines.extend([
+                "ip prefix-list ISP-DEFAULT-ONLY seq 10 permit 0.0.0.0/0",
+                "ip prefix-list ISP-DEFAULT-ONLY seq 100 deny 0.0.0.0/0 le 32",
+            ])
             lines.extend([f"router bgp {isp_asn}", f" bgp router-id {_router_id(router)}", " no bgp ebgp-requires-policy"])
             for session in sessions:
                 site_id = session["peer"].get("site")
@@ -119,10 +121,9 @@ def configs(data: dict[str, Any]) -> dict[str, str]:
                     f" neighbor {peer_ip} description {edge_id.upper()}",
                     f" neighbor {peer_ip} maximum-prefix 1",
                     f" neighbor {peer_ip} prefix-list {'%s-ENDPOINT' % site_id.upper() if edge1 else 'DENY-ALL'} in",
-                    f" neighbor {peer_ip} prefix-list {'ISP-DEFAULT-ONLY' if isp1 else 'DENY-ALL'} out",
+                    f" neighbor {peer_ip} prefix-list ISP-DEFAULT-ONLY out",
                 ])
-                if isp1 and edge1:
-                    lines.append(f" neighbor {peer_ip} default-originate")
+                lines.append(f" neighbor {peer_ip} default-originate")
             lines.append(" address-family ipv4 unicast")
             lines.extend(f"  neighbor {_ip(item['remote']['address'])} activate" for item in sessions)
             lines.extend([" exit-address-family", "!"])
@@ -136,11 +137,24 @@ def configs(data: dict[str, Any]) -> dict[str, str]:
             lines.extend([
                 "ip prefix-list ISP-DEFAULT seq 10 permit 0.0.0.0/0",
                 "ip prefix-list ISP-DEFAULT seq 100 deny 0.0.0.0/0 le 32",
-                "route-map ISP-IN permit 10",
-                " match ip address prefix-list ISP-DEFAULT",
-                f"route-map {site_id.upper()}-OUT permit 10",
-                f" match ip address prefix-list {site_id.upper()}-ENDPOINT",
-                f"route-map {site_id.upper()}-OUT deny 100",
+            ])
+            for provider in (session["peer"] for session in sessions):
+                provider_id = provider["id"]
+                if provider_id not in PROVIDER_LOCAL_PREFERENCE:
+                    raise ValueError(f"no WAN-220 preference is defined for provider {provider_id}")
+                route_map = provider_id.upper().replace("-CORE-1", "")
+                lines.extend([
+                    f"route-map {route_map}-IN permit 10",
+                    " match ip address prefix-list ISP-DEFAULT",
+                    f" set local-preference {PROVIDER_LOCAL_PREFERENCE[provider_id]}",
+                    f"route-map {route_map}-IN deny 100",
+                    f"route-map {route_map}-OUT permit 10",
+                    f" match ip address prefix-list {site_id.upper()}-ENDPOINT",
+                ])
+                if provider_id != PRIMARY_PROVIDER:
+                    lines.append(f" set as-path prepend {router['asn']} {router['asn']}")
+                lines.append(f"route-map {route_map}-OUT deny 100")
+            lines.extend([
                 f"router bgp {router['asn']}",
                 f" bgp router-id {_router_id(router)}",
                 " no bgp ebgp-requires-policy",
@@ -160,8 +174,8 @@ def configs(data: dict[str, Any]) -> dict[str, str]:
                 peer_ip = _ip(session["remote"]["address"])
                 lines.extend([
                     f"  neighbor {peer_ip} activate",
-                    f"  neighbor {peer_ip} route-map ISP-IN in",
-                    f"  neighbor {peer_ip} route-map {site_id.upper()}-OUT out",
+                    f"  neighbor {peer_ip} route-map {session['peer']['id'].upper().replace('-CORE-1', '')}-IN in",
+                    f"  neighbor {peer_ip} route-map {session['peer']['id'].upper().replace('-CORE-1', '')}-OUT out",
                 ])
             if edge1:
                 lines.append(f"  network {endpoint}")
