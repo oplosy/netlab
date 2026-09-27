@@ -690,7 +690,7 @@ tasks:
     phase: phase-3
     title: Instantiate Branch 2 from data
     type: feat
-    status: planned
+    status: complete
     depends_on: [SITE-310]
     parallel_group: phase-3-b
     allowed_paths:
