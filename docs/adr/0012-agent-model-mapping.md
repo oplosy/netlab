@@ -1,6 +1,6 @@
 # ADR 0012: Update the Recommended Agent Model Mapping
 
-- Status: Accepted
+- Status: Superseded by ADR 0016
 - Date: 2026-09-23
 - Supersedes: The model recommendation in ADR 0010 only
 
