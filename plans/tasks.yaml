@@ -389,7 +389,7 @@ tasks:
     phase: phase-5
     stretch: true
     title: Build the NetBox intent projection
-    status: planned
+    status: complete
     depends_on: [EDGE-430]
     acceptance:
       - "An empty NetBox database is seeded from Git intent"
@@ -402,7 +402,7 @@ tasks:
     phase: phase-5
     stretch: true
     title: Generate Ansible inventory and configurations
-    status: planned
+    status: complete
     depends_on: [AUTO-510]
     acceptance:
       - "Generated inventory matches validated Git intent and NetBox projection"
@@ -415,7 +415,7 @@ tasks:
     phase: phase-5
     stretch: true
     title: Add safe change, idempotence, and drift workflows
-    status: planned
+    status: complete
     depends_on: [AUTO-520]
     acceptance:
       - "Precheck, backup, diff, apply, and postcheck stages are explicit"
@@ -429,7 +429,7 @@ tasks:
     phase: phase-5
     stretch: true
     title: Add a bounded topology smoke test to CI
-    status: planned
+    status: complete
     depends_on: [AUTO-530]
     acceptance:
       - "Render and drift checks are added to the CI-050 quality gate"

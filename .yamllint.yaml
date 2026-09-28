@@ -20,3 +20,10 @@ rules:
     indent-sequences: whatever
   comments:
     min-spaces-from-content: 1
+  # Settings ansible-lint requires to use this file for playbooks (AUTO-540).
+  comments-indentation: false
+  braces:
+    max-spaces-inside: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true

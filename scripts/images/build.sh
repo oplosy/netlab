@@ -35,7 +35,11 @@ build_image() {
     "${REPO_ROOT}"
 }
 
-build_image "${NETLAB_NETWORK_IMAGE}" images/network-node \
+# NETLAB_BUILD_ONLY limits the build to named images (network-node, client,
+# service); the CI topology smoke test builds only network-node (AUTO-540).
+wants() { [[ -z ${NETLAB_BUILD_ONLY:-} || " ${NETLAB_BUILD_ONLY} " == *" $1 "* ]]; }
+
+wants network-node && build_image "${NETLAB_NETWORK_IMAGE}" images/network-node \
   --build-arg "FRR_VERSION=${FRR_VERSION}" \
   --build-arg "OVS_VERSION=${OVS_VERSION}" \
   --build-arg "KEEPALIVED_VERSION=${KEEPALIVED_VERSION}" \
@@ -45,8 +49,8 @@ build_image "${NETLAB_NETWORK_IMAGE}" images/network-node \
   --build-arg "OPENSSH_SERVER_VERSION=${OPENSSH_SERVER_VERSION}" \
   --build-arg "LIBPAM_RADIUS_AUTH_VERSION=${LIBPAM_RADIUS_AUTH_VERSION}" \
   --build-arg "SURICATA_VERSION=${SURICATA_VERSION}"
-build_image "${NETLAB_CLIENT_IMAGE}" images/client
-build_image "${NETLAB_SERVICE_IMAGE}" images/service \
+wants client && build_image "${NETLAB_CLIENT_IMAGE}" images/client
+wants service && build_image "${NETLAB_SERVICE_IMAGE}" images/service \
   --build-arg "KEA_VERSION=${KEA_VERSION}" \
   --build-arg "BIND9_VERSION=${BIND9_VERSION}" \
   --build-arg "BIND9_UTILS_VERSION=${BIND9_UTILS_VERSION}" \

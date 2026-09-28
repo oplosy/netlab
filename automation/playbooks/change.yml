@@ -1,0 +1,144 @@
+---
+# AUTO-530 safe change workflow (ADR 0019). Ansible orchestrates explicit
+# stages; the Python engine renders and converges device state.
+#
+#   make change                         # all stages
+#   make change CHANGE_TAGS=precheck    # one stage (tags: precheck, backup, diff, apply, postcheck)
+#
+# The postcheck records the golden snapshot used by make test-drift.
+- name: Netlab safe change workflow
+  hosts: localhost
+  gather_facts: false
+  vars:
+    repo: "{{ playbook_dir }}/../.."
+    python: "{{ ansible_playbook_python }}"
+    change_dir: "{{ repo }}/artifacts/changes/{{ change_id }}"
+    golden: "{{ repo }}/artifacts/state/golden.json"
+    netbox_check: false
+    network_hosts: "{{ groups['role_edge'] + groups['role_dist'] + groups['role_firewall'] + groups['role_access'] + groups['role_isp'] }}"
+    engine:
+      - {name: gateways, argv: ["config/gateway/apply.py"]}
+      - {name: ipsec, argv: ["config/ipsec/apply.py"]}
+      - {name: ospf, argv: ["bash", "automation/roles/ospf/apply.sh"], shell: true}
+      - {name: security, argv: ["config/security/apply.py"]}
+      - {name: services, argv: ["automation/roles/services/apply.py"]}
+  tasks:
+    # Vars are templated lazily; fix the ID once so every stage shares one record.
+    - name: Fix the change ID for this run
+      ansible.builtin.set_fact:
+        change_id: "{{ lookup('pipe', 'date -u +%Y%m%dT%H%M%SZ') }}"
+      tags: [always]
+
+    - name: Create the change record and golden snapshot directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: ["{{ change_dir }}", "{{ golden | dirname }}"]
+      tags: [always]
+
+    # ---------------------------------------------------------------- precheck
+    - name: Precheck - validate Git intent
+      ansible.builtin.command:
+        argv: ["{{ python }}", "scripts/validate/validate_inventory.py"]
+        chdir: "{{ repo }}"
+      changed_when: false
+      tags: [precheck]
+
+    - name: Precheck - render is deterministic and the inventory is current
+      ansible.builtin.command:
+        argv: ["{{ python }}", "automation/render/render_all.py", "--check"]
+        chdir: "{{ repo }}"
+      changed_when: false
+      tags: [precheck]
+
+    - name: Precheck - every managed network node is running
+      ansible.builtin.command:
+        argv: [docker, inspect, -f, "{{ '{{' }}.State.Running{{ '}}' }}", "{{ hostvars[item].netlab_container }}"]
+      register: running
+      changed_when: false
+      failed_when: running.rc != 0 or running.stdout != "true"
+      loop: "{{ network_hosts }}"
+      loop_control:
+        label: "{{ item }}"
+      tags: [precheck]
+
+    - name: Precheck - NetBox matches Git intent
+      ansible.builtin.command:
+        argv: ["{{ python }}", "automation/netbox/sync.py", "--check",
+               "--json", "{{ change_dir }}/netbox-check.json"]
+        chdir: "{{ repo }}"
+      changed_when: false
+      when: netbox_check | bool
+      tags: [precheck]
+
+    # ------------------------------------------------------------------ backup
+    - name: Backup - snapshot the normalized live state before the change
+      ansible.builtin.command:
+        argv: ["{{ python }}", "automation/compliance/snapshot.py", "capture",
+               "--output", "{{ change_dir }}/before.json"]
+        chdir: "{{ repo }}"
+      changed_when: false
+      tags: [backup]
+
+    # -------------------------------------------------------------------- diff
+    - name: Diff - drift of the live state and intent against the golden snapshot
+      ansible.builtin.command:
+        argv: ["{{ python }}", "automation/compliance/snapshot.py", "drift",
+               "--golden", "{{ golden }}", "--report", "{{ change_dir }}/drift-before.json"]
+        chdir: "{{ repo }}"
+      register: drift_before
+      changed_when: false
+      failed_when: drift_before.rc not in [0, 3]
+      when: golden is file
+      tags: [diff]
+
+    - name: Diff - record what the change will correct
+      ansible.builtin.debug:
+        msg: "{{ (drift_before.stdout_lines | default(['no golden snapshot yet: first change']))[-1] }}"
+      tags: [diff]
+
+    # ------------------------------------------------------------------- apply
+    - name: Apply - converge devices through the Python engine
+      ansible.builtin.command:
+        argv: "{{ ([python] if not (item.shell | default(false)) else []) + item.argv }}"
+        chdir: "{{ repo }}"
+      environment:
+        PYTHON: "{{ python }}"
+      changed_when: false  # material change is measured by the postcheck snapshot
+      loop: "{{ engine }}"
+      loop_control:
+        label: "{{ item.name }}"
+      tags: [apply]
+
+    # --------------------------------------------------------------- postcheck
+    - name: Postcheck - snapshot the live state after the change
+      ansible.builtin.command:
+        argv: ["{{ python }}", "automation/compliance/snapshot.py", "capture",
+               "--render-digest", "--output", "{{ change_dir }}/after.json"]
+        chdir: "{{ repo }}"
+      changed_when: false
+      tags: [postcheck]
+
+    - name: Postcheck - material change caused by this run
+      ansible.builtin.command:
+        argv: ["{{ python }}", "automation/compliance/snapshot.py", "compare",
+               "{{ change_dir }}/before.json", "{{ change_dir }}/after.json",
+               "--report", "{{ change_dir }}/material-change.json"]
+        chdir: "{{ repo }}"
+      register: material
+      changed_when: material.rc == 3
+      failed_when: material.rc not in [0, 3]
+      tags: [postcheck]
+
+    - name: Postcheck - record the converged state as the golden snapshot
+      ansible.builtin.copy:
+        src: "{{ change_dir }}/after.json"
+        dest: "{{ golden }}"
+        mode: "0644"
+      tags: [postcheck]
+
+    - name: Postcheck - summary
+      ansible.builtin.debug:
+        msg: "change {{ change_id }}: {{ material.stdout | default('no postcheck') }}"
+      tags: [postcheck]

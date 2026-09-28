@@ -1,0 +1,25 @@
+# AUTO-540 bounded CI topology smoke test (hand-written, not generated from the
+# inventory). Two network-node routers on one veth link, with explicit per-node
+# CPU and memory limits. It uses its own management network so it never
+# collides with the project lab (netlab-phase-1).
+name: netlab-ci-smoke
+mgmt:
+  network: netlab-ci-smoke
+  ipv4-subnet: 172.31.254.0/24
+topology:
+  defaults:
+    kind: linux
+    cpu: 0.5
+    memory: 512MB
+    env:
+      NETLAB_NODE_ROLE: router
+      OVS_DATAPATH_MODE: kernel
+  nodes:
+    r1:
+      image: ${NETLAB_NETWORK_IMAGE}
+      mgmt-ipv4: 172.31.254.11
+    r2:
+      image: ${NETLAB_NETWORK_IMAGE}
+      mgmt-ipv4: 172.31.254.12
+  links:
+    - endpoints: ["r1:eth1", "r2:eth1"]

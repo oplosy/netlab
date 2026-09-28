@@ -22,7 +22,16 @@ of done (ADR 0016):
 
 The curated acceptance reports are in [evidence/reports](evidence/reports), and
 the operational procedure is in the [Phase 1 runbook](docs/runbooks/phase-1.md).
-Phase 5 (network automation) is a stretch goal.
+
+Phase 5 (network automation, a stretch goal) adds, per ADR 0019:
+
+- A rebuildable NetBox projection of Git intent with drift reporting
+  (`make netbox-up netbox-sync`, `make netbox-check`).
+- A generated Ansible inventory and deterministic configuration render
+  (`make render`).
+- A staged change workflow (precheck, backup, diff, apply, postcheck) with
+  device and intent drift detection (`make change`, `make test-drift`).
+- A bounded topology smoke test in CI; see [CI](docs/operations/ci.md).
 
 ## Locked baseline
 
