@@ -693,12 +693,17 @@ def _write_in_container(
 
 
 def apply(
-    data: dict[str, Any], docker: str = "docker", lab_name: str = "netlab-phase-1"
+    data: dict[str, Any],
+    docker: str = "docker",
+    lab_name: str = "netlab-phase-1",
+    roles: set[str] | None = None,
 ) -> None:
     nodes = {item["id"]: item for item in data["nodes"]}
     for node_id, tables in render_plan(data).items():
         container = f"clab-{lab_name}-{node_id}"
         role = nodes[node_id].get("role")
+        if roles is not None and role not in roles:
+            continue
         if role in {"dist", "edge", "isp"}:
             forwarding = _run(
                 docker, container, "cat", "/proc/sys/net/ipv4/ip_forward"
@@ -764,6 +769,12 @@ def main() -> int:
         action="store_true",
         help="validate against live kernels without changing policy",
     )
+    parser.add_argument(
+        "--role",
+        action="append",
+        help="apply only to nodes with this inventory role (repeatable); "
+        "e.g. --role firewall opens the SecureEdge tier before later suites",
+    )
     args = parser.parse_args()
     data = load_inventory(args.inventory)
     plan = render_plan(data)
@@ -777,7 +788,7 @@ def main() -> int:
                     content, encoding="utf-8"
                 )
     else:
-        apply(data, args.docker, args.lab_name)
+        apply(data, args.docker, args.lab_name, set(args.role) if args.role else None)
     return 0
 
 
