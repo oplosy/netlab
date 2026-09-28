@@ -35,6 +35,7 @@ mode, or moving default archive is consulted.
 | nftables | `1.0.9-1ubuntu0.1` | [Ubuntu Noble nftables package](https://packages.ubuntu.com/noble/net/nftables) |
 | OpenSSH server | `1:9.6p1-3ubuntu13.19` | [Ubuntu Noble OpenSSH server](https://packages.ubuntu.com/noble/openssh-server) |
 | PAM RADIUS module | `2.0.1-1` | [Ubuntu Noble libpam-radius-auth](https://packages.ubuntu.com/noble/amd64/libpam-radius-auth) |
+| Suricata (EDGE-420 inline IPS) | `1:7.0.3-1build3` | [Ubuntu Noble suricata](https://packages.ubuntu.com/noble/suricata) |
 | OpenSSH client | `1:9.6p1-3ubuntu13.19` | [Ubuntu Noble OpenSSH client](https://packages.ubuntu.com/noble/openssh-client) |
 | sshpass (acceptance helper) | `1.09-1` | [Ubuntu Noble sshpass manpage](https://manpages.ubuntu.com/manpages/noble/man1/sshpass.1.html) |
 | BIND DNS utilities (`dig` acceptance helper) | `1:9.18.39-0ubuntu0.24.04.7` | [Ubuntu Noble bind9-dnsutils](https://packages.ubuntu.com/noble/net/bind9-dnsutils) |
@@ -102,9 +103,9 @@ and labels remain the same:
 
 ```sh
 IMAGE_NO_CACHE=1 make images
-docker run --rm --entrypoint cat netlab/network-node:0.1.0 /usr/share/netlab/component-versions > /tmp/netlab-images-first.txt
+docker run --rm --entrypoint cat netlab/network-node:0.2.0 /usr/share/netlab/component-versions > /tmp/netlab-images-first.txt
 IMAGE_NO_CACHE=1 make images
-docker run --rm --entrypoint cat netlab/network-node:0.1.0 /usr/share/netlab/component-versions > /tmp/netlab-images-second.txt
+docker run --rm --entrypoint cat netlab/network-node:0.2.0 /usr/share/netlab/component-versions > /tmp/netlab-images-second.txt
 diff -u /tmp/netlab-images-first.txt /tmp/netlab-images-second.txt
 make verify-images
 ```
@@ -115,7 +116,7 @@ claim clean-build evidence when Docker is unavailable.
 
 ## Roles and health checks
 
-`netlab/network-node:0.1.0` supports `NETLAB_NODE_ROLE=edge`,
+`netlab/network-node:0.2.0` supports `NETLAB_NODE_ROLE=edge`,
 `distribution`, `router`, and `access`. The edge role starts FRR,
 `charon-systemd`, nftables, and OVS; distribution starts FRR and nftables and
 starts Keepalived only when a meaningful `/etc/keepalived/keepalived.conf`
@@ -133,7 +134,7 @@ OVS selection is explicit and never silently falls back:
 ```sh
 docker run --rm --privileged \
   -e NETLAB_NODE_ROLE=access -e OVS_DATAPATH_MODE=kernel \
-  netlab/network-node:0.1.0
+  netlab/network-node:0.2.0
 docker exec <container> cat /run/netlab/ovs-datapath.json
 docker exec <container> ovs-vsctl get Bridge netlab-br0 datapath_type
 ```
