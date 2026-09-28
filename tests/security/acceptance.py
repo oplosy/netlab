@@ -135,11 +135,18 @@ def corporate_icmp(
             f"cannot determine DHCP user addresses for {source_site}->{destination_site}"
         )
     source_ip, destination_ip = addresses[0], addresses[1]
+    # Up to three echo requests (4 s each): a single request right after fresh
+    # DHCP leases was lost intermittently. The attempt count is reported so a
+    # retried success stays visible in the evidence.
     probe = (
         "python3 -c 'import socket,struct; "
-        "s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM,socket.IPPROTO_ICMP); s.settimeout(4); "
-        f's.sendto(struct.pack("!BBHHH",8,0,0,0,170)+b"sec170",({json.dumps(destination_ip)},0)); '
-        'r=s.recvfrom(512)[0]; assert len(r)>=8 and r[0]==0, r; print("echo-reply")\''
+        "s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM,socket.IPPROTO_ICMP); s.settimeout(4)\n"
+        "for attempt in (1,2,3):\n"
+        f' s.sendto(struct.pack("!BBHHH",8,0,0,0,170+attempt)+b"sec170",({json.dumps(destination_ip)},0))\n'
+        " try: r=s.recvfrom(512)[0]\n"
+        " except TimeoutError: continue\n"
+        ' assert len(r)>=8 and r[0]==0, r; print("echo-reply attempts=%d" % attempt); break\n'
+        "else: raise TimeoutError(\"no echo reply after 3 attempts\")'"
     )
     try:
         output = helper(source, probe, image)
@@ -158,6 +165,7 @@ def corporate_icmp(
         "destination_site": destination_site,
         "destination_ip": destination_ip,
         "result": "ICMP echo reply received",
+        "attempts": output.split("attempts=")[-1].split()[0],
     }
 
 
