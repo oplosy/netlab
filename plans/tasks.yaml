@@ -354,7 +354,7 @@ tasks:
   - id: EDGE-410
     phase: phase-4
     title: Add the SecureEdge zone firewall tier
-    status: planned
+    status: complete
     depends_on: [CI-050]
     acceptance:
       - "Inside, outside, guest, management, and service zones fail closed"
