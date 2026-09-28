@@ -1,8 +1,8 @@
 # Phase 3 Branch 2 Acceptance
 
 - Result: **PASS**
-- Run: `artifacts/runs/phase-3/site-330-20260928T071338Z`
-- Started (UTC): `2026-09-28T07:13:38+00:00`
+- Run: `artifacts/runs/phase-3/site-330-20260928T074159Z`
+- Started (UTC): `2026-09-28T07:41:59+00:00`
 - Docker/WSL daemon settings changed: **no**
 - Runtime action: project-scoped Containerlab deploy/reconfigure and configuration apply
 
@@ -10,21 +10,21 @@
 
 | Stage | Result | Duration |
 |---|---|---:|
-| inventory | PASS | 0.213s |
-| topology | PASS | 0.277s |
-| static_suite | PASS | 3.686s |
-| deploy_project_lab | PASS | 77.793s |
-| apply_gateways | PASS | 73.445s |
-| apply_ipsec | PASS | 22.722s |
-| apply_ospf_bfd | PASS | 14.024s |
-| apply_security | PASS | 38.926s |
-| apply_services | PASS | 102.549s |
-| reapply_services | PASS | 95.2s |
-| reapply_gateways | PASS | 87.068s |
-| reapply_ipsec | PASS | 22.109s |
-| reapply_ospf_bfd | PASS | 9.277s |
-| reapply_security | PASS | 21.791s |
-| branch2_live_acceptance | PASS | 183.191s |
+| inventory | PASS | 0.274s |
+| topology | PASS | 0.358s |
+| static_suite | PASS | 4.981s |
+| deploy_project_lab | PASS | 78.668s |
+| apply_gateways | PASS | 74.184s |
+| apply_ipsec | PASS | 27.04s |
+| apply_ospf_bfd | PASS | 16.673s |
+| apply_security | PASS | 38.747s |
+| apply_services | PASS | 105.194s |
+| reapply_services | PASS | 98.704s |
+| reapply_gateways | PASS | 107.73s |
+| reapply_ipsec | PASS | 22.834s |
+| reapply_ospf_bfd | PASS | 14.897s |
+| reapply_security | PASS | 21.847s |
+| branch2_live_acceptance | PASS | 181.909s |
 
 ## Acceptance
 

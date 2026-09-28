@@ -1,6 +1,6 @@
 # SEC-170 Live Security Evidence
 
-- Run time (UTC): 2026-09-28T07:24:44.870837+00:00
+- Run time (UTC): 2026-09-28T07:53:52.079752+00:00
 - Runtime: existing project WSL2 lab; Docker Desktop and daemon settings were not changed.
 - Result: PASS
 
@@ -32,11 +32,11 @@
 - isp_dns_tcp_allow_packets_before_after: 0->1
 - guest_ntp: NTP server mode=4 bytes=48
 - snat_public_endpoint: 203.0.113.130
-- isp_service_allow_packets: 16
+- isp_service_allow_packets: 17
 - guest_nat_rule_packets_before_after: 0->1
 - denied_flows: server,inband,corporate,oob
-- per_flow_forward_deny_packets_before_after: {"corporate": "forward:2->4", "inband": "input:10->12", "oob": "input:12->14", "server": "forward:0->2"}
-- unauthorized_bfd_input_packets_before_after: 14->15
+- per_flow_forward_deny_packets_before_after: {"corporate": "forward:2->4", "inband": "input:12->14", "oob": "input:14->16", "server": "forward:0->2"}
+- unauthorized_bfd_input_packets_before_after: 16->17
 
 ### br2
 
@@ -48,11 +48,11 @@
 - isp_dns_tcp_allow_packets_before_after: 0->1
 - guest_ntp: NTP server mode=4 bytes=48
 - snat_public_endpoint: 203.0.113.133
-- isp_service_allow_packets: 11
+- isp_service_allow_packets: 13
 - guest_nat_rule_packets_before_after: 0->1
 - denied_flows: server,inband,corporate,oob
-- per_flow_forward_deny_packets_before_after: {"corporate": "forward:2->4", "inband": "input:11->13", "oob": "input:13->15", "server": "forward:0->2"}
-- unauthorized_bfd_input_packets_before_after: 15->16
+- per_flow_forward_deny_packets_before_after: {"corporate": "forward:2->4", "inband": "input:12->14", "oob": "input:14->16", "server": "forward:0->2"}
+- unauthorized_bfd_input_packets_before_after: 16->17
 
 ### Control-plane negative test
 

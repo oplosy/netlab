@@ -1,0 +1,79 @@
+{
+  "source": "tests/security/secure_edge/acceptance.py",
+  "started_utc": "2026-09-28T07:55:14+00:00",
+  "no_bypass_routes": {
+    "hq-dist-1->10.20.10.1": "10.10.252.12",
+    "hq-dist-1->203.0.113.10": "10.10.252.12",
+    "hq-dist-2->10.20.10.1": "10.10.252.14",
+    "hq-dist-2->203.0.113.10": "10.10.252.14",
+    "hq-edge-1->10.10.10.1": "10.10.252.9",
+    "hq-edge-2->10.10.10.1": "10.10.252.11"
+  },
+  "permitted_corporate_icmp": [
+    {
+      "source_site": "hq",
+      "source_ip": "10.10.10.100",
+      "destination_site": "br1",
+      "destination_ip": "10.20.10.100",
+      "result": "ICMP echo reply received",
+      "firewall_accepts": 1,
+      "firewall_denies": 0
+    },
+    {
+      "source_site": "br1",
+      "source_ip": "10.20.10.100",
+      "destination_site": "hq",
+      "destination_ip": "10.10.10.100",
+      "result": "ICMP echo reply received",
+      "firewall_accepts": 1,
+      "firewall_denies": 0
+    }
+  ],
+  "zone_policy": [
+    {
+      "case": "guest DNS to simulated Internet",
+      "reply": true,
+      "firewall_denies": 0,
+      "pass": true
+    },
+    {
+      "case": "outside ICMP to service zone",
+      "reply": false,
+      "firewall_denies": 1,
+      "pass": true
+    },
+    {
+      "case": "outside ICMP to management zone",
+      "reply": false,
+      "firewall_denies": 1,
+      "pass": true
+    },
+    {
+      "case": "inside TCP/80 to simulated Internet",
+      "reply": false,
+      "firewall_denies": 2,
+      "pass": true
+    },
+    {
+      "case": "guest ICMP to remote corporate users",
+      "reply": false,
+      "firewall_denies": 1,
+      "pass": true
+    },
+    {
+      "case": "management ICMP to remote users",
+      "reply": false,
+      "firewall_denies": 1,
+      "pass": true
+    }
+  ],
+  "fail_closed": {
+    "wan_traffic_blocked_seconds": 2.731,
+    "firewall_route_withdrawn_seconds": 0.179,
+    "outbound_blocked": true,
+    "inbound_blocked": true,
+    "intra_site_continues": true,
+    "recovery_seconds": 23.533
+  },
+  "result": "PASS"
+}
