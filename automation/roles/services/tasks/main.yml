@@ -1,0 +1,7 @@
+- name: Render and apply inventory-derived network services
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ playbook_dir }}/../roles/services/apply.py"
+  delegate_to: localhost
+  run_once: true

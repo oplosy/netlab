@@ -1,5 +1,12 @@
 # Reproducible lab images (IMG-020)
 
+SVC-160 extends the service image with pinned Kea DHCPv4, BIND 9, chrony,
+FreeRADIUS, and ISC DHCP client packages. The network image also includes the
+locked ISC DHCP relay. Exact package versions are recorded in versions.env and
+each image's /usr/share/netlab/component-versions manifest. The service
+entrypoint waits for inventory-rendered configuration before starting its
+assigned daemon.
+
 The image lock is in `versions.env`. All three Dockerfiles use the same
 linux/amd64 Ubuntu 24.04 manifest digest and an immutable Ubuntu snapshot
 (`UBUNTU_SNAPSHOT`). Package installation uses exact Noble package versions;
@@ -24,8 +31,13 @@ mode, or moving default archive is consulted.
 | FRR | `8.4.4-1.1ubuntu6.7` | [Ubuntu Noble FRR package search](https://packages.ubuntu.com/search?arch=any&keywords=frr&searchon=names&suite=all) |
 | Open vSwitch | `3.3.9-0ubuntu0.24.04.1` | [Ubuntu Noble Open vSwitch package search](https://packages.ubuntu.com/openvswitch-switch) |
 | Keepalived | `1:2.2.8-1build2` | [Ubuntu Noble Keepalived package](https://packages.ubuntu.com/en/noble/amd64/admin/keepalived) |
-| strongSwan control plane | `charon-systemd=5.9.13-2ubuntu4.24.04.4`, `strongswan-swanctl=5.9.13-2ubuntu4.24.04.4` | [Ubuntu Noble charon-systemd file list](https://packages.ubuntu.com/noble/amd64/charon-systemd/filelist), [Ubuntu Noble strongSwan package](https://packages.ubuntu.com/noble/strongswan) |
+| strongSwan control plane | `charon-systemd=5.9.13-2ubuntu4.24.04.4`, `strongswan-swanctl=5.9.13-2ubuntu4.24.04.4`, `libstrongswan-standard-plugins=5.9.13-2ubuntu4.24.04.4` | [Ubuntu Noble charon-systemd file list](https://packages.ubuntu.com/noble/amd64/charon-systemd/filelist), [Ubuntu Noble standard plugin file list](https://packages.ubuntu.com/noble/amd64/libstrongswan-standard-plugins/filelist) |
 | nftables | `1.0.9-1ubuntu0.1` | [Ubuntu Noble nftables package](https://packages.ubuntu.com/noble/net/nftables) |
+| OpenSSH server | `1:9.6p1-3ubuntu13.19` | [Ubuntu Noble OpenSSH server](https://packages.ubuntu.com/noble/openssh-server) |
+| PAM RADIUS module | `2.0.1-1` | [Ubuntu Noble libpam-radius-auth](https://packages.ubuntu.com/noble/amd64/libpam-radius-auth) |
+| OpenSSH client | `1:9.6p1-3ubuntu13.19` | [Ubuntu Noble OpenSSH client](https://packages.ubuntu.com/noble/openssh-client) |
+| sshpass (acceptance helper) | `1.09-1` | [Ubuntu Noble sshpass manpage](https://manpages.ubuntu.com/manpages/noble/man1/sshpass.1.html) |
+| BIND DNS utilities (`dig` acceptance helper) | `1:9.18.39-0ubuntu0.24.04.7` | [Ubuntu Noble bind9-dnsutils](https://packages.ubuntu.com/noble/net/bind9-dnsutils) |
 
 The package versions above are distribution package versions, not the latest
 upstream release labels. This is intentional: the image installs from the
@@ -36,12 +48,21 @@ must agree. For upstream release history see [FRRouting releases](https://frrout
 [strongSwan downloads](https://www.strongswan.org/download.html), and
 [nftables releases](https://www.nftables.org/projects/nftables/downloads.html).
 
+OpenSSH and PAM RADIUS package versions are pinned in `versions.env`; the
+network image package set includes them. The service image includes OpenSSH
+client and sshpass only for executable acceptance checks. SVC-160 writes the
+PAM and SSH runtime configuration from inventory and runtime-generated
+credentials.
+
 The network image intentionally does not install Ubuntu's `strongswan`
 metapackage: that metapackage depends on both `strongswan-charon` and
 `strongswan-starter`, which would introduce the legacy starter daemon. The
-image installs `charon-systemd` (binary `/usr/sbin/charon-systemd`) and
-`strongswan-swanctl`; their shared daemon/plugin dependencies are resolved by
-APT. The recorded `strongswan=` component version is the installed
+image installs `charon-systemd` (binary `/usr/sbin/charon-systemd`),
+`strongswan-swanctl`, and `libstrongswan-standard-plugins` from the same locked
+package version. The standard plugin package supplies the OpenSSL provider for
+ECDSA authentication and the accepted
+ECP-384 IKE group. The `strongswan` metapackage and legacy starter remain
+excluded. The recorded `strongswan=` component version is the installed
 `charon-systemd` package version.
 
 The base digest is a registry manifest digest, not merely a tag. Verify the
@@ -145,3 +166,8 @@ definitions:
   - Keepalived `1:2.2.8-1build2`;
   - strongSwan `5.9.13-2ubuntu4.24.04.4`;
   - nftables `1.0.9-1ubuntu0.1`.
+
+The IMG-025 build additionally installed and verified strongSwan standard
+plugins `5.9.13-2ubuntu4.24.04.4`, including the OpenSSL provider. See
+[`evidence/specs/images/IMG-025`](../../evidence/specs/images/IMG-025/README.md)
+for this run's build and runtime evidence.

@@ -91,6 +91,13 @@ case "${ROLE}" in
   access) : ;;
 esac
 
+# SSH remains closed until inventory-derived OOB/PAM configuration is applied.
+if [[ -f "${RUN_DIR}/aaa-configured" ]]; then
+  mkdir -p /run/sshd
+  ssh-keygen -A
+  /usr/sbin/sshd
+fi
+
 printf 'role=%s ovs_datapath=%s (%s)\n' "${ROLE}" "${OVS_DATAPATH_MODE}" "${OVS_DATAPATH_TYPE}"
 if [[ $# -gt 0 ]]; then
   exec "$@"

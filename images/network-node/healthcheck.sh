@@ -8,6 +8,7 @@ test -s /run/netlab/ovs-datapath.json
 ovs-vsctl --timeout=2 br-exists "${OVS_BRIDGE}"
 test -s /usr/share/netlab/component-versions
 pgrep -x ovs-vswitchd >/dev/null
+if [[ -f /run/netlab/aaa-configured ]]; then pgrep -x sshd >/dev/null; fi
 has_keepalived_config() {
   [[ -s /etc/keepalived/keepalived.conf ]] \
     && grep -Eq '^[[:space:]]*[^#[:space:]]' /etc/keepalived/keepalived.conf

@@ -8,6 +8,9 @@ ARG OVS_VERSION=3.3.9-0ubuntu0.24.04.1
 ARG KEEPALIVED_VERSION=1:2.2.8-1build2
 ARG STRONGSWAN_VERSION=5.9.13-2ubuntu4.24.04.4
 ARG NFTABLES_VERSION=1.0.9-1ubuntu0.1
+ARG ISC_DHCP_RELAY_VERSION=4.4.3-P1-4ubuntu2
+ARG OPENSSH_SERVER_VERSION=1:9.6p1-3ubuntu13.19
+ARG LIBPAM_RADIUS_AUTH_VERSION=2.0.1-1
 
 LABEL org.opencontainers.image.title="netlab network node" \
       org.opencontainers.image.version="0.1.0" \
@@ -17,6 +20,9 @@ LABEL org.opencontainers.image.title="netlab network node" \
       netlab.component.keepalived="${KEEPALIVED_VERSION}" \
       netlab.component.strongswan="${STRONGSWAN_VERSION}" \
       netlab.component.nftables="${NFTABLES_VERSION}" \
+      netlab.component.isc-dhcp-relay="${ISC_DHCP_RELAY_VERSION}" \
+      netlab.component.openssh-server="${OPENSSH_SERVER_VERSION}" \
+      netlab.component.pam-radius-auth="${LIBPAM_RADIUS_AUTH_VERSION}" \
       netlab.ubuntu.snapshot="${UBUNTU_SNAPSHOT}"
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -45,19 +51,29 @@ RUN rm -f /etc/apt/sources.list.d/ubuntu.sources \
        openvswitch-switch=${OVS_VERSION} openvswitch-common=${OVS_VERSION} \
        keepalived=${KEEPALIVED_VERSION} \
        charon-systemd=${STRONGSWAN_VERSION} strongswan-swanctl=${STRONGSWAN_VERSION} \
-       nftables=${NFTABLES_VERSION} \
+       libstrongswan-standard-plugins=${STRONGSWAN_VERSION} \
+       nftables=${NFTABLES_VERSION} isc-dhcp-relay=${ISC_DHCP_RELAY_VERSION} \
+       openssh-server=${OPENSSH_SERVER_VERSION} libpam-radius-auth=${LIBPAM_RADIUS_AUTH_VERSION} \
     && test "$(dpkg-query -W -f='${Version}' frr)" = "${FRR_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' openvswitch-switch)" = "${OVS_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' keepalived)" = "${KEEPALIVED_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' charon-systemd)" = "${STRONGSWAN_VERSION}" \
+    && test "$(dpkg-query -W -f='${Version}' libstrongswan-standard-plugins)" = "${STRONGSWAN_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' nftables)" = "${NFTABLES_VERSION}" \
+    && test "$(dpkg-query -W -f='${Version}' isc-dhcp-relay)" = "${ISC_DHCP_RELAY_VERSION}" \
+    && test "$(dpkg-query -W -f='${Version}' openssh-server)" = "${OPENSSH_SERVER_VERSION}" \
+    && test "$(dpkg-query -W -f='${Version}' libpam-radius-auth)" = "${LIBPAM_RADIUS_AUTH_VERSION}" \
     && mkdir -p /run/netlab /var/log/netlab /usr/share/netlab \
     && { \
          printf 'frr=%s\n' "$(dpkg-query -W -f='${Version}' frr)"; \
          printf 'openvswitch=%s\n' "$(dpkg-query -W -f='${Version}' openvswitch-switch)"; \
          printf 'keepalived=%s\n' "$(dpkg-query -W -f='${Version}' keepalived)"; \
          printf 'strongswan=%s\n' "$(dpkg-query -W -f='${Version}' charon-systemd)"; \
+         printf 'strongswan-standard-plugins=%s\n' "$(dpkg-query -W -f='${Version}' libstrongswan-standard-plugins)"; \
          printf 'nftables=%s\n' "$(dpkg-query -W -f='${Version}' nftables)"; \
+         printf 'isc-dhcp-relay=%s\n' "$(dpkg-query -W -f='${Version}' isc-dhcp-relay)"; \
+         printf 'openssh-server=%s\n' "$(dpkg-query -W -f='${Version}' openssh-server)"; \
+         printf 'libpam-radius-auth=%s\n' "$(dpkg-query -W -f='${Version}' libpam-radius-auth)"; \
        } > /usr/share/netlab/component-versions \
     && rm -rf /var/lib/apt/lists/*
 

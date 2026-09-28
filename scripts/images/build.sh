@@ -40,8 +40,19 @@ build_image "${NETLAB_NETWORK_IMAGE}" images/network-node \
   --build-arg "OVS_VERSION=${OVS_VERSION}" \
   --build-arg "KEEPALIVED_VERSION=${KEEPALIVED_VERSION}" \
   --build-arg "STRONGSWAN_VERSION=${STRONGSWAN_VERSION}" \
-  --build-arg "NFTABLES_VERSION=${NFTABLES_VERSION}"
+  --build-arg "NFTABLES_VERSION=${NFTABLES_VERSION}" \
+  --build-arg "ISC_DHCP_RELAY_VERSION=${ISC_DHCP_RELAY_VERSION}" \
+  --build-arg "OPENSSH_SERVER_VERSION=${OPENSSH_SERVER_VERSION}" \
+  --build-arg "LIBPAM_RADIUS_AUTH_VERSION=${LIBPAM_RADIUS_AUTH_VERSION}"
 build_image "${NETLAB_CLIENT_IMAGE}" images/client
-build_image "${NETLAB_SERVICE_IMAGE}" images/service
+build_image "${NETLAB_SERVICE_IMAGE}" images/service \
+  --build-arg "KEA_VERSION=${KEA_VERSION}" \
+  --build-arg "BIND9_VERSION=${BIND9_VERSION}" \
+  --build-arg "BIND9_UTILS_VERSION=${BIND9_UTILS_VERSION}" \
+  --build-arg "CHRONY_VERSION=${CHRONY_VERSION}" \
+  --build-arg "FREERADIUS_VERSION=${FREERADIUS_VERSION}" \
+  --build-arg "DHCP_CLIENT_VERSION=${DHCP_CLIENT_VERSION}" \
+  --build-arg "OPENSSH_CLIENT_VERSION=${OPENSSH_CLIENT_VERSION}" \
+  --build-arg "SSHPASS_VERSION=${SSHPASS_VERSION}"
 
 printf 'images built with base %s\n' "${UBUNTU_BASE_IMAGE}"

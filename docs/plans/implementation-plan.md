@@ -44,6 +44,14 @@ in `plans/tasks.yaml` for machine consumption.
   unavailable; record the selected mode in evidence rather than silently
   falling back
 
+### IMG-025 — strongSwan ECP-384 crypto backend
+
+- Depends on: IMG-020
+- Deliver: install and verify the pinned `libstrongswan-standard-plugins` package that supplies the OpenSSL provider
+- Accept: the network image loads ECP-384 and parses ECDSA P-384 certificates;
+  the legacy starter daemon remains absent
+- Required by: VPN-150; its accepted IKE proposal uses ECP-384
+
 ### DAT-030 — Authoritative inventory schema
 
 - Deliver versioned site/node/link/VLAN/prefix/ASN/service data plus schema
@@ -87,12 +95,14 @@ in `plans/tasks.yaml` for machine consumption.
 
 ### VPN-150 — IKEv2 XFRM overlay
 
-- Depends on: L3-120, WAN-140
+- Depends on: L3-120, WAN-140, IMG-025
 - Deliver lab PKI generation, site certificates, strongSwan configuration, XFRM
   links, MTU/MSS setting, and rekey/recovery tests
 - Accept: XFRM peer addresses communicate only after IPsec is established;
   underlay capture shows ESP and no plaintext enterprise payload; rekey
   preserves the XFRM path within objective
+- Status: complete; live HQ–BR1 results are recorded in
+  `evidence/specs/ipsec/acceptance.md`
 
 ### OSPF-130 — Multi-area routing and summaries
 
@@ -104,6 +114,8 @@ in `plans/tasks.yaml` for machine consumption.
 
 ### SVC-160 — Core infrastructure services
 
+- Architecture: accepted ADR-0014 gives DNS/DHCP/NTP site-local data-plane
+  addresses in VLAN 20 while keeping OOB administration isolated.
 - Depends on: L3-120, TOP-040
 - Deliver Kea DHCP, BIND 9, chrony, FreeRADIUS, and local fallback procedures
 - Accept: every client receives the correct site/VLAN lease, resolves internal

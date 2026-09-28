@@ -10,6 +10,7 @@ secrets/
 clab-*/
 .containerlab/
 artifacts/runs/
+artifacts/observability/
 
 # Python and Ansible caches
 __pycache__/

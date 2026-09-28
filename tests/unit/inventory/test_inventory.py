@@ -25,6 +25,13 @@ class InventoryTests(unittest.TestCase):
         errors = validate_inventory(changed)
         self.assertTrue(any("duplicate IP address 172.31.255.30" in error for error in errors))
 
+    def test_endpoints_must_not_have_oob_addresses(self) -> None:
+        changed = copy.deepcopy(self.inventory)
+        endpoint = next(node for node in changed["nodes"] if node["role"] == "client")
+        endpoint["oob"] = "172.31.255.34/24"
+        errors = validate_inventory(changed)
+        self.assertTrue(any(f"endpoint node {endpoint['id']} must not have an OOB address" in error for error in errors))
+
     def test_duplicate_asn_is_rejected(self) -> None:
         changed = copy.deepcopy(self.inventory)
         changed["asns"].append({"id": 65100, "name": "duplicate", "domain": "enterprise", "reserved": False})
@@ -72,6 +79,13 @@ class InventoryTests(unittest.TestCase):
         changed["links"] = [link for link in changed["links"] if link["id"] != "br1-client-guest-1-access"]
         errors = validate_inventory(changed)
         self.assertTrue(any("endpoint node br1-client-guest-1 must have exactly one access link, got 0" in error for error in errors))
+
+    def test_site_services_use_servers_vlan_access_ports(self) -> None:
+        self.assertEqual(validate_inventory(self.inventory), [])
+        changed = copy.deepcopy(self.inventory)
+        next(link for link in changed["links"] if link["id"] == "svc-hq-dns-1-access")["vlan"] = "hq-users"
+        errors = validate_inventory(changed)
+        self.assertTrue(any("site service svc-hq-dns-1 must attach to the SERVERS VLAN" in error for error in errors))
 
     def test_addressing_plan_values_are_enforced(self) -> None:
         changed = copy.deepcopy(self.inventory)

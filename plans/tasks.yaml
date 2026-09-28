@@ -121,6 +121,30 @@ tasks:
       - "make verify-images"
     commit: "build(IMG-020): add reproducible lab images"
 
+  - id: IMG-025
+    phase: phase-0
+    title: Install the strongSwan ECP-384 crypto backend
+    type: fix
+    status: complete
+    depends_on: [IMG-020]
+    parallel_group: network-c
+    allowed_paths:
+      - images/network-node/**
+      - scripts/images/**
+      - docs/runbooks/images.md
+      - evidence/specs/images/**
+    deliverables:
+      - "Pinned standard plugin package providing the OpenSSL backend in the network-node image"
+      - "Image verification for provider version and ECP-384 capability"
+    acceptance:
+      - "Installed OpenSSL provider version matches STRONGSWAN_VERSION"
+      - "Network-node image exposes ECP-384 and ECDSA certificate parsing"
+      - "No legacy strongSwan starter daemon is introduced"
+    verify:
+      - "make images"
+      - "make verify-images"
+    commit: "fix(IMG-025): add strongSwan ECP-384 provider"
+
   - id: DAT-030
     phase: phase-0
     title: Define authoritative inventory and schema
@@ -178,7 +202,7 @@ tasks:
     phase: phase-1
     title: Implement site VLAN, LACP, and RSTP behavior
     type: feat
-    status: planned
+    status: complete
     depends_on: [TOP-040]
     parallel_group: network-a
     allowed_paths:
@@ -200,13 +224,38 @@ tasks:
       - "make test-l2"
     commit: "feat(L2-110): implement resilient site switching"
 
+  - id: L2-111
+    phase: phase-1
+    title: Prove distribution peer VLAN adjacency
+    type: fix
+    status: complete
+    depends_on: [L2-110]
+    parallel_group: network-b
+    allowed_paths:
+      - config/switching/**
+      - tests/integration/l2/**
+      - evidence/specs/l2/**
+      - mk/l2.mk
+    deliverables:
+      - "Distribution peers exchange L2 traffic on every declared site VLAN"
+      - "A live peer-adjacency test waits for the intended RSTP state"
+      - "Failure output includes peer ARP and relevant RSTP port state"
+    acceptance:
+      - "Each distribution node resolves its peer SVI address on VLANs 10, 20, 30, and 99"
+      - "Peer adjacency remains available through the active RSTP path"
+      - "Guest VLAN isolation remains denied"
+    verify:
+      - "make test-l2"
+      - "make test-l2-peer"
+    commit: "fix(L2-111): prove distribution peer VLAN adjacency"
+
   - id: L3-120
     phase: phase-1
     title: Implement SVIs, VRRP, and routed edge links
     type: feat
-    status: planned
-    depends_on: [L2-110]
-    parallel_group: network-b
+    status: complete
+    depends_on: [L2-110, L2-111]
+    parallel_group: network-c
     allowed_paths:
       - config/gateway/**
       - automation/roles/gateway/**
@@ -229,7 +278,7 @@ tasks:
     phase: phase-1
     title: Implement OSPF areas, summaries, and BFD
     type: feat
-    status: planned
+    status: complete
     depends_on: [L3-120, VPN-150]
     parallel_group: network-d
     allowed_paths:
@@ -237,6 +286,10 @@ tasks:
       - automation/roles/ospf/**
       - tests/integration/ospf/**
       - evidence/specs/ospf/**
+      - config/gateway/**
+      - automation/roles/gateway/**
+      - tests/integration/l3/**
+      - evidence/specs/l3/**
     deliverables:
       - "Areas 0, 10, and 20"
       - "Normal site areas with visible remote-site summaries"
@@ -251,11 +304,63 @@ tasks:
       - "make test-ospf"
     commit: "feat(OSPF-130): add multi-area enterprise routing"
 
+  - id: OSPF-131
+    phase: phase-1
+    title: Stabilize BFD-triggered gateway failover within three seconds
+    type: fix
+    status: complete
+    depends_on: [OSPF-130, L3-120]
+    parallel_group: runtime-exclusive
+    runtime_lock: lab
+    allowed_paths:
+      - config/gateway/**
+      - automation/roles/gateway/**
+      - tests/integration/ospf/**
+      - evidence/specs/ospf/**
+    deliverables:
+      - "Measured BFD route and VRRP gateway failover within the existing three-second acceptance limit"
+      - "Repeatable live evidence showing VIP traffic does not exceed the interruption limit"
+    acceptance:
+      - "HQ routed-link loss restores VIP traffic within three seconds"
+      - "At least three consecutive live measurements meet the limit"
+      - "Existing passive-interface, summary, BFD, and default-origination checks remain green"
+    verify:
+      - "make test-ospf"
+    commit: "fix(OSPF-131): stabilize BFD gateway failover"
+
+  - id: OSPF-132
+    phase: phase-1
+    title: Preserve eBGP routing while enabling OSPF and BFD daemons
+    type: fix
+    status: complete
+    depends_on: [OSPF-130, OSPF-131, WAN-140]
+    parallel_group: runtime-exclusive
+    runtime_lock: lab
+    allowed_paths:
+      - plans/tasks.yaml
+      - automation/roles/ospf/**
+      - tests/integration/ospf/**
+      - evidence/specs/ospf/**
+    deliverables:
+      - "OSPF/BFD daemon enablement preserves existing BGP configuration and default routes"
+      - "Repeatable post-OSPF service reachability evidence"
+    acceptance:
+      - "Applying OSPF twice leaves both site eBGP sessions established"
+      - "HQ and Branch 1 retain the BGP-learned default after OSPF apply"
+      - "Site-local NTP services synchronize through the simulated ISP path"
+    verify:
+      - "make lab-up"
+      - "bash automation/roles/ipsec/apply.sh"
+      - "Apply OSPF twice and inspect BGP summary/default route on both site edges"
+      - "make test-services"
+      - "make verify-clean"
+    commit: "fix(OSPF-132): preserve BGP during daemon enablement"
+
   - id: WAN-140
     phase: phase-1
     title: Implement ISP simulation and eBGP policy
     type: feat
-    status: planned
+    status: complete
     depends_on: [TOP-040]
     parallel_group: network-a
     allowed_paths:
@@ -280,8 +385,8 @@ tasks:
     phase: phase-1
     title: Implement the IKEv2 XFRM overlay
     type: feat
-    status: planned
-    depends_on: [L3-120, WAN-140]
+    status: complete
+    depends_on: [L3-120, WAN-140, IMG-025]
     parallel_group: network-c
     allowed_paths:
       - config/ipsec/**
@@ -306,7 +411,7 @@ tasks:
     phase: phase-1
     title: Implement enterprise infrastructure services
     type: feat
-    status: planned
+    status: complete
     depends_on: [L3-120, TOP-040]
     parallel_group: services-a
     allowed_paths:
@@ -314,8 +419,27 @@ tasks:
       - services/dns/**
       - services/ntp/**
       - services/aaa/**
+      - schemas/**
+      - scripts/lifecycle/**
+      - scripts/validate/**
+      - tests/unit/inventory/**
+      - tests/smoke/topology/**
       - automation/roles/services/**
+      - services/ntp/**
+      - tests/unit/site-template/**
       - tests/integration/services/**
+      - tests/integration/l3/**
+      - automation/roles/gateway/**
+      - config/gateway/**
+      - docs/runbooks/images.md
+      - evidence/specs/services/**
+      - mk/services.mk
+      - images/network-node/**
+      - images/service/**
+      - inventory/**
+      - lab/**
+      - versions.env
+      - scripts/images/**
     deliverables:
       - "Kea DHCP, BIND 9, chrony, and FreeRADIUS"
       - "Site/VLAN-specific leases and internal zones"
@@ -323,6 +447,8 @@ tasks:
     acceptance:
       - "Clients receive the correct subnet, gateway, DNS, and NTP data"
       - "Internal and simulated Internet names resolve"
+      - "Guest DNS and NTP work while other guest-to-server traffic is denied"
+      - "Client VLANs cannot reach OOB management addresses"
       - "Central AAA and fallback behavior are both exercised"
     verify:
       - "make test-services"
@@ -332,7 +458,7 @@ tasks:
     phase: phase-1
     title: Enforce segmentation, control-plane policy, and guest NAT
     type: feat
-    status: planned
+    status: complete
     depends_on: [OSPF-130, WAN-140, SVC-160]
     parallel_group: security-a
     allowed_paths:
@@ -340,6 +466,7 @@ tasks:
       - automation/roles/security/**
       - tests/security/**
       - evidence/specs/security/**
+      - mk/security.mk
     deliverables:
       - "Default-deny nftables zone policy"
       - "Guest NAT to simulated Internet"
@@ -358,7 +485,7 @@ tasks:
     phase: phase-1
     title: Implement correlated network observability
     type: feat
-    status: planned
+    status: complete
     depends_on: [TOP-040, SVC-160]
     parallel_group: observability-a
     allowed_paths:
@@ -366,6 +493,9 @@ tasks:
       - automation/roles/observability/**
       - tests/integration/observability/**
       - evidence/specs/observability/**
+      - inventory/**
+      - versions.env
+      - mk/observability.mk
     deliverables:
       - "Prometheus, snmp_exporter, Grafana, syslog-ng, Alloy, Loki, and GoFlow2"
       - "SNMPv3, syslog, and OVS IPFIX configuration"
@@ -382,13 +512,14 @@ tasks:
     phase: phase-1
     title: Build the end-to-end evidence suite
     type: test
-    status: planned
-    depends_on: [OSPF-130, VPN-150, SEC-170, OBS-180]
+    status: complete
+    depends_on: [OSPF-130, OSPF-131, VPN-150, SEC-170, OBS-180]
     parallel_group: runtime-exclusive
     runtime_lock: lab
     allowed_paths:
       - tests/e2e/**
       - scripts/evidence/**
+      - scripts/pki/**
       - evidence/templates/**
       - mk/evidence.mk
     deliverables:
@@ -401,13 +532,13 @@ tasks:
       - "Teardown executes even after a failed test"
     verify:
       - "make evidence-phase-1"
-    commit: "test(TEST-190): add phase one evidence suite"
+    commit: "fix(TEST-190): stabilize phase-one acceptance"
 
   - id: DOC-195
     phase: phase-1
     title: Publish rebuild and operations runbooks
     type: docs
-    status: planned
+    status: complete
     depends_on: [TEST-190]
     parallel_group: phase-close
     allowed_paths:
@@ -435,17 +566,35 @@ tasks:
     phase: phase-2
     title: Add ISP 2 and redundant edge nodes
     type: feat
-    status: planned
+    status: complete
     depends_on: [DOC-195]
     parallel_group: phase-2-a
     allowed_paths:
+      - docs/architecture/addressing.md
       - inventory/**
       - lab/**
+      - scripts/validate/**
+      - config/gateway/**
+      - config/ipsec/**
+      - config/security/**
+      - observability/prometheus.yml
+      - automation/roles/bgp/**
+      - automation/roles/ospf/**
+      - automation/roles/gateway/**
       - config/isp/**
       - config/routing/bgp/**
+      - config/routing/ospf/**
       - tests/integration/bgp/**
+      - tests/integration/l3/**
+      - tests/integration/ospf/**
+      - tests/integration/observability/**
+      - tests/integration/services/**
+      - tests/unit/site-template/**
+      - tests/security/**
     acceptance:
-      - "Both providers establish filtered eBGP sessions"
+      - "HQ and BR1 edge-1 and edge-2 establish filtered eBGP sessions to both ISPs"
+      - "Each site edge-2 has routed links to both site distribution nodes"
+      - "Phase 1 endpoint and IPsec traffic remain on edge-1 until WAN-230 enables secondary overlay endpoints"
       - "Phase 1 behavior remains green before failover policy is enabled"
     verify:
       - "make test-bgp"
@@ -455,7 +604,7 @@ tasks:
     phase: phase-2
     title: Add deterministic dual-provider BGP policy
     type: feat
-    status: planned
+    status: complete
     depends_on: [WAN-210]
     parallel_group: phase-2-b
     allowed_paths:
@@ -474,14 +623,24 @@ tasks:
     phase: phase-2
     title: Add redundant encrypted overlay paths
     type: feat
-    status: planned
+    status: complete
     depends_on: [WAN-220]
     parallel_group: phase-2-c
     allowed_paths:
+      - inventory/inventory.yaml
+      - docs/architecture/addressing.md
+      - config/routing/bgp/**
       - config/ipsec/**
       - config/routing/ospf/**
+      - config/security/**
       - automation/roles/ipsec/**
+      - scripts/pki/**
+      - scripts/validate/**
+      - mk/ipsec.mk
       - tests/integration/ipsec/**
+      - tests/integration/bgp/**
+      - tests/integration/ospf/**
+      - tests/security/**
     acceptance:
       - "Both overlay paths encrypt traffic"
       - "OSPF cost selects the intended healthy underlay"
@@ -493,14 +652,16 @@ tasks:
     phase: phase-2
     title: Verify provider and edge failover
     type: test
-    status: planned
+    status: complete
     depends_on: [WAN-230]
     parallel_group: runtime-exclusive
     runtime_lock: lab
     allowed_paths:
+      - mk/evidence.mk
       - tests/e2e/phase-2/**
       - scripts/evidence/**
       - evidence/reports/phase-2.md
+      - plans/tasks.yaml
     acceptance:
       - "Provider, edge, and tunnel failures converge within 10 seconds"
       - "Return path matches policy where symmetry is required"
@@ -512,13 +673,15 @@ tasks:
     phase: phase-3
     title: Extract a reusable branch site template
     type: refactor
-    status: planned
+    status: complete
     depends_on: [TEST-240]
     parallel_group: phase-3-a
     allowed_paths:
       - inventory/templates/**
       - automation/roles/site/**
       - tests/unit/site-template/**
+      - mk/site-template.mk
+      - plans/tasks.yaml
     acceptance:
       - "Branch 1 renders without behavioral changes"
       - "No generated runtime state is copied into the template"
@@ -531,12 +694,15 @@ tasks:
     phase: phase-3
     title: Instantiate Branch 2 from data
     type: feat
-    status: planned
+    status: complete
     depends_on: [SITE-310]
     parallel_group: phase-3-b
     allowed_paths:
       - inventory/sites/br2/**
       - tests/integration/br2/**
+      - automation/roles/site/**
+      - mk/site-template.mk
+      - plans/tasks.yaml
     acceptance:
       - "Branch 2 uses 10.30.0.0/16, Area 30, and AS 65102"
       - "Branch 2 is produced from the shared site template"
@@ -548,13 +714,50 @@ tasks:
     phase: phase-3
     title: Verify Branch 2 routing and isolation
     type: test
-    status: planned
+    status: complete
     depends_on: [SITE-320]
     parallel_group: runtime-exclusive
     runtime_lock: lab
     allowed_paths:
+      - inventory/**
+      - schemas/**
+      - scripts/validate/**
+      - scripts/lifecycle/**
+      - scripts/evidence/**
+      - scripts/pki/**
+      - lab/phase-1.clab.yml
+      - config/gateway/**
+      - config/ipsec/**
+      - config/routing/bgp/**
+      - config/routing/ospf/**
+      - config/security/**
+      - config/switching/**
+      - automation/roles/site/**
+      - automation/roles/services/**
+      - automation/roles/observability/prepare.py
+      - observability/prometheus.yml
+      - automation/roles/gateway/**
+      - automation/roles/ipsec/**
+      - automation/roles/bgp/**
+      - automation/roles/ospf/**
+      - automation/roles/security/**
       - tests/e2e/phase-3/**
+      - tests/e2e/phase-3_acceptance.py
+      - tests/integration/observability/**
+      - tests/integration/bgp/**
+      - tests/integration/ospf/**
+      - tests/integration/ipsec/**
+      - tests/integration/l2/**
+      - tests/integration/l3/**
+      - tests/integration/services/**
+      - tests/unit/site-template/**
+      - tests/security/**
+      - evidence/specs/security/latest.md
       - evidence/reports/phase-3.md
+      - mk/evidence.mk
+      - services/ntp/**
+      - observability/prometheus.yml
+      - plans/tasks.yaml
     acceptance:
       - "Area 0 gains exactly one Branch 2 summary"
       - "Guest and management isolation remains intact"

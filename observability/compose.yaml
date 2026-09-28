@@ -1,0 +1,66 @@
+name: netlab-observability
+services:
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:?set in versions.env}
+    platform: ${IMAGE_PLATFORM:-linux/amd64}
+    network_mode: container:clab-netlab-phase-1-svc-observability-1
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--web.listen-address=172.31.255.14:9090"]
+    volumes: ["./prometheus.yml:/etc/prometheus/prometheus.yml:ro", "prometheus-data:/prometheus"]
+    restart: unless-stopped
+  snmp-exporter:
+    image: ${SNMP_EXPORTER_IMAGE:?set in versions.env}
+    platform: ${IMAGE_PLATFORM:-linux/amd64}
+    network_mode: container:clab-netlab-phase-1-svc-observability-1
+    command: ["--config.file=/etc/snmp_exporter/snmp.yml", "--web.listen-address=172.31.255.14:9116"]
+    volumes: ["../artifacts/observability/snmp.yml:/etc/snmp_exporter/snmp.yml:ro"]
+    restart: unless-stopped
+  grafana:
+    image: ${GRAFANA_IMAGE:?set in versions.env}
+    platform: ${IMAGE_PLATFORM:-linux/amd64}
+    network_mode: container:clab-netlab-phase-1-svc-observability-1
+    environment:
+      GF_SERVER_HTTP_ADDR: 172.31.255.14
+      GF_SERVER_HTTP_PORT: "3000"
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?run prepare.py}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes: ["grafana-data:/var/lib/grafana", "./grafana/provisioning:/etc/grafana/provisioning:ro", "./grafana/dashboards:/var/lib/grafana/dashboards:ro"]
+    restart: unless-stopped
+  syslog-ng:
+    image: ${SYSLOG_NG_IMAGE:?set in versions.env}
+    platform: ${IMAGE_PLATFORM:-linux/amd64}
+    network_mode: container:clab-netlab-phase-1-svc-observability-1
+    command: ["--foreground", "--cfgfile=/etc/syslog-ng/syslog-ng.conf"]
+    cap_add: [NET_BIND_SERVICE]
+    volumes: ["./syslog-ng.conf:/etc/syslog-ng/syslog-ng.conf:ro", "observability-logs:/var/log/netlab"]
+    restart: unless-stopped
+  alloy:
+    image: ${ALLOY_IMAGE:?set in versions.env}
+    platform: ${IMAGE_PLATFORM:-linux/amd64}
+    network_mode: container:clab-netlab-phase-1-svc-observability-1
+    command: ["run", "--server.http.listen-addr=172.31.255.14:12345", "--storage.path=/var/lib/alloy/data", "/etc/alloy/config.alloy"]
+    volumes: ["./alloy.alloy:/etc/alloy/config.alloy:ro", "observability-logs:/var/log/netlab:ro", "flow-data:/var/lib/netlab/flows:ro", "alloy-data:/var/lib/alloy/data"]
+    restart: unless-stopped
+  loki:
+    image: ${LOKI_IMAGE:?set in versions.env}
+    platform: ${IMAGE_PLATFORM:-linux/amd64}
+    network_mode: container:clab-netlab-phase-1-svc-observability-1
+    command: ["-config.file=/etc/loki/config.yaml", "-target=all"]
+    volumes: ["./loki.yaml:/etc/loki/config.yaml:ro", "loki-data:/loki"]
+    restart: unless-stopped
+  goflow2:
+    image: ${GOFLOW2_IMAGE:?set in versions.env}
+    platform: ${IMAGE_PLATFORM:-linux/amd64}
+    network_mode: container:clab-netlab-phase-1-svc-observability-1
+    command: ["-transport.file=/var/lib/netlab/flows/ipfix.json", "-addr=127.0.0.1:6060"]
+    volumes: ["flow-data:/var/lib/netlab/flows"]
+    user: "0:0"
+    restart: unless-stopped
+volumes:
+  prometheus-data:
+  grafana-data:
+  observability-logs:
+  flow-data:
+  alloy-data:
+  loki-data:

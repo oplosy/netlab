@@ -1,0 +1,23 @@
+{
+  "task": "WAN-230",
+  "peer_sas": {
+    "br1-edge-1": "site-overlay-hq_br1_xfrm",
+    "hq-edge-1": "site-overlay-hq_br1_xfrm",
+    "br1-edge-2": "site-overlay-hq_br1_edge2_xfrm",
+    "hq-edge-2": "site-overlay-hq_br1_edge2_xfrm"
+  },
+  "esp_packets_by_endpoint_pair": {
+    "203.0.113.129-203.0.113.130": 244,
+    "203.0.113.131-203.0.113.132": 284
+  },
+  "ospf": {
+    "healthy_primary_next_hop": "10.10.252.0",
+    "primary_path_down_next_hop": "10.10.252.4",
+    "recovered_primary_next_hop": "10.10.252.0",
+    "primary_route": "Routing entry for 10.20.0.0/16\n  Known via \"ospf\", distance 110, metric 40, best\n  Last update 00:04:24 ago\n  * 10.10.252.0, via eth1, weight 1",
+    "backup_route": "Routing entry for 10.20.0.0/16\n  Known via \"ospf\", distance 110, metric 130, best\n  Last update 00:00:00 ago\n  * 10.10.252.4, via eth6, weight 1",
+    "recovered_route": "Routing entry for 10.20.0.0/16\n  Known via \"ospf\", distance 110, metric 40, best\n  Last update 00:00:00 ago\n  * 10.10.252.0, via eth1, weight 1"
+  },
+  "capture_packets": 532,
+  "capture_path": "/tmp/netlab-wan-230.pcap"
+}

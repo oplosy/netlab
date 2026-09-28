@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://netlab.invalid/schemas/phase-1-result.schema.json",
+  "title": "NetLab Phase 1 evidence result",
+  "type": "object",
+  "required": ["schema_version", "run_id", "started_at_utc", "finished_at_utc", "result", "runtime", "thresholds", "stages", "cleanup", "evidence_files"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "run_id": {"type": "string", "minLength": 1},
+    "started_at_utc": {"type": "string", "format": "date-time"},
+    "finished_at_utc": {"type": "string", "format": "date-time"},
+    "result": {"enum": ["PASS", "FAIL"]},
+    "runtime": {"type": "object", "required": ["docker_settings_changed", "runtime"], "properties": {"docker_settings_changed": {"const": false}, "runtime": {"type": "string"}}, "additionalProperties": false},
+    "thresholds": {"type": "array", "items": {"type": "object", "required": ["name", "actual", "operator", "limit", "passed"], "properties": {"name": {"type": "string"}, "actual": {}, "operator": {"enum": ["<=", ">=", "=="]}, "limit": {}, "passed": {"type": "boolean"}}, "additionalProperties": false}},
+    "stages": {"$ref": "#/$defs/stages"},
+    "cleanup": {"$ref": "#/$defs/stages"},
+    "evidence_files": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {"stages": {"type": "array", "items": {"type": "object", "required": ["name", "command", "started_at_utc", "finished_at_utc", "duration_seconds", "return_code", "status", "required", "stdout_file", "stderr_file"], "properties": {"name": {"type": "string"}, "command": {"type": "string"}, "started_at_utc": {"type": "string", "format": "date-time"}, "finished_at_utc": {"type": "string", "format": "date-time"}, "duration_seconds": {"type": "number", "minimum": 0}, "return_code": {"type": "integer"}, "status": {"enum": ["pass", "warning", "fail"]}, "required": {"type": "boolean"}, "stdout_file": {"type": "string"}, "stderr_file": {"type": "string"}}, "additionalProperties": false}}},
+  "additionalProperties": false
+}

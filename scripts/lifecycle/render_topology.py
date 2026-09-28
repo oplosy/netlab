@@ -82,7 +82,7 @@ def _image_for(node: dict[str, Any], versions: dict[str, str]) -> tuple[str, str
 
 def _node_entry(node: dict[str, Any], versions: dict[str, str], mappings: dict[str, dict[str, str]]) -> dict[str, Any]:
     image, image_role = _image_for(node, versions)
-    oob = str(ipaddress.ip_interface(node["oob"]).ip)
+    endpoint = node["role"] in {"client", "server"}
     labels = {
         "netlab.inventory-node": node["id"],
         "netlab.inventory-role": node["role"],
@@ -93,7 +93,9 @@ def _node_entry(node: dict[str, Any], versions: dict[str, str], mappings: dict[s
     entry: dict[str, Any] = {
         "kind": "linux",
         "image": image,
-        "mgmt-ipv4": oob,
+        "network-mode" if endpoint else "mgmt-ipv4": (
+            "none" if endpoint else str(ipaddress.ip_interface(node["oob"]).ip)
+        ),
         "labels": labels,
     }
     if image_role == "network-node":

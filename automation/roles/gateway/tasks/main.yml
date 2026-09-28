@@ -1,0 +1,8 @@
+---
+- name: Apply inventory-derived routed links, SVIs, VRRP, and DHCP relay hooks
+  ansible.builtin.command:
+    argv:
+      - python3
+      - "{{ role_path }}/../../../config/gateway/apply.py"
+  delegate_to: localhost
+  run_once: true
