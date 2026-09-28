@@ -15,13 +15,15 @@ SMOKE_TIMEOUT=${SMOKE_TIMEOUT:-300}
 SUDO=${SUDO-}
 started=$(date +%s)
 
-cleanup() { ${SUDO} containerlab destroy --topo "${TOPOLOGY}" --cleanup >/dev/null 2>&1 || true; }
+# sudo resets the environment; pass the image variable the topology expands.
+clab() { ${SUDO} env NETLAB_NETWORK_IMAGE="${NETLAB_NETWORK_IMAGE}" containerlab "$@"; }
+cleanup() { clab destroy --topo "${TOPOLOGY}" --cleanup >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 deadline() { (( $(date +%s) - started < SMOKE_TIMEOUT )) || { echo "smoke timeout after ${SMOKE_TIMEOUT}s" >&2; exit 124; }; }
 node() { printf 'clab-netlab-ci-smoke-%s' "$1"; }
 
 docker image inspect "${NETLAB_NETWORK_IMAGE}" >/dev/null
-timeout "${SMOKE_TIMEOUT}" ${SUDO} containerlab deploy --topo "${TOPOLOGY}" --reconfigure >/dev/null
+timeout "${SMOKE_TIMEOUT}" ${SUDO} env NETLAB_NETWORK_IMAGE="${NETLAB_NETWORK_IMAGE}" containerlab deploy --topo "${TOPOLOGY}" --reconfigure >/dev/null
 
 for r in r1 r2; do
   until docker exec "$(node "$r")" vtysh -c "show version" >/dev/null 2>&1; do deadline; sleep 2; done
