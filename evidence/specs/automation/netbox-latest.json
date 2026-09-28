@@ -1,0 +1,76 @@
+{
+  "source": "tests/integration/netbox/acceptance.py",
+  "finished_utc": "2026-09-28T15:47:42+00:00",
+  "netbox_version": "4.4.10",
+  "projected_objects": {
+    "sites": 4,
+    "roles": 8,
+    "devices": 40,
+    "interfaces": 212,
+    "ip_addresses": 140,
+    "vlans": 12,
+    "prefixes": 63
+  },
+  "seed_from_empty": {
+    "mode": "sync",
+    "changes": 479,
+    "by_action": {
+      "create": 479,
+      "update": 0,
+      "delete": 0
+    }
+  },
+  "check_after_seed": {
+    "mode": "check",
+    "changes": 0,
+    "by_action": {
+      "create": 0,
+      "update": 0,
+      "delete": 0
+    }
+  },
+  "second_sync": {
+    "mode": "sync",
+    "changes": 0,
+    "by_action": {
+      "create": 0,
+      "update": 0,
+      "delete": 0
+    }
+  },
+  "netbox_only_edit_check": {
+    "exit_code": 3,
+    "summary": {
+      "mode": "check",
+      "changes": 2,
+      "by_action": {
+        "create": 0,
+        "update": 1,
+        "delete": 1
+      }
+    },
+    "detail": [
+      "update devices      hq-fw-1 {\"description\": \"netlab-intent: node hq-fw-1 from inventory/inventory.yaml\"}",
+      "delete vlans        hq/777 {}"
+    ]
+  },
+  "repair": {
+    "mode": "sync",
+    "changes": 2,
+    "by_action": {
+      "create": 0,
+      "update": 1,
+      "delete": 1
+    }
+  },
+  "final_check": {
+    "mode": "check",
+    "changes": 0,
+    "by_action": {
+      "create": 0,
+      "update": 0,
+      "delete": 0
+    }
+  },
+  "result": "PASS"
+}

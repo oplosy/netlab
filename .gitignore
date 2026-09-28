@@ -9,8 +9,9 @@ secrets/
 # Containerlab and runtime state
 clab-*/
 .containerlab/
-artifacts/runs/
-artifacts/observability/
+# Runtime output only: evidence bundles, observability and NetBox secrets
+# (automation/netbox/prepare.py), renders, change records, golden snapshots.
+artifacts/
 
 # Python and Ansible caches
 __pycache__/
