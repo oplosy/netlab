@@ -81,17 +81,10 @@
       "public_endpoint": "203.0.113.129/32",
       "interfaces": [
         {
-          "name": "to_hq_dist_1",
+          "name": "to_hq_fw_1",
           "kind": "routed",
           "addresses": [
-            "10.10.252.0/31"
-          ]
-        },
-        {
-          "name": "to_hq_dist_2",
-          "kind": "routed",
-          "addresses": [
-            "10.10.252.2/31"
+            "10.10.252.8/31"
           ]
         },
         {
@@ -134,17 +127,10 @@
       "public_endpoint": "203.0.113.131/32",
       "interfaces": [
         {
-          "name": "to_hq_dist_1",
+          "name": "to_hq_fw_1",
           "kind": "routed",
           "addresses": [
-            "10.10.252.4/31"
-          ]
-        },
-        {
-          "name": "to_hq_dist_2",
-          "kind": "routed",
-          "addresses": [
-            "10.10.252.6/31"
+            "10.10.252.10/31"
           ]
         },
         {
@@ -179,10 +165,10 @@
       "loopback": "10.10.255.2/32",
       "interfaces": [
         {
-          "name": "to_hq_edge_1",
+          "name": "to_hq_fw_1",
           "kind": "routed",
           "addresses": [
-            "10.10.252.1/31"
+            "10.10.252.13/31"
           ]
         },
         {
@@ -232,13 +218,6 @@
           "addresses": [
             "10.10.99.2/24"
           ]
-        },
-        {
-          "name": "to_hq_edge_2",
-          "kind": "routed",
-          "addresses": [
-            "10.10.252.5/31"
-          ]
         }
       ]
     },
@@ -251,10 +230,10 @@
       "loopback": "10.10.255.3/32",
       "interfaces": [
         {
-          "name": "to_hq_edge_1",
+          "name": "to_hq_fw_1",
           "kind": "routed",
           "addresses": [
-            "10.10.252.3/31"
+            "10.10.252.15/31"
           ]
         },
         {
@@ -304,12 +283,43 @@
           "addresses": [
             "10.10.99.3/24"
           ]
+        }
+      ]
+    },
+    {
+      "id": "hq-fw-1",
+      "site": "hq",
+      "role": "firewall",
+      "asn": 65100,
+      "oob": "172.31.255.35/24",
+      "loopback": "10.10.255.6/32",
+      "interfaces": [
+        {
+          "name": "to_hq_edge_1",
+          "kind": "routed",
+          "addresses": [
+            "10.10.252.9/31"
+          ]
         },
         {
           "name": "to_hq_edge_2",
           "kind": "routed",
           "addresses": [
-            "10.10.252.7/31"
+            "10.10.252.11/31"
+          ]
+        },
+        {
+          "name": "to_hq_dist_1",
+          "kind": "routed",
+          "addresses": [
+            "10.10.252.12/31"
+          ]
+        },
+        {
+          "name": "to_hq_dist_2",
+          "kind": "routed",
+          "addresses": [
+            "10.10.252.14/31"
           ]
         }
       ]
@@ -1703,15 +1713,29 @@
       "parent": "br1-aggregate"
     },
     {
-      "id": "hq-edge-dist1",
-      "cidr": "10.10.252.0/31",
+      "id": "hq-edge1-fw",
+      "cidr": "10.10.252.8/31",
       "kind": "p2p",
       "owner": "hq",
       "parent": "hq-routed-pool"
     },
     {
-      "id": "hq-edge-dist2",
-      "cidr": "10.10.252.2/31",
+      "id": "hq-edge2-fw",
+      "cidr": "10.10.252.10/31",
+      "kind": "p2p",
+      "owner": "hq",
+      "parent": "hq-routed-pool"
+    },
+    {
+      "id": "hq-fw-dist1",
+      "cidr": "10.10.252.12/31",
+      "kind": "p2p",
+      "owner": "hq",
+      "parent": "hq-routed-pool"
+    },
+    {
+      "id": "hq-fw-dist2",
+      "cidr": "10.10.252.14/31",
       "kind": "p2p",
       "owner": "hq",
       "parent": "hq-routed-pool"
@@ -1820,20 +1844,6 @@
       "kind": "allocation-pool",
       "owner": "isp2",
       "parent": null
-    },
-    {
-      "id": "hq-edge-dist1-2",
-      "cidr": "10.10.252.4/31",
-      "kind": "p2p",
-      "owner": "hq",
-      "parent": "hq-routed-pool"
-    },
-    {
-      "id": "hq-edge-dist2-2",
-      "cidr": "10.10.252.6/31",
-      "kind": "p2p",
-      "owner": "hq",
-      "parent": "hq-routed-pool"
     },
     {
       "id": "br1-edge-dist1-2",
@@ -2020,36 +2030,70 @@
   ],
   "links": [
     {
-      "id": "hq-edge-dist1",
+      "id": "hq-edge1-fw",
       "kind": "routed",
-      "prefix": "hq-edge-dist1",
+      "prefix": "hq-edge1-fw",
       "endpoints": [
         {
           "node": "hq-edge-1",
-          "interface": "to_hq_dist_1",
-          "address": "10.10.252.0/31"
+          "interface": "to_hq_fw_1",
+          "address": "10.10.252.8/31"
         },
         {
-          "node": "hq-dist-1",
+          "node": "hq-fw-1",
           "interface": "to_hq_edge_1",
-          "address": "10.10.252.1/31"
+          "address": "10.10.252.9/31"
         }
       ]
     },
     {
-      "id": "hq-edge-dist2",
+      "id": "hq-edge2-fw",
       "kind": "routed",
-      "prefix": "hq-edge-dist2",
+      "prefix": "hq-edge2-fw",
       "endpoints": [
         {
-          "node": "hq-edge-1",
-          "interface": "to_hq_dist_2",
-          "address": "10.10.252.2/31"
+          "node": "hq-edge-2",
+          "interface": "to_hq_fw_1",
+          "address": "10.10.252.10/31"
         },
         {
+          "node": "hq-fw-1",
+          "interface": "to_hq_edge_2",
+          "address": "10.10.252.11/31"
+        }
+      ]
+    },
+    {
+      "id": "hq-fw-dist1",
+      "kind": "routed",
+      "prefix": "hq-fw-dist1",
+      "endpoints": [
+        {
+          "node": "hq-dist-1",
+          "interface": "to_hq_fw_1",
+          "address": "10.10.252.13/31"
+        },
+        {
+          "node": "hq-fw-1",
+          "interface": "to_hq_dist_1",
+          "address": "10.10.252.12/31"
+        }
+      ]
+    },
+    {
+      "id": "hq-fw-dist2",
+      "kind": "routed",
+      "prefix": "hq-fw-dist2",
+      "endpoints": [
+        {
           "node": "hq-dist-2",
-          "interface": "to_hq_edge_1",
-          "address": "10.10.252.3/31"
+          "interface": "to_hq_fw_1",
+          "address": "10.10.252.15/31"
+        },
+        {
+          "node": "hq-fw-1",
+          "interface": "to_hq_dist_2",
+          "address": "10.10.252.14/31"
         }
       ]
     },
@@ -2548,40 +2592,6 @@
           "node": "svc-ntp-1",
           "interface": "to_isp1_core_1",
           "address": "203.0.113.13/31"
-        }
-      ]
-    },
-    {
-      "id": "hq-edge-dist1-2",
-      "kind": "routed",
-      "prefix": "hq-edge-dist1-2",
-      "endpoints": [
-        {
-          "node": "hq-edge-2",
-          "interface": "to_hq_dist_1",
-          "address": "10.10.252.4/31"
-        },
-        {
-          "node": "hq-dist-1",
-          "interface": "to_hq_edge_2",
-          "address": "10.10.252.5/31"
-        }
-      ]
-    },
-    {
-      "id": "hq-edge-dist2-2",
-      "kind": "routed",
-      "prefix": "hq-edge-dist2-2",
-      "endpoints": [
-        {
-          "node": "hq-edge-2",
-          "interface": "to_hq_dist_2",
-          "address": "10.10.252.6/31"
-        },
-        {
-          "node": "hq-dist-2",
-          "interface": "to_hq_edge_2",
-          "address": "10.10.252.7/31"
         }
       ]
     },

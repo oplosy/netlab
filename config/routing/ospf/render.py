@@ -56,7 +56,7 @@ def build_plan(
 
     for node in data["nodes"]:
         role = node.get("role")
-        if role not in {"edge", "dist"}:
+        if role not in {"edge", "dist", "firewall"}:
             continue
         site_id = node.get("site")
         if site_id not in areas:
@@ -70,7 +70,8 @@ def build_plan(
                 if link.get("kind") == "routed"
                 and any(peer["node"] == node["id"] for peer in link["endpoints"])
                 and any(
-                    nodes[peer["node"]].get("role") == "dist"
+                    # The HQ SecureEdge tier (ADR 0017) sits between edge and dist.
+                    nodes[peer["node"]].get("role") in {"dist", "firewall"}
                     for peer in link["endpoints"]
                     if peer["node"] != node["id"]
                 )
@@ -170,11 +171,12 @@ def build_plan(
     expected = {
         node["id"]
         for node in data["nodes"]
-        if node.get("role") in {"edge", "dist"} and node.get("site") in areas
+        if node.get("role") in {"edge", "dist", "firewall"}
+        and node.get("site") in areas
     }
     if set(planned) != expected:
         raise ValueError(
-            f"OSPF-130 expects the six Phase 1 edge/distribution nodes; got {sorted(planned)}"
+            f"OSPF expects every site edge, distribution, and firewall node; got {sorted(planned)}"
         )
     if len({item["router_id"] for item in planned.values()}) != len(planned):
         raise ValueError("OSPF router IDs must be unique")

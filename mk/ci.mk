@@ -11,7 +11,8 @@ CI_PYTEST_TARGETS ?= \
 	tests/integration/ipsec/test_plan.py \
 	tests/integration/bgp \
 	tests/integration/br2 \
-	tests/security/test_policy.py
+	tests/security/test_policy.py \
+	tests/security/secure_edge
 
 .PHONY: ci-static ci-lint ci-test
 

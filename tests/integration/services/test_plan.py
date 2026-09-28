@@ -107,7 +107,8 @@ class ServicePlanTests(unittest.TestCase):
         plan = build_plan(INVENTORY)
         self.assertEqual(len(plan["sites"]), 9)
         self.assertEqual(len(plan["internet"]), 2)
-        self.assertEqual(len(plan["network_nodes"]), 14)
+        # Includes the HQ SecureEdge firewall (ADR 0017).
+        self.assertEqual(len(plan["network_nodes"]), 15)
         self.assertEqual(plan["network_nodes"][0]["oob"], "172.31.255.30/24")
         self.assertEqual(plan["aaa"]["oob_address"], "172.31.255.13")
         self.assertEqual(len(plan["service_egress_nat"]), 3)

@@ -222,9 +222,11 @@ def run() -> dict[str, object]:
 
     # Drop only BFD control packets on one routed adjacency while leaving the
     # interface and OSPF hellos up. This exercises BFD-triggered OSPF failover.
-    test_edge = "hq-edge-1"
-    test_peer = "10.10.252.1"
-    test_interface = "eth1"
+    # HQ distribution peers only with hq-fw-1 (ADR 0017): break BFD on the
+    # firewall's link to hq-dist-1 and expect the hq-dist-2 link to carry on.
+    test_edge = "hq-fw-1"
+    test_peer = "10.10.252.13"
+    test_interface = "eth3"
     probe_node = "br1-edge-1"
     probe_container = f"clab-netlab-phase-1-{probe_node}"
     probe_targets = {
@@ -258,7 +260,7 @@ def run() -> dict[str, object]:
         _exec(container, "nft", "add", "rule", "inet", table, "output", "oifname", test_interface, "udp", "sport", "3784", "drop")
         detection = _wait(lambda: "Full" not in _neighbors(test_edge).get(test_peer, ""), timeout=3.0)
         alternate = _route(test_edge, "10.10.10.0/24")
-        assert "10.10.252.3, via eth2" in alternate, f"surviving VLAN route lacks alternate dist adjacency: {alternate}"
+        assert "10.10.252.15, via eth4" in alternate, f"surviving VLAN route lacks alternate dist adjacency: {alternate}"
         vip_takeover = _wait_optional(
             lambda: _vip_owners(
                 {node: _vlan10_addresses(node) for node in target_routers}, "10.10.10.1"

@@ -181,15 +181,12 @@ def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]
             nodes[endpoint["node"]].get("role") for endpoint in link["endpoints"]
         }
         # ISP service networks are configured by the services role; this plan
-        # owns only the site edge-to-distribution routed links.
-        if endpoint_roles != {"edge", "dist"}:
+        # owns only site-internal routed links: edge-to-distribution, or
+        # edge/distribution to the SecureEdge firewall tier (ADR 0017).
+        if endpoint_roles not in ({"edge", "dist"}, {"edge", "firewall"}, {"firewall", "dist"}):
             continue
         for endpoint in link["endpoints"]:
             node = nodes[endpoint["node"]]
-            if node.get("role") not in {"edge", "dist"}:
-                raise ValueError(
-                    f"routed link {link['id']} must terminate on an edge and distribution node"
-                )
             interface = physical.get((node["id"], endpoint["interface"]))
             if interface is None or not endpoint.get("address"):
                 raise ValueError(f"routed link {link['id']} has an incomplete endpoint")

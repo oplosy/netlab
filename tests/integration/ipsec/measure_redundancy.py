@@ -161,16 +161,19 @@ def main() -> int:
             if not _valid_outer_endpoints(peer, sa):
                 raise RuntimeError(f"{peer['node']} negotiated the overlay over a non-public underlay: {sa}")
 
+        # HQ edge selection is observed on hq-fw-1, the only router between the
+        # HQ edges and distribution (ADR 0017).
+        hq_observer = "hq-fw-1"
         dist1_primary = next(
             endpoint["address"].split("/")[0]
             for link in data["links"] if link["kind"] == "routed"
-            and {item["node"] for item in link["endpoints"]} == {"hq-edge-1", "hq-dist-1"}
+            and {item["node"] for item in link["endpoints"]} == {"hq-edge-1", hq_observer}
             for endpoint in link["endpoints"] if endpoint["node"] == "hq-edge-1"
         )
         dist1_secondary = next(
             endpoint["address"].split("/")[0]
             for link in data["links"] if link["kind"] == "routed"
-            and {item["node"] for item in link["endpoints"]} == {"hq-edge-2", "hq-dist-1"}
+            and {item["node"] for item in link["endpoints"]} == {"hq-edge-2", hq_observer}
             for endpoint in link["endpoints"] if endpoint["node"] == "hq-edge-2"
         )
         container = f"clab-{LAB_NAME}-isp1-core-1"
@@ -187,15 +190,15 @@ def main() -> int:
                 "--interval", "0.05", "--expect", "up",
             )
 
-        primary_route = _wait_route(args.docker, "hq-dist-1", dist1_primary)
+        primary_route = _wait_route(args.docker, hq_observer, dist1_primary)
         for node in ("hq-edge-1", "br1-edge-1"):
             _exec(args.docker, node, "ip", "link", "set", "dev", "xfrm0", "down")
             down.append(node)
-        backup_route = _wait_route(args.docker, "hq-dist-1", dist1_secondary)
+        backup_route = _wait_route(args.docker, hq_observer, dist1_secondary)
         for node in reversed(down):
             _exec(args.docker, node, "ip", "link", "set", "dev", "xfrm0", "up")
         down.clear()
-        recovered_route = _wait_route(args.docker, "hq-dist-1", dist1_primary)
+        recovered_route = _wait_route(args.docker, hq_observer, dist1_primary)
 
         capture_metadata, capture_path = _wait_capture(args.docker, container)
         esp = _esp_pairs(capture_path)

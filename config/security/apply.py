@@ -80,13 +80,15 @@ def _linked_peer(
     return result
 
 
-def _drop_chain(node_id: str, chain: str, rules: list[str], hook: str) -> list[str]:
+def _drop_chain(
+    node_id: str, chain: str, rules: list[str], hook: str, tag: str = "SEC170"
+) -> list[str]:
     return [
         f"  chain {chain} {{",
         f"    type filter hook {hook} priority -10; policy drop;",
         "    ct state established,related counter accept",
         *rules,
-        f'    limit rate 10/second burst 20 packets log prefix "SEC170|{node_id}|{chain}|deny " level warn',
+        f'    limit rate 10/second burst 20 packets log prefix "{tag}|{node_id}|{chain}|deny " level warn',
         "    ct state invalid counter drop",
         "    counter drop",
         "  }",
@@ -486,12 +488,98 @@ def _render_isp(data: dict[str, Any], node: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _render_firewall(data: dict[str, Any], node: dict[str, Any]) -> str:
+    """EDGE-410 SecureEdge tier (ADR 0017): zone policy between site and edges."""
+    site_id = node["site"]
+    nodes = {item["id"]: item for item in data["nodes"]}
+    mapping = _interface_map(node)
+    outside: list[str] = []
+    inside: list[str] = []
+    for link in data["links"]:
+        if link.get("kind") != "routed":
+            continue
+        local = next(
+            (item for item in link["endpoints"] if item["node"] == node["id"]), None
+        )
+        if local is None:
+            continue
+        peer = next(item for item in link["endpoints"] if item["node"] != node["id"])
+        role = nodes[peer["node"]].get("role")
+        if role == "edge":
+            outside.append(mapping[local["interface"]])
+        elif role == "dist":
+            inside.append(mapping[local["interface"]])
+        else:
+            raise ValueError(f"{node['id']} has an unexpected routed peer {peer['node']}")
+    if not outside or not inside:
+        raise ValueError(f"{node['id']} must sit between site distribution and edges")
+
+    def prefix(vlan_id: int, site: str = site_id) -> str:
+        return next(
+            item["prefix"]
+            for item in data["vlans"]
+            if item["site"] == site and int(item["vlan_id"]) == vlan_id
+        )
+
+    users, guests = prefix(10), prefix(30)
+    remote_users = sorted(
+        item["prefix"]
+        for item in data["vlans"]
+        if item["site"] != site_id and int(item["vlan_id"]) == 10
+    )
+    to_outside = f'iifname {{ {", ".join(sorted(inside))} }} oifname {{ {", ".join(sorted(outside))} }}'
+    to_inside = f'iifname {{ {", ".join(sorted(outside))} }} oifname {{ {", ".join(sorted(inside))} }}'
+    services = _site_services(data, site_id)
+
+    input_rules = [
+        f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
+        f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
+        'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
+    ]
+    for iface, address in _linked_peer(data, node["id"], "routed"):
+        input_rules.extend(
+            [
+                f'iifname "{iface}" ip saddr {address} ip protocol ospf counter accept',
+                f'iifname "{iface}" ip saddr {address} udp dport {{ 3784, 3785 }} counter accept',
+                f'iifname "{iface}" ip saddr {address} ip protocol icmp icmp type echo-request counter accept',
+            ]
+        )
+    forward_rules = [
+        # inside <-> remote corporate users: ICMP only, as on the site edges.
+        *(
+            f"{to_outside} ip saddr {users} ip daddr {remote} ip protocol icmp counter accept"
+            for remote in remote_users
+        ),
+        f"{to_inside} ip daddr {users} ip protocol icmp counter accept",
+        # guest -> simulated Internet DNS/NTP only.
+        f"{to_outside} ip saddr {guests} ip daddr {SIM_DNS} udp dport 53 counter accept",
+        f"{to_outside} ip saddr {guests} ip daddr {SIM_DNS} tcp dport 53 counter accept",
+        f"{to_outside} ip saddr {guests} ip daddr {SIM_NTP} udp dport 123 counter accept",
+        # service zone resolvers and time source -> simulated Internet.
+        f"{to_outside} ip saddr {services['dns']} ip daddr {SIM_DNS} udp dport 53 counter accept",
+        f"{to_outside} ip saddr {services['dns']} ip daddr {SIM_DNS} tcp dport 53 counter accept",
+        f"{to_outside} ip saddr {services['ntp']} ip daddr {SIM_NTP} udp dport 123 counter accept",
+    ]
+    return "\n".join(
+        [
+            "table inet netlab_sec170 {",
+            *_drop_chain(node["id"], "input", input_rules, "input", "EDGE410"),
+            *_drop_chain(node["id"], "forward", forward_rules, "forward", "EDGE410"),
+            "  chain output { type filter hook output priority -10; policy accept; }",
+            "}",
+            "",
+        ]
+    )
+
+
 def render_plan(data: dict[str, Any]) -> dict[str, dict[str, str]]:
     result: dict[str, dict[str, str]] = {}
     for node in data["nodes"]:
         role = node.get("role")
         if role == "dist":
             result[node["id"]] = {"inet": _render_dist(data, node)}
+        elif role == "firewall":
+            result[node["id"]] = {"inet": _render_firewall(data, node)}
         elif role == "edge":
             has_xfrm = any(
                 link.get("kind") == "xfrm"
@@ -610,7 +698,8 @@ def apply(
     nodes = {item["id"]: item for item in data["nodes"]}
     for node_id, tables in render_plan(data).items():
         container = f"clab-{lab_name}-{node_id}"
-        if nodes[node_id].get("role") in {"dist", "edge", "isp"}:
+        role = nodes[node_id].get("role")
+        if role in {"dist", "edge", "isp"}:
             forwarding = _run(
                 docker, container, "cat", "/proc/sys/net/ipv4/ip_forward"
             ).stdout.strip()
@@ -654,6 +743,14 @@ def apply(
             _run(docker, container, "nft", "-f", destination)
             _write_in_container(docker, container, marker, content)
         _run(docker, container, "nft", "list", "table", "inet", "netlab_sec170")
+        if role == "firewall":
+            # Fail closed (ADR 0017): forward only once the drop-by-default
+            # policy above is loaded and listed.
+            forwarding = _run(
+                docker, container, "cat", "/proc/sys/net/ipv4/ip_forward"
+            ).stdout.strip()
+            if forwarding != "1":
+                _run(docker, container, "sysctl", "-w", "net.ipv4.ip_forward=1")
 
 
 def main() -> int:

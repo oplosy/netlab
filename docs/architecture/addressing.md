@@ -109,3 +109,18 @@ The initial reservation is:
 
 The management bridge must disable IP masquerading. OOB addresses are never
 advertised by OSPF or BGP.
+
+## HQ SecureEdge firewall
+
+[ADR 0017](../adr/0017-hq-secure-edge-firewall-tier.md) places `hq-fw-1` between
+the HQ distribution pair and the HQ edges. The direct HQ edge-to-distribution
+links `10.10.252.0/31` to `10.10.252.6/31` are retired and not reused.
+
+| Link | Upper end | `hq-fw-1` |
+|---|---|---|
+| `hq-edge-1` to `hq-fw-1` | `10.10.252.8/31` | `10.10.252.9/31` |
+| `hq-edge-2` to `hq-fw-1` | `10.10.252.10/31` | `10.10.252.11/31` |
+| `hq-fw-1` to `hq-dist-1` | `10.10.252.13/31` (dist) | `10.10.252.12/31` |
+| `hq-fw-1` to `hq-dist-2` | `10.10.252.15/31` (dist) | `10.10.252.14/31` |
+
+`hq-fw-1` uses loopback `10.10.255.6/32` and OOB address `172.31.255.35`.

@@ -246,7 +246,7 @@ def build_plan(data: dict[str, Any]) -> dict[str, Any]:
     network_nodes = [
         {"id": node["id"], "oob": node["oob"]}
         for node in data["nodes"]
-        if node.get("role") in {"edge", "dist", "isp", "router"}
+        if node.get("role") in {"edge", "dist", "firewall", "isp", "router"}
     ]
     service_egress_nat = []
     for site in data["sites"]:

@@ -20,12 +20,14 @@ def test_all_infrastructure_nodes_default_deny_and_correlated_rate_limited_logs(
     assert set(plan) == {
         node["id"]
         for node in data["nodes"]
-        if node.get("role") in {"dist", "edge", "access", "isp"}
+        if node.get("role") in {"dist", "edge", "firewall", "access", "isp"}
     }
+    roles = {node["id"]: node.get("role") for node in data["nodes"]}
     for node_id, tables in plan.items():
         policy = tables["inet"]
         assert policy.count("policy drop") >= 2, node_id
-        assert f"SEC170|{node_id}|" in policy
+        tag = "EDGE410" if roles[node_id] == "firewall" else "SEC170"
+        assert f"{tag}|{node_id}|" in policy
         assert "limit rate 10/second burst 20 packets log" in policy
         assert "ct state established,related" in policy
 
@@ -76,16 +78,15 @@ def test_guest_nat_is_exactly_scoped_to_simulated_dns_and_ntp() -> None:
 def test_control_plane_is_interface_and_peer_scoped_and_ssh_is_oob_only() -> None:
     plan = sec170.render_plan(sec170.load_inventory())
     hq_edge = plan["hq-edge-1"]["inet"]
-    assert 'iifname "eth3" ip saddr 192.0.2.1 tcp dport 179 counter accept' in hq_edge
+    # HQ edge-1 has one internal OSPF peer, hq-fw-1 (ADR 0017), then its ISPs.
+    assert 'iifname "eth2" ip saddr 192.0.2.1 tcp dport 179 counter accept' in hq_edge
     assert (
-        'iifname "eth4" ip saddr 198.51.100.1 tcp dport 179 counter accept' in hq_edge
+        'iifname "eth3" ip saddr 198.51.100.1 tcp dport 179 counter accept' in hq_edge
     )
     assert (
-        'iifname "eth1" ip saddr 10.10.252.1 ip protocol ospf counter accept' in hq_edge
+        'iifname "eth1" ip saddr 10.10.252.9 ip protocol ospf counter accept' in hq_edge
     )
-    assert (
-        'iifname "eth2" ip saddr 10.10.252.3 ip protocol ospf counter accept' in hq_edge
-    )
+    assert hq_edge.count("ip protocol ospf counter accept") == 3
     assert (
         'iifname "xfrm0" ip saddr 10.255.0.1 ip protocol ospf counter accept' in hq_edge
     )
@@ -147,7 +148,9 @@ def test_secondary_edges_enforce_the_same_tunnel_policy_with_edge_specific_endpo
     ):
         policy = plan[node_id]["inet"]
         assert policy.count("tcp dport 179 counter accept") == 2
-        assert policy.count("ip protocol ospf counter accept") >= 3
+        # Internal OSPF peers plus the XFRM peer; HQ has one internal peer.
+        minimum = 2 if node_id.startswith("hq-") else 3
+        assert policy.count("ip protocol ospf counter accept") >= minimum
         assert f"ip saddr {remote} udp dport {{ 500, 4500 }} counter accept" in policy
         assert 'iifname "xfrm0"' in policy
         assert "NAT" not in plan[node_id]

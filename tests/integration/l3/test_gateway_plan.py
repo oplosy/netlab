@@ -18,7 +18,9 @@ def test_every_distribution_gets_all_vips_and_inventory_addresses() -> None:
     assert len(plan["routed_endpoints"]) == 24
     for node in plan["nodes"]:
         assert [gateway["vlan_id"] for gateway in node["gateways"]] == [10, 20, 30, 99]
-        assert len(node["routed_interfaces"]) == 2
+        # HQ distribution reaches the edges only through hq-fw-1 (ADR 0017).
+        expected_uplinks = 1 if node["node"].startswith("hq-") else 2
+        assert len(node["routed_interfaces"]) == expected_uplinks
         assert all(
             item["interface"].startswith("eth") for item in node["routed_interfaces"]
         )
