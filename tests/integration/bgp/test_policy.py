@@ -31,6 +31,27 @@ def _peer(data: dict, node_id: str) -> str:
     return str(ipaddress.ip_interface(remote["address"]).ip)
 
 
+def _isp_interface(data: dict, node_id: str, peer: str) -> str:
+    """Container interface facing the given ISP peer, derived from inventory."""
+    link = next(
+        link
+        for link in data["links"]
+        if link["kind"] == "ebgp"
+        and any(
+            str(ipaddress.ip_interface(endpoint["address"]).ip) == peer
+            for endpoint in link["endpoints"]
+        )
+    )
+    local = next(e for e in link["endpoints"] if e["node"] == node_id)["interface"]
+    node = next(node for node in data["nodes"] if node["id"] == node_id)
+    physical = [
+        item["name"]
+        for item in node["interfaces"]
+        if item.get("kind") in {"routed", "ebgp", "l2", "access"}
+    ]
+    return f"eth{physical.index(local) + 1}"
+
+
 def test_rendered_policy_builds_full_mesh_with_one_endpoint_per_edge() -> None:
     data = load_inventory()
     rendered = configs(data)
@@ -248,8 +269,10 @@ def test_live_sessions_policy_and_rejection_of_injected_routes() -> None:
                 if node["id"] == remote_node
             ).split("/")[0]
             route = _route_get(node_id, remote_endpoint)
-            assert f"via {peer} dev eth3" in route, (
-                f"{node_id} routes the IKE peer over OOB instead of ISP eth3: {route}"
+            isp_interface = _isp_interface(data, node_id, peer)
+            assert f"via {peer} dev {isp_interface}" in route, (
+                f"{node_id} routes the IKE peer over OOB instead of ISP "
+                f"{isp_interface}: {route}"
             )
             injected_sites.append((site_id, node_id, peer))
             _vtysh(

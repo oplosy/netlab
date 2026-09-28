@@ -17,7 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 PING_STREAM = ROOT / "tests" / "integration" / "ospf" / "ping_stream.py"
 sys.path.insert(0, str(ROOT / "config" / "routing" / "ospf"))
-from render import build_plan, load_inventory  # noqa: E402
+from render import _interface_map, build_plan, load_inventory  # noqa: E402
 
 
 def _exec(container: str, *argv: str, input_text: str | None = None, check: bool = True) -> str:
@@ -169,15 +169,32 @@ def run() -> dict[str, object]:
             expected_neighbors[local["node"]].add(peer)
             expected_bfd[local["node"]].add(peer)
 
+    # OSPF must never form on OOB, VLAN SVIs, or ISP-facing interfaces. ISP
+    # interface names come from the inventory (hq-fw-1's eth3 is a real peer).
+    nodes = {node["id"]: node for node in data["nodes"]}
+    isp_interfaces = {
+        node_id: {
+            _interface_map(nodes[node_id])[endpoint["interface"]]
+            for link in data["links"]
+            if link.get("kind") == "ebgp"
+            for endpoint in link["endpoints"]
+            if endpoint["node"] == node_id
+        }
+        for node_id in expected_neighbors
+    }
+
+    def passive_only(node: str) -> bool:
+        output = _vtysh(node, "show ip ospf neighbor")
+        return not re.search(r"\bvlan\d+\b", output) and not any(
+            re.search(rf"\b{name}:", output) for name in {"eth0", *isp_interfaces[node]}
+        )
+
     deadlines = time.monotonic() + 45
     while time.monotonic() < deadlines:
         try:
             full = all(all("Full" in _neighbors(node).get(peer, "") for peer in peers)
                        for node, peers in expected_neighbors.items())
-            passive_clean = all(
-                not re.search(r"\b(?:eth0|eth3|vlan\d+)\b", _vtysh(node, "show ip ospf neighbor"))
-                for node in expected_neighbors
-            )
+            passive_clean = all(passive_only(node) for node in expected_neighbors)
             bfd_up = all(_bfd_up(node, peers) for node, peers in expected_bfd.items())
             if full and passive_clean and bfd_up:
                 break
@@ -211,9 +228,17 @@ def run() -> dict[str, object]:
         if item["role"] == "edge"
     }
     for node_id, item in plan.items():
-        if item["role"] == "edge":
+        if item["role"] != "edge":
+            continue
+        if node_id.endswith("-edge-1"):
             assert own_default_lsa[node_id] == _bgp_default(node_id), (
                 f"{node_id} default LSA origination does not track a BGP default"
+            )
+        else:
+            # Only edge-1 originates the site default (see the OSPF renderer);
+            # secondary edges hold a BGP default but must not inject one.
+            assert not own_default_lsa[node_id], (
+                f"{node_id} must not originate a default LSA"
             )
     if site_bgp_default:
         assert all('Known via "ospf"' in site_defaults[site_id] for site_id in ("hq", "br1")), site_defaults
