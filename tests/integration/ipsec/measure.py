@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import json
+import re
 import struct
 import subprocess
 import sys
@@ -25,6 +26,7 @@ from config.ipsec.apply import (
     build_plan,
     load_inventory,
 )
+from config.routing.bgp.render import PRIMARY_PROVIDER, _interface_map
 
 CAPTURE_SCRIPT = ROOT / "tests" / "integration" / "ipsec" / "capture.py"
 TRAFFIC_SCRIPT = ROOT / "tests" / "integration" / "ipsec" / "traffic.py"
@@ -45,18 +47,64 @@ def _exec(
     return result
 
 
+def primary_overlay(plan: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the (HQ, BR1) peers of the lowest-cost HQ-BR1 XFRM link."""
+    links: dict[str, dict[str, dict[str, Any]]] = {}
+    for peer in plan["peers"]:
+        links.setdefault(peer["link"], {})[peer["site"]] = peer
+    candidates = sorted(
+        (pair for pair in links.values() if set(pair) == {"hq", "br1"}),
+        key=lambda pair: pair["hq"]["ospf_cost"],
+    )
+    if not candidates:
+        raise ValueError("inventory has no HQ-BR1 XFRM overlay")
+    if len(candidates) > 1 and candidates[0]["hq"]["ospf_cost"] == candidates[1]["hq"]["ospf_cost"]:
+        raise ValueError("HQ-BR1 overlays share the lowest OSPF cost; no primary overlay")
+    return candidates[0]["hq"], candidates[0]["br1"]
+
+
+def capture_interfaces(data: dict[str, Any], provider: str, nodes: tuple[str, ...]) -> list[str]:
+    """Return the provider's kernel interfaces facing the given edge nodes."""
+    mapping = _interface_map(next(node for node in data["nodes"] if node["id"] == provider))
+    interfaces = [
+        mapping[local["interface"]]
+        for link in data["links"]
+        if link.get("kind") == "ebgp"
+        and {endpoint["node"] for endpoint in link["endpoints"]} & set(nodes)
+        for local in link["endpoints"]
+        if local["node"] == provider
+    ]
+    if len(interfaces) != len(nodes):
+        raise ValueError(f"{provider} does not peer with every node in {nodes}")
+    return sorted(interfaces)
+
+
+def sa_state(output: str, connection: str) -> tuple[bool, bool]:
+    """Return (IKE SA established, CHILD SA installed) for one connection.
+
+    The IKE SA shares the child's name, so only an indented child line with
+    INSTALLED proves the tunnel carries traffic.
+    """
+    name = re.escape(connection)
+    ike = re.search(rf"^{name}: #\d+, ESTABLISHED", output, re.M) is not None
+    child = re.search(rf"^\s+{name}: #\d+, reqid \d+, INSTALLED", output, re.M) is not None
+    return ike, child
+
+
 def _wait_route(docker: str, peer: dict[str, Any]) -> str:
     endpoint = str(peer["remote_public_endpoint"].ip)
     for _ in range(60):
         result = _exec(docker, peer["container"], "ip", "route", "get", endpoint, check=False)
-        if result.returncode == 0 and "dev xfrm0" not in result.stdout:
+        if result.returncode == 0 and not re.search(r"\bdev xfrm\d+\b", result.stdout):
             return result.stdout.strip()
         time.sleep(0.5)
     raise TimeoutError(f"{peer['node']} has no underlay route to IKE endpoint {endpoint}")
 
 
 def _sa_output(docker: str, peer: dict[str, Any]) -> str:
-    result = _exec(docker, peer["container"], "swanctl", "--list-sas", check=False)
+    result = _exec(
+        docker, peer["container"], "swanctl", "--list-sas", "--ike", peer["connection"], check=False
+    )
     if result.returncode:
         return ""
     return result.stdout
@@ -65,12 +113,12 @@ def _sa_output(docker: str, peer: dict[str, Any]) -> str:
 def _wait_sa(docker: str, peer: dict[str, Any], established: bool) -> str:
     for _ in range(60):
         output = _sa_output(docker, peer)
-        is_established = "ESTABLISHED" in output and "site-overlay" in output
-        if is_established == established:
+        ike, child = sa_state(output, peer["connection"])
+        if (ike and child) if established else not (ike or child):
             return output
         time.sleep(0.25)
-    state = "established" if established else "down"
-    raise TimeoutError(f"{peer['node']} IKE/CHILD SA did not become {state}")
+    state = "established with an installed CHILD SA" if established else "down"
+    raise TimeoutError(f"{peer['node']} {peer['connection']} did not become {state}")
 
 
 def _traffic(
@@ -89,6 +137,7 @@ def _traffic(
         docker,
         peer["container"],
         "python3", "/tmp/netlab-ipsec-traffic.py", mode, target,
+        "--interface", peer["xfrm_interface"],
         "--count", str(count), "--size", str(size), "--timeout", "0.5",
         "--interval", str(interval), "--expect", expect,
         check=False,
@@ -100,13 +149,13 @@ def _traffic(
     return payload
 
 
-def _prepare_capture(docker: str, isp_container: str) -> None:
+def _prepare_capture(docker: str, isp_container: str, interfaces: list[str]) -> None:
     _write_remote(docker, isp_container, "/tmp/netlab-ipsec-capture.py", CAPTURE_SCRIPT.read_bytes(), "0700")
     _exec(docker, isp_container, "rm", "-f", CAPTURE_FILE, CAPTURE_LOG)
     _run(
         docker,
         "exec", "-d", isp_container, "sh", "-c",
-        f"python3 /tmp/netlab-ipsec-capture.py {CAPTURE_FILE} {CAPTURE_DURATION} eth1 eth2 >{CAPTURE_LOG} 2>&1",
+        f"python3 /tmp/netlab-ipsec-capture.py {CAPTURE_FILE} {CAPTURE_DURATION} {' '.join(interfaces)} >{CAPTURE_LOG} 2>&1",
     )
     for _ in range(40):
         result = _exec(docker, isp_container, "test", "-e", CAPTURE_FILE, check=False)
@@ -172,25 +221,29 @@ def _inspect_capture(path: Path) -> dict[str, int]:
     return {"esp_packets": esp, "ike_packets": ike, "enterprise_plaintext_packets": enterprise_plaintext}
 
 
-def _verify_site(docker: str, hq: dict[str, Any], br1: dict[str, Any], isp: str) -> dict[str, Any]:
+def _verify_site(
+    docker: str, hq: dict[str, Any], br1: dict[str, Any], isp: str, capture: list[str]
+) -> dict[str, Any]:
+    connection = hq["connection"]
     for peer in (hq, br1):
+        interface = peer["xfrm_interface"]
         _wait_route(docker, peer)
-        xfrm = _exec(docker, peer["container"], "ip", "-d", "-o", "link", "show", "dev", "xfrm0").stdout
+        xfrm = _exec(docker, peer["container"], "ip", "-d", "-o", "link", "show", "dev", interface).stdout
         if _reported_xfrm_if_id(xfrm) != peer["xfrm_if_id"]:
-            raise RuntimeError(f"{peer['node']} XFRM interface ID 42 is missing")
-        address = _exec(docker, peer["container"], "ip", "-o", "-4", "address", "show", "dev", "xfrm0").stdout
+            raise RuntimeError(f"{peer['node']} XFRM interface ID {peer['xfrm_if_id']} is missing on {interface}")
+        address = _exec(docker, peer["container"], "ip", "-o", "-4", "address", "show", "dev", interface).stdout
         if peer["address"] not in address:
-            raise RuntimeError(f"{peer['node']} is missing {peer['address']} on xfrm0")
+            raise RuntimeError(f"{peer['node']} is missing {peer['address']} on {interface}")
         rules = _exec(docker, peer["container"], "nft", "list", "chain", "inet", "netlab_ipsec_mss", "forward").stdout
-        if "1360" not in rules or "xfrm0" not in rules:
+        if "1360" not in rules or interface not in rules:
             raise RuntimeError(f"{peer['node']} TCP MSS clamp is missing")
 
     _traffic(docker, hq, "probe", hq["peer_address"], expect="down")
     for peer in (hq, br1):
         _run(docker, "exec", "-d", peer["container"], "sh", "-c", f"swanctl --log >{CHARON_LOG} 2>&1")
-    _prepare_capture(docker, isp)
+    _prepare_capture(docker, isp, capture)
     initiate = _exec(
-        docker, hq["container"], "swanctl", "--initiate", "--child", "site-overlay", check=False
+        docker, hq["container"], "swanctl", "--initiate", "--child", connection, check=False
     )
     if initiate.returncode:
         charon_log = "\n".join(
@@ -209,7 +262,7 @@ def _verify_site(docker: str, hq: dict[str, Any], br1: dict[str, Any], isp: str)
     _traffic(docker, hq, "probe", hq["peer_address"], size=1372, expect="up", count=2)
     oversize = _exec(
         docker, hq["container"], "python3", "/tmp/netlab-ipsec-traffic.py", "probe", hq["peer_address"],
-        "--count", "1", "--size", "1373", "--timeout", "0.5", "--interval", "0", "--expect", "up",
+        "--interface", hq["xfrm_interface"], "--count", "1", "--size", "1373", "--timeout", "0.5", "--interval", "0", "--expect", "up",
         check=False,
     )
     if oversize.returncode == 0:
@@ -220,7 +273,7 @@ def _verify_site(docker: str, hq: dict[str, Any], br1: dict[str, Any], isp: str)
     stream = subprocess.Popen(
         [
             docker, "exec", hq["container"], "python3", "/tmp/netlab-ipsec-traffic.py", "stream", hq["peer_address"],
-            "--count", "80", "--size", "32", "--timeout", "0.5", "--interval", "0.1",
+            "--interface", hq["xfrm_interface"], "--count", "80", "--size", "32", "--timeout", "0.5", "--interval", "0.1",
         ],
         text=True,
         stdout=subprocess.PIPE,
@@ -228,7 +281,7 @@ def _verify_site(docker: str, hq: dict[str, Any], br1: dict[str, Any], isp: str)
     )
     time.sleep(0.4)
     rekey_started = time.monotonic()
-    _exec(docker, hq["container"], "swanctl", "--rekey", "--child", "site-overlay")
+    _exec(docker, hq["container"], "swanctl", "--rekey", "--child", connection)
     rekey_duration = time.monotonic() - rekey_started
     stdout, stderr = stream.communicate(timeout=15)
     if stream.returncode:
@@ -241,11 +294,11 @@ def _verify_site(docker: str, hq: dict[str, Any], br1: dict[str, Any], isp: str)
     if stream_result["received"] < 70:
         raise RuntimeError(f"rekey stream received only {stream_result['received']}/80 probes")
 
-    _exec(docker, hq["container"], "swanctl", "--terminate", "--ike", "site-overlay")
+    _exec(docker, hq["container"], "swanctl", "--terminate", "--ike", connection)
     _wait_sa(docker, hq, False)
     _wait_sa(docker, br1, False)
     _traffic(docker, hq, "probe", hq["peer_address"], expect="down")
-    _exec(docker, hq["container"], "swanctl", "--initiate", "--child", "site-overlay")
+    _exec(docker, hq["container"], "swanctl", "--initiate", "--child", connection)
     _wait_sa(docker, hq, True)
     _wait_sa(docker, br1, True)
     _traffic(docker, hq, "probe", hq["peer_address"], expect="up")
@@ -261,6 +314,7 @@ def _verify_site(docker: str, hq: dict[str, Any], br1: dict[str, Any], isp: str)
 
     return {
         "site_pair": [hq["site"], br1["site"]],
+        "connection": connection,
         "ike_child_sa": "pass",
         "xfrm_peer_traffic_only_with_sa": "pass",
         "xfrm_mtu": 1400,
@@ -279,13 +333,13 @@ def main() -> int:
     parser.add_argument("--docker", default="docker")
     args = parser.parse_args()
     try:
-        plan = build_plan(load_inventory(args.inventory))
-        hq = next(peer for peer in plan["peers"] if peer["site"] == "hq")
-        br1 = next(peer for peer in plan["peers"] if peer["site"] == "br1")
-        isp = f"clab-{LAB_NAME}-isp1-core-1"
+        data = load_inventory(args.inventory)
+        hq, br1 = primary_overlay(build_plan(data))
+        isp = f"clab-{LAB_NAME}-{PRIMARY_PROVIDER}"
+        capture = capture_interfaces(data, PRIMARY_PROVIDER, (hq["node"], br1["node"]))
         _write_remote(args.docker, hq["container"], "/tmp/netlab-ipsec-traffic.py", TRAFFIC_SCRIPT.read_bytes(), "0700")
         _write_remote(args.docker, br1["container"], "/tmp/netlab-ipsec-traffic.py", TRAFFIC_SCRIPT.read_bytes(), "0700")
-        result = _verify_site(args.docker, hq, br1, isp)
+        result = _verify_site(args.docker, hq, br1, isp, capture)
         print(json.dumps(result, indent=2))
     except (OSError, ValueError, KeyError, StopIteration, subprocess.CalledProcessError, TimeoutError, RuntimeError) as exc:
         print(f"IPsec live acceptance failed: {exc}", file=sys.stderr)

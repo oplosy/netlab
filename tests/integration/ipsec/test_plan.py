@@ -106,3 +106,51 @@ def test_ping_socket_request_has_linux_icmp_echo_header() -> None:
     assert packet[2:4] == b"\x00\x00"
     assert packet[4:8] == b"\x00\x00\x00\x07"
     assert packet[8:] == b"payload"
+
+
+def test_live_measurement_targets_the_primary_hq_br1_overlay() -> None:
+    from measure import capture_interfaces, primary_overlay
+
+    data = load_inventory()
+    hq, br1 = primary_overlay(build_plan(data))
+
+    assert (hq["node"], br1["node"]) == ("hq-edge-1", "br1-edge-1")
+    assert hq["connection"] == br1["connection"] == "site-overlay-hq_br1_xfrm"
+    assert hq["xfrm_interface"] == "xfrm0"
+    assert capture_interfaces(data, "isp1-core-1", (hq["node"], br1["node"])) == [
+        "eth1",
+        "eth2",
+    ]
+
+
+def test_sa_state_requires_an_installed_child_of_the_named_connection() -> None:
+    from measure import sa_state
+
+    connection = "site-overlay-hq_br1_xfrm"
+    installed = (
+        "site-overlay-hq_br1_xfrm: #3, ESTABLISHED, IKEv2, 1a2b_i* 3c4d_r\n"
+        "  local  'hq-edge-1.netlab' @ 203.0.113.129[4500]\n"
+        "  AES_GCM_16-256/PRF_HMAC_SHA2_384/ECP_384\n"
+        "  site-overlay-hq_br1_xfrm: #5, reqid 1, INSTALLED, TUNNEL, "
+        "ESP:AES_GCM_16-256/ECP_384\n"
+    )
+    ike_only = installed.split("  site-overlay-hq_br1_xfrm: #5")[0]
+    other = installed.replace("hq_br1_xfrm", "hq_br2_xfrm")
+
+    assert sa_state(installed, connection) == (True, True)
+    assert sa_state(ike_only, connection) == (True, False)
+    assert sa_state(other, connection) == (False, False)
+    assert sa_state("", connection) == (False, False)
+
+
+def test_every_overlay_is_initiated_once_from_its_hq_edge() -> None:
+    from establish import initiators
+
+    plan = build_plan(load_inventory())
+    pairs = {(peer["node"], peer["connection"]) for peer in initiators(plan)}
+
+    assert pairs == {
+        ("hq-edge-1", "site-overlay-hq_br1_xfrm"),
+        ("hq-edge-2", "site-overlay-hq_br1_edge2_xfrm"),
+        ("hq-edge-1", "site-overlay-hq_br2_xfrm"),
+    }
