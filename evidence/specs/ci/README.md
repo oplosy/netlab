@@ -27,6 +27,13 @@ Negative cases (temporary inputs outside the tracked tree):
 | Extra test asserting `1 == 2` | `ci-test` failed |
 | Untracked file with an unused import | `ci-lint` failed with `F401` |
 
+## GitHub readback: 2026-09-28
+
+- Pull request oplosy/netlab#6, workflow run `36385564553`, job `policy` on
+  `ubuntu-24.04`: **success**.
+- uv 0.12.0 on Python 3.12.3; inventory valid; ruff clean; 78 tests passed,
+  2 live tests skipped.
+
 ## Not enforced yet
 
 Style rules (E7) and `ruff format` are not enforced. The compact evidence
