@@ -389,7 +389,7 @@ tasks:
     phase: phase-5
     stretch: true
     title: Build the NetBox intent projection
-    status: planned
+    status: complete
     depends_on: [EDGE-430]
     acceptance:
       - "An empty NetBox database is seeded from Git intent"
@@ -402,7 +402,7 @@ tasks:
     phase: phase-5
     stretch: true
     title: Generate Ansible inventory and configurations
-    status: planned
+    status: complete
     depends_on: [AUTO-510]
     acceptance:
       - "Generated inventory matches validated Git intent and NetBox projection"
