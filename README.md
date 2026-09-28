@@ -10,11 +10,13 @@ advanced network automation.
 
 ## Project status
 
-The Phase 1 lab is implemented and integrated on `integration/phase-1`. Its
-latest full acceptance run passed 23 required stages and all 25 quantitative
-thresholds. The operational procedure is in the [Phase 1 runbook](docs/runbooks/phase-1.md),
-and the [curated acceptance report](evidence/reports/phase-1.md) records the
-verified results and limits.
+Phases 0 to 3 are complete and merged: HQ, two branches, and two simulated
+ISPs with switching, routing, IPsec, services, security, and telemetry. The
+curated acceptance reports are in [evidence/reports](evidence/reports), and
+the operational procedure is in the [Phase 1 runbook](docs/runbooks/phase-1.md).
+
+Next: a CI quality gate (`CI-050`) and Phase 4 (SecureEdge). Phase 5 (network
+automation) is a stretch goal.
 
 ## Locked baseline
 
@@ -34,6 +36,6 @@ See [architecture overview](docs/architecture/overview.md),
 
 ## Delivery rule
 
-`main` is never a working branch and is never pushed to directly. Each bounded
-task runs in its own branch and worktree. A phase is delivered through a pull
-request from its integration branch to `main`.
+`main` is never pushed to directly. Each phase is built on one
+`phase/<n>-<slug>` branch and delivered through one pull request. See the
+[delivery workflow](docs/plans/workflow.md).

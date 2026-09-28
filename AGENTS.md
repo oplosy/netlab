@@ -1,54 +1,33 @@
-# Agent Operating Contract
+# Contributor Contract
 
 These rules apply to every AI or human contributor in this repository.
+The delivery workflow is described in `docs/plans/workflow.md` (ADR 0016).
 
-## Authority and architecture
+## Architecture
 
-1. Read `docs/architecture/overview.md`, `docs/adr/README.md`, and the assigned
-   task packet before changing files.
-2. Accepted ADRs are constraints. Do not silently replace a technology,
-   addressing block, protocol boundary, or security policy.
-3. If an accepted decision must change, stop implementation and create a
-   superseding ADR. Do not mix an architecture change into an implementation
-   task.
-4. Implement only the assigned task. Do not add adjacent features.
+1. Read `docs/architecture/overview.md` and `docs/adr/README.md` before
+   changing files.
+2. Accepted ADRs are constraints. Changing one requires a superseding ADR in
+   its own commit; do not mix an architecture change into implementation.
+3. Implement only the current task from `plans/tasks.yaml`. Do not add
+   adjacent features.
 
-## Git isolation
+## Git
 
 1. Never commit or push directly to `main`.
-2. One task equals one branch and one worktree.
-3. Create task branches from the phase integration branch, not from another
-   worker branch.
-4. The orchestrator is the only writer to the phase integration branch.
-5. Do not merge, rebase, reset, or delete another worker's branch or worktree.
-6. Use atomic commits with `<type>(<task-id>): <summary>` messages.
-7. Before handoff, report the commit SHA, upstream branch, verification results,
-   and `git status --short` output.
+2. Work on `phase/<n>-<slug>` created from `main`. One phase, one branch, one
+   pull request, merged before the next phase starts.
+3. Commit messages: `<type>(<task-id>): <summary>`, one task concern per commit.
 
-## Implementation quality
+## Quality
 
-1. Do not use floating container tags. Pin versions and record resolved image
-   digests in the version lock file created by the environment task.
+1. Pin versions; no floating container tags. Record resolved image digests in
+   the version lock file.
 2. Never commit credentials, private keys, generated certificates, packet
    captures containing secrets, or local `.env` files.
-3. Configuration must be idempotent. Running the documented apply command twice
-   must not cause a second material change.
-4. Every behavior change requires an automated verification or an executable
-   evidence procedure in the same task.
-5. Negative security tests are mandatory: prove denied traffic is denied, not
-   only that allowed traffic works.
-6. Generated files must identify their source. Do not hand-edit generated
-   artifacts.
-
-## Worker handoff
-
-Return exactly these sections to the orchestrator:
-
-1. `Outcome`
-2. `Files changed`
-3. `Commands run and results`
-4. `Evidence produced`
-5. `Commit and branch`
-6. `Risks or follow-ups`
-
-Do not claim live verification when a command was not run successfully.
+3. Apply commands are idempotent: a second run causes no material change.
+4. Every behavior change ships with automated verification or an evidence
+   target. Security changes include negative tests that prove denied traffic
+   is denied.
+5. Generated files identify their source and are not edited by hand.
+6. Report only verification that actually ran.
