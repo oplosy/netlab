@@ -14,7 +14,7 @@ ADR, but existing files are not edited to erase decision history.
 | [0007](0007-route-based-ipsec.md) | Certificate-based route-based IPsec | Accepted |
 | [0008](0008-management-and-security.md) | Separate OOB management and default-deny zones | Accepted |
 | [0009](0009-observability-stack.md) | Correlated metrics, logs, flows, and captures | Accepted |
-| [0010](0010-source-of-truth-and-orchestration.md) | Git intent, Ansible execution, agent worktrees; delivery part superseded by ADR 0016 | Accepted (partly superseded) |
+| [0010](0010-source-of-truth-and-orchestration.md) | Git intent, Ansible execution, agent worktrees; delivery part superseded by ADR 0016, execution clause by ADR 0019 | Accepted (partly superseded) |
 | [0011](0011-development-and-test-toolchain.md) | Python, Ansible, Make, pytest, and GitHub Actions | Accepted |
 | [0012](0012-agent-model-mapping.md) | GPT-6 Sol orchestrator and GPT-6 Luna workers; supersedes only the model recommendation in ADR 0010 | Superseded by ADR 0016 |
 | [0013](0013-linux-bonding-under-ovs-rstp.md) | Linux 802.3ad bonds beneath OVS RSTP | Accepted |
@@ -23,6 +23,7 @@ ADR, but existing files are not edited to erase decision history.
 | [0016](0016-simplified-delivery-workflow.md) | One branch and one pull request per phase; Phase 5 is a stretch goal | Accepted |
 | [0017](0017-hq-secure-edge-firewall-tier.md) | Routed SecureEdge firewall between HQ distribution and edges | Accepted |
 | [0018](0018-inline-suricata-ips.md) | Inline Suricata IPS on the HQ firewall, fail closed | Accepted |
+| [0019](0019-ansible-orchestration-python-engine.md) | Ansible orchestrates, Python renders/applies, NetBox projects intent; supersedes the execution clause of ADR 0010 | Accepted |
 
 ## Status values
 
