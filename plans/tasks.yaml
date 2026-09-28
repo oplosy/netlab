@@ -429,7 +429,7 @@ tasks:
     phase: phase-5
     stretch: true
     title: Add a bounded topology smoke test to CI
-    status: planned
+    status: complete
     depends_on: [AUTO-530]
     acceptance:
       - "Render and drift checks are added to the CI-050 quality gate"

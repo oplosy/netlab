@@ -1,0 +1,18 @@
+{
+  "source": "GitHub Actions readback (gh pr checks 10, gh run view --log)",
+  "workflow": ".github/workflows/pull-request-policy.yml",
+  "run": "https://github.com/oplosy/netlab/actions/runs/36451965106",
+  "head_commit": "1aee8a8",
+  "checks": {
+    "policy": {"conclusion": "pass", "duration": "20s", "gate": "make ci-static"},
+    "topology-smoke": {
+      "conclusion": "pass",
+      "duration": "1m4s",
+      "containerlab": "0.77.0 (checksum-pinned .deb)",
+      "result_line": "topology smoke: PASS (2 routers, FRR up, link ICMP ok, limits 0.5 CPU/512MB) in 1s",
+      "bounds": {"job_timeout_minutes": 30, "smoke_timeout_seconds": 300, "node_cpu": 0.5, "node_memory": "512MB"}
+    }
+  },
+  "credentials_required": false,
+  "result": "PASS"
+}
