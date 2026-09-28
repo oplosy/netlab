@@ -377,7 +377,7 @@ tasks:
   - id: EDGE-430
     phase: phase-4
     title: Correlate SecureEdge decisions with network evidence
-    status: planned
+    status: complete
     depends_on: [EDGE-420]
     acceptance:
       - "Firewall decision, IDS alert, packet, and IPFIX record share the run ID"

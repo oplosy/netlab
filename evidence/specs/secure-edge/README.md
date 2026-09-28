@@ -41,11 +41,39 @@ Permitted-flow probes run from a real guest client: `hq-fw-1` reaches the
 guest subnet over ECMP, so a reply to a distribution-SVI source can land on
 the other distribution router, which has no connection state for it.
 
+## EDGE-430 correlated SecureEdge evidence
+
+Command: `make evidence-phase-4`. Report: [`../../reports/phase-4.md`](../../reports/phase-4.md).
+Summary without payloads: [`edge430-latest.json`](edge430-latest.json). Full records,
+the capture, and the nft trace stay in `artifacts/runs/phase-4/<run-id>/`.
+
+One run ID covers three probes. The run ID is carried in each probe payload,
+and every record is joined by the run ID and the flow key:
+
+| Record | Source |
+|---|---|
+| Firewall decision | `nft monitor trace` on `hq-fw-1`, for the probe clients only (verdict `queue` or `drop` of the `netlab_sec170` forward chain) |
+| IDS event | Suricata `eve.json` on `hq-fw-1` |
+| Packet | AF_PACKET capture on the `hq-fw-1` distribution-facing interfaces |
+| IPFIX record | OVS on `hq-access-1` → GoFlow2 in the observability stack (sampling 1 during the run, then restored to 400) |
+
+| Case | Firewall | IDS | Outcome |
+|---|---|---|---|
+| allowed (guest DNS `<run>.ids-test.netlab`) | queue | sid 9420001 `allowed` | answered |
+| ips-blocked (guest DNS `<run>.ips-block.netlab`) | queue | sid 9420002 `blocked` | no answer |
+| fw-blocked (users ICMP to Branch 1 servers) | drop | none (denied before the IPS) | no reply |
+
+The firewall-denied case uses a flow that the distribution SEC-170 policy
+permits and only `hq-fw-1` denies. A guest probe to a non-DNS port would be
+denied earlier, at the distribution, and would never reach the tier.
+
 ## Limits
 
 - `hq-fw-1` is a single point of failure for HQ WAN and inter-site traffic,
   as accepted in ADR 0017.
 - A Suricata outage isolates HQ from the WAN until it restarts (fail closed,
   ADR 0018). Suricata does not restart itself; the security apply restarts it.
-- Firewall logs, counters, and Suricata `eve.json` alerts are not yet shipped
-  to the observability stack; that correlation is EDGE-430.
+- Correlation is produced by the evidence run (nft trace, eve.json, capture,
+  GoFlow2 file). Firewall decisions and Suricata events are not streamed into
+  Loki continuously. Kernel `log` lines from `hq-fw-1` additionally need
+  `net.netfilter.nf_log_all_netns=1`, which is not required for this evidence.
