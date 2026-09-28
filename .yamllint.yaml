@@ -6,6 +6,8 @@ ignore: |
   .venv/
   .venv-*/
   artifacts/
+  clab-*/
+  lab/clab-*/
   lab/*.clab.yml
   observability/snmp-if_mib.yml
 
