@@ -84,17 +84,47 @@ def _linked_peer(
     return result
 
 
+def _oob_ipsec_guard(direction: str) -> list[str]:
+    """Drop and count IKE and ESP on the OOB interface (ADR 0008).
+
+    Overlays run only on the public underlay. The guard precedes the
+    established/related accept because the output chain accepts, so IKE or ESP
+    originated on eth0 by both ends would otherwise admit the replies.
+    """
+    match = f'{direction}name "eth0"'
+    return [
+        f"{match} udp dport {{ 500, 4500 }} counter drop",
+        f"{match} udp sport {{ 500, 4500 }} counter drop",
+        f"{match} ip protocol esp counter drop",
+    ]
+
+
 def _drop_chain(
-    node_id: str, chain: str, rules: list[str], hook: str, tag: str = "SEC170"
+    node_id: str,
+    chain: str,
+    rules: list[str],
+    hook: str,
+    tag: str = "SEC170",
+    guard: list[str] | None = None,
 ) -> list[str]:
     return [
         f"  chain {chain} {{",
         f"    type filter hook {hook} priority -10; policy drop;",
+        *(f"    {rule}" for rule in guard or []),
         "    ct state established,related counter accept",
         *rules,
         f'    limit rate 10/second burst 20 packets log prefix "{tag}|{node_id}|{chain}|deny " level warn',
         "    ct state invalid counter drop",
         "    counter drop",
+        "  }",
+    ]
+
+
+def _guarded_output() -> list[str]:
+    return [
+        "  chain output {",
+        "    type filter hook output priority -10; policy accept;",
+        *(f"    {rule}" for rule in _oob_ipsec_guard("oif")),
         "  }",
     ]
 
@@ -334,9 +364,11 @@ def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
     )
     inet_table = [
         "table inet netlab_sec170 {",
-        *_drop_chain(node["id"], "input", input_rules, "input"),
+        *_drop_chain(
+            node["id"], "input", input_rules, "input", guard=_oob_ipsec_guard("iif")
+        ),
         *_drop_chain(node["id"], "forward", forward_rules, "forward"),
-        "  chain output { type filter hook output priority -10; policy accept; }",
+        *_guarded_output(),
         "}",
         "",
     ]
@@ -401,9 +433,11 @@ def _render_secondary_edge(data: dict[str, Any], node: dict[str, Any]) -> str:
     return "\n".join(
         [
             "table inet netlab_sec170 {",
-            *_drop_chain(node["id"], "input", input_rules, "input"),
+            *_drop_chain(
+                node["id"], "input", input_rules, "input", guard=_oob_ipsec_guard("iif")
+            ),
             "  chain forward { type filter hook forward priority -10; policy drop; }",
-            "  chain output { type filter hook output priority -10; policy accept; }",
+            *_guarded_output(),
             "}",
             "",
         ]
