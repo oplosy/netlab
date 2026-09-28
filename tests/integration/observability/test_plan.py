@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "automation" / "roles" / "observability"))
+
+import prepare  # noqa: E402
+from targets import snmp_nodes  # noqa: E402
 
 
 def read_inventory() -> dict:
@@ -24,18 +30,47 @@ def test_stack_images_are_version_locked_and_share_oob_namespace() -> None:
         assert "ports" not in service
 
 
-def test_snmp_targets_cover_every_infrastructure_oob_node() -> None:
+def test_snmp_nodes_are_every_infrastructure_oob_node() -> None:
     inventory = read_inventory()
     expected = {
-        node["oob"].split("/")[0]
+        node["id"]: node["oob"].split("/")[0]
         for node in inventory["nodes"]
-        if node.get("role") in {"edge", "dist", "access", "isp"}
+        if node.get("role") in {"edge", "dist", "access", "isp", "firewall"}
     }
+    assert snmp_nodes(inventory) == expected
+    assert snmp_nodes()["hq-fw-1"] == "172.31.255.35"
+    assert len(set(expected.values())) == len(expected)
+
+
+def test_prometheus_snmp_targets_match_snmp_nodes() -> None:
     config = yaml.safe_load((ROOT / "observability/prometheus.yml").read_text(encoding="utf-8"))
-    targets = set(config["scrape_configs"][0]["static_configs"][0]["targets"])
-    assert targets == expected
+    targets = config["scrape_configs"][0]["static_configs"][0]["targets"]
+    assert config["scrape_configs"][0]["job_name"] == "snmp"
+    assert sorted(targets) == sorted(snmp_nodes().values())
     assert config["scrape_configs"][0]["params"] == {"auth": ["netlab"], "module": ["if_mib"]}
     assert config["scrape_configs"][1]["static_configs"][0]["targets"] == ["127.0.0.1:6060"]
+
+
+def test_prepare_renders_one_agent_sidecar_per_snmp_node(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(prepare, "RUNTIME", tmp_path)
+    prepare.render()
+    services = yaml.safe_load((tmp_path / "compose.agents.yaml").read_text(encoding="utf-8"))["services"]
+    expected = snmp_nodes()
+    assert set(services) == {f"snmp-agent-{node}" for node in expected}
+    for node, address in expected.items():
+        service = services[f"snmp-agent-{node}"]
+        assert service["command"] == [node, address]
+        assert service["network_mode"] == f"container:clab-netlab-phase-1-{node}"
+        assert (tmp_path / "agents" / f"{node}.conf").is_file()
+    assert sum("build" in service for service in services.values()) == 1
+
+
+def test_live_acceptance_derives_expected_snmp_targets() -> None:
+    source = (ROOT / "tests/integration/observability/acceptance.py").read_text(encoding="utf-8")
+    assert "from targets import snmp_nodes" in source
+    assert "len(snmp_targets) != 9" not in source
 
 
 def test_service_intent_exposes_only_required_observability_ingress() -> None:

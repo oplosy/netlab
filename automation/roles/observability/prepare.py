@@ -10,24 +10,10 @@ import stat
 from pathlib import Path
 
 import yaml
+from targets import snmp_nodes
 
 ROOT = Path(__file__).resolve().parents[3]
 RUNTIME = ROOT / "artifacts" / "observability"
-AGENT_NODES = {
-    "isp1-core-1": "172.31.255.20",
-    "hq-edge-1": "172.31.255.30",
-    "hq-dist-1": "172.31.255.31",
-    "hq-dist-2": "172.31.255.32",
-    "hq-access-1": "172.31.255.33",
-    "br1-edge-1": "172.31.255.50",
-    "br1-dist-1": "172.31.255.51",
-    "br1-dist-2": "172.31.255.52",
-    "br1-access-1": "172.31.255.53",
-    "br2-edge-1": "172.31.255.70",
-    "br2-dist-1": "172.31.255.71",
-    "br2-dist-2": "172.31.255.72",
-    "br2-access-1": "172.31.255.73",
-}
 
 
 def mode_600(path: Path, content: str) -> None:
@@ -72,7 +58,7 @@ def render(check: bool = False) -> list[Path]:
         f"GRAFANA_ADMIN_PASSWORD={credentials['grafana_admin_password']}\n"
     )
     services: dict[str, dict[str, object]] = {}
-    for node, address in AGENT_NODES.items():
+    for node, address in snmp_nodes().items():
         (RUNTIME / "agents" / node / "var-lib-snmp").mkdir(parents=True, exist_ok=True)
         config = RUNTIME / "agents" / f"{node}.conf"
         users_config = RUNTIME / "agents" / f"{node}.users.conf"
