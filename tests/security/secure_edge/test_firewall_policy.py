@@ -80,7 +80,11 @@ def test_firewall_policy_fails_closed_and_logs_denies() -> None:
         assert f'log prefix "EDGE410|{FIREWALL}|{chain}|deny "' in policy
     rules = _forward_rules(policy)
     assert rules[-1] == "counter drop"
-    assert "ct state established,related counter accept" in rules
+    # EDGE-420 (ADR 0018): permitted traffic, established included, is queued
+    # to Suricata instead of accepted, and never with the bypass flag.
+    assert "ct state established,related counter queue num 0" in rules
+    assert not any(rule.endswith("counter accept") for rule in rules), rules
+    assert not any("bypass" in rule for rule in rules), rules
 
 
 def test_firewall_forward_allowlist_matches_hq_edge_intent() -> None:
@@ -88,7 +92,7 @@ def test_firewall_forward_allowlist_matches_hq_edge_intent() -> None:
     rules = [
         rule
         for rule in _forward_rules(policy)
-        if rule.endswith("accept") and "ct state" not in rule
+        if rule.endswith("counter queue num 0") and "ct state" not in rule
     ]
     # Guests reach only simulated DNS and NTP.
     guest = [rule for rule in rules if "10.10.30.0/24" in rule]
@@ -129,7 +133,10 @@ def test_firewall_boots_with_forwarding_disabled() -> None:
     assert "sysctls:" in entry and "net.ipv4.ip_forward: 0" in entry, entry
     source = (ROOT / "config" / "security" / "apply.py").read_text(encoding="utf-8")
     apply_body = source.split("def apply(", 1)[1].split("\ndef ", 1)[0]
-    # Forwarding is enabled only after the firewall table is loaded and listed.
-    assert apply_body.index('if role == "firewall":') > apply_body.index(
-        '"nft", "list", "table", "inet", "netlab_sec170"'
+    # Suricata is attached before the queueing policy loads, and forwarding is
+    # enabled only after the firewall table is loaded and listed.
+    listed = apply_body.index('"nft", "list", "table", "inet", "netlab_sec170"')
+    assert apply_body.index("_ensure_suricata(docker, container)") < apply_body.index(
+        "for family, content in tables.items():"
     )
+    assert apply_body.rindex('"net.ipv4.ip_forward=1"') > listed

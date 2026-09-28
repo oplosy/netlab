@@ -8,6 +8,7 @@ import ipaddress
 import json
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,9 @@ PHYSICAL_KINDS = {"routed", "ebgp", "l2", "access"}
 SIM_DNS = "203.0.113.10"
 SIM_NTP = "203.0.113.11"
 OOB_PREFIX = "172.31.255.0/24"
+IPS_QUEUE = 0
+IPS_QUEUE_VERDICT = f"counter queue num {IPS_QUEUE}"
+SURICATA_RULES = ROOT / "secure-edge" / "suricata" / "rules" / "netlab-local.rules"
 
 
 def load_inventory(path: Path = INVENTORY) -> dict[str, Any]:
@@ -560,11 +564,18 @@ def _render_firewall(data: dict[str, Any], node: dict[str, Any]) -> str:
         f"{to_outside} ip saddr {services['dns']} ip daddr {SIM_DNS} tcp dport 53 counter accept",
         f"{to_outside} ip saddr {services['ntp']} ip daddr {SIM_NTP} udp dport 123 counter accept",
     ]
+    # EDGE-420 (ADR 0018): every permitted forward verdict, including
+    # established traffic, goes to the inline Suricata on queue 0. Without the
+    # bypass flag the kernel drops queued packets when Suricata is absent.
+    forward_chain = [
+        line.replace("counter accept", IPS_QUEUE_VERDICT)
+        for line in _drop_chain(node["id"], "forward", forward_rules, "forward", "EDGE410")
+    ]
     return "\n".join(
         [
             "table inet netlab_sec170 {",
             *_drop_chain(node["id"], "input", input_rules, "input", "EDGE410"),
-            *_drop_chain(node["id"], "forward", forward_rules, "forward", "EDGE410"),
+            *forward_chain,
             "  chain output { type filter hook output priority -10; policy accept; }",
             "}",
             "",
@@ -692,6 +703,64 @@ def _write_in_container(
             source.unlink(missing_ok=True)
 
 
+SURICATA_RULES_DEST = "/etc/netlab/suricata/netlab-local.rules"
+SURICATA_PIDFILE = "/run/suricata.pid"
+SURICATA_ARGS = [
+    "suricata",
+    "-c", "/etc/suricata/suricata.yaml",
+    "-S", SURICATA_RULES_DEST,
+    "-q", str(IPS_QUEUE),
+    "-k", "none",
+    "-l", "/var/log/suricata",
+]
+
+
+def _suricata_bound(docker: str, container: str) -> bool:
+    queues = _run(
+        docker, container, "cat", "/proc/net/netfilter/nfnetlink_queue", check=False
+    ).stdout
+    return any(line.split()[:1] == [str(IPS_QUEUE)] for line in queues.splitlines())
+
+
+def _ensure_suricata(docker: str, container: str) -> None:
+    """Run inline Suricata on the IPS queue with the curated local rules (ADR 0018).
+
+    Idempotent: an unchanged rule file on a running, bound engine is a no-op.
+    """
+    _run(docker, container, "mkdir", "-p", "/etc/netlab/suricata", "/var/log/suricata")
+    staged = "/tmp/netlab-local.rules"
+    _write_in_container(docker, container, staged, "", source=SURICATA_RULES)
+    changed = (
+        _run(docker, container, "cmp", "-s", staged, SURICATA_RULES_DEST, check=False).returncode
+        != 0
+    )
+    if changed:
+        _run(
+            docker, container,
+            "suricata", "-T", "-c", "/etc/suricata/suricata.yaml", "-S", staged, "-k", "none",
+        )
+        _run(docker, container, "cp", staged, SURICATA_RULES_DEST)
+    pid = _run(
+        docker,
+        container,
+        "sh",
+        "-c",
+        f'test -s {SURICATA_PIDFILE} && kill -0 "$(cat {SURICATA_PIDFILE})" && cat {SURICATA_PIDFILE}',
+        check=False,
+    ).stdout.strip()
+    if not pid:
+        _run(docker, container, "rm", "-f", SURICATA_PIDFILE)
+        _run(docker, container, *SURICATA_ARGS, "-D", "--pidfile", SURICATA_PIDFILE)
+    elif changed:
+        # SIGUSR2 reloads rules without detaching from the queue.
+        _run(docker, container, "kill", "-USR2", pid)
+    deadline = time.monotonic() + 60
+    while not _suricata_bound(docker, container):
+        if time.monotonic() > deadline:
+            raise RuntimeError(f"{container}: Suricata did not bind NFQUEUE {IPS_QUEUE}")
+        time.sleep(0.5)
+
+
 def apply(
     data: dict[str, Any],
     docker: str = "docker",
@@ -711,6 +780,10 @@ def apply(
             if forwarding != "1":
                 _run(docker, container, "sysctl", "-w", "net.ipv4.ip_forward=1")
         _run(docker, container, "mkdir", "-p", "/run/netlab")
+        if role == "firewall":
+            # The firewall policy queues permitted traffic to Suricata; start
+            # the engine first so loading the policy never blackholes HQ.
+            _ensure_suricata(docker, container)
         for family, content in tables.items():
             table_name = "netlab_sec170_nat" if family == "nat" else "netlab_sec170"
             table_family = "ip" if family == "nat" else "inet"

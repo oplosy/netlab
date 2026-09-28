@@ -173,7 +173,9 @@ def check_corporate_icmp() -> list[dict[str, Any]]:
         accepted = sum(
             after[rule] - before.get(rule, 0)
             for rule in after
-            if "ip protocol icmp" in rule and rule.endswith("counter accept")
+            # Permitted verdicts queue to the inline IPS (ADR 0018); nft lists
+            # the rendered "queue num 0" as "queue to 0".
+            if "ip protocol icmp" in rule and rule.endswith("counter queue to 0")
         )
         denied = after["counter drop"] - before["counter drop"]
         assert accepted > 0, f"{source_site}->{destination_site} bypassed {FIREWALL}"
@@ -186,16 +188,27 @@ def check_corporate_icmp() -> list[dict[str, Any]]:
 
 def check_zone_policy(data: dict[str, Any]) -> list[dict[str, Any]]:
     edge_source = link_address(data, "hq-edge-1", FIREWALL)
+    results = []
+    # Permitted: guest DNS from a real guest client (see guest_dns).
+    before = deny_count()
+    replied = guest_dns(lease=True)
+    denied = deny_count() - before
+    assert replied, "guest DNS to simulated Internet: no answer"
+    assert denied == 0, f"guest DNS: {FIREWALL} dropped permitted traffic"
+    results.append(
+        {"case": "guest DNS to simulated Internet", "reply": True,
+         "firewall_denies": 0, "pass": True}
+    )
+    # Denied cases may originate on routers: they stop at the firewall, so
+    # the return path does not matter.
     cases = [
         # name, node, kind, source, target, port, expect reply, expect fw deny
-        ("guest DNS to simulated Internet", "hq-dist-1", "dns", "10.10.30.2", SIM_DNS, 53, True, False),
         ("outside ICMP to service zone", "hq-edge-1", "icmp", edge_source, "10.10.20.2", 0, False, True),
         ("outside ICMP to management zone", "hq-edge-1", "icmp", edge_source, "10.10.99.2", 0, False, True),
         ("inside TCP/80 to simulated Internet", "hq-dist-1", "tcp", "10.10.10.2", SIM_DNS, 80, False, True),
         ("guest ICMP to remote corporate users", "hq-dist-1", "icmp", "10.10.30.2", REMOTE_USERS_VIP, 0, False, True),
         ("management ICMP to remote users", "hq-dist-1", "icmp", "10.10.99.2", REMOTE_USERS_VIP, 0, False, True),
     ]
-    results = []
     for name, node, kind, source, target, port, want_reply, want_deny in cases:
         before = deny_count()
         replied = probe(node, kind, source, target, port)
@@ -211,9 +224,34 @@ def check_zone_policy(data: dict[str, Any]) -> list[dict[str, Any]]:
     return results
 
 
+GUEST_CLIENT = "hq-client-guest-1"
+
+
+def guest_dns(lease: bool = False) -> bool:
+    """Guest DNS from a DHCP-leased HQ guest client returns the test answer.
+
+    A distribution SVI source is not usable for permitted flows: hq-fw-1
+    reaches the guest subnet over ECMP and the reply may land on the other
+    distribution router, which has no conntrack state for it.
+    """
+    sec170 = _sec170_acceptance()
+    image = os.environ.get("NETLAB_SERVICE_IMAGE", "netlab/service:0.1.0")
+    if lease:
+        sec170.lease(GUEST_CLIENT, image)
+    try:
+        output = sec170.helper(
+            GUEST_CLIENT,
+            f"dig +time=2 +tries=1 @{SIM_DNS} www.internet.test A +short",
+            image,
+        )
+    except RuntimeError:  # dig exits non-zero when no answer arrives
+        return False
+    return "203.0.113.20" in output.split()
+
+
 def wan_reachable() -> bool:
-    """Guest DNS through the firewall, edge NAT, and ISP returns an answer."""
-    return probe("hq-dist-1", "dns", "10.10.30.2", SIM_DNS, 53)
+    """Guest DNS through the firewall, IPS, edge NAT, and ISP answers."""
+    return guest_dns()
 
 
 def branch_reaches_hq_clients() -> bool:
