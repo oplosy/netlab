@@ -40,7 +40,11 @@ def _exec(docker: str, node: str, *argv: str, check: bool = True) -> subprocess.
 
 def _wait_sa(docker: str, peer: dict[str, Any]) -> str:
     for _ in range(60):
-        result = _exec(docker, peer["node"], "swanctl", "--list-sas", check=False)
+        # Scope to this connection: HQ edges also terminate the Branch 2 overlay.
+        result = _exec(
+            docker, peer["node"], "swanctl", "--list-sas", "--ike", peer["connection"],
+            check=False,
+        )
         if result.returncode == 0 and "ESTABLISHED" in result.stdout and peer["connection"] in result.stdout:
             return result.stdout
         time.sleep(0.25)
@@ -131,14 +135,24 @@ def main() -> int:
     try:
         data = load_inventory()
         plan = build_plan(data)
-        peers = {peer["node"]: peer for peer in plan["peers"]}
+        # WAN-230 measures the two HQ-BR1 overlays. HQ edge-1 also terminates
+        # the Branch 2 overlay, so keying all peers by node would pick the
+        # wrong connection for hq-edge-1.
+        peers = {
+            peer["node"]: peer
+            for peer in plan["peers"]
+            if peer["connection"].startswith("site-overlay-hq_br1_")
+        }
         for peer in peers.values():
             container = f"clab-{LAB_NAME}-{peer['node']}"
             _write_remote(args.docker, container, "/tmp/netlab-ipsec-traffic.py", TRAFFIC_SCRIPT.read_bytes(), "0700")
 
         for node in ("hq-edge-1", "hq-edge-2"):
             peer = peers[node]
-            current = _exec(args.docker, node, "swanctl", "--list-sas", check=False)
+            current = _exec(
+                args.docker, node, "swanctl", "--list-sas", "--ike", peer["connection"],
+                check=False,
+            )
             established = (
                 current.returncode == 0
                 and "ESTABLISHED" in current.stdout
