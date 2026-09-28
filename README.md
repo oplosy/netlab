@@ -10,13 +10,19 @@ advanced network automation.
 
 ## Project status
 
-Phases 0 to 3 are complete and merged: HQ, two branches, and two simulated
-ISPs with switching, routing, IPsec, services, security, and telemetry. The
-curated acceptance reports are in [evidence/reports](evidence/reports), and
-the operational procedure is in the [Phase 1 runbook](docs/runbooks/phase-1.md).
+Phases 0 to 4 are complete and merged, which meets the project's definition
+of done (ADR 0016):
 
-Next: a CI quality gate (`CI-050`) and Phase 4 (SecureEdge). Phase 5 (network
-automation) is a stretch goal.
+- HQ, two branches, and two simulated ISPs with switching, routing, IPsec,
+  services, security, and telemetry (phases 0 to 3).
+- A static CI quality gate on every pull request (`make ci-static`).
+- SecureEdge at HQ: a routed firewall tier (ADR 0017), inline Suricata IPS that
+  fails closed (ADR 0018), and correlated firewall, IDS, packet, and IPFIX
+  evidence (`make evidence-phase-4`).
+
+The curated acceptance reports are in [evidence/reports](evidence/reports), and
+the operational procedure is in the [Phase 1 runbook](docs/runbooks/phase-1.md).
+Phase 5 (network automation) is a stretch goal.
 
 ## Locked baseline
 
