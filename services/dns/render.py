@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Render deterministic site-local BIND zones from inventory addresses."""
 from __future__ import annotations
+
 import argparse
 import hashlib
 import ipaddress

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Measure provider, edge, and IPsec tunnel failover for TEST-240."""
 from __future__ import annotations
+
 import argparse
 import ipaddress
 import json
@@ -9,10 +10,13 @@ import sys
 import time
 from pathlib import Path
 from typing import Any, Callable
+
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT))
-from config.ipsec.apply import LAB_NAME, build_plan as ipsec_plan, load_inventory
+from config.ipsec.apply import LAB_NAME, load_inventory
+from config.ipsec.apply import build_plan as ipsec_plan
 from config.routing.bgp.render import PRIMARY_PROVIDER, _interface_map
+
 LIMIT=10.0
 PROBE='203.0.113.10'
 def run(*args: str, check: bool=True, input_data: bytes|None=None) -> subprocess.CompletedProcess[str]:
@@ -68,9 +72,8 @@ def main()->int:
         # Pause the primary HQ edge. Check both directions select edge-2 and carry ICMP.
         hq_backup,_=link_ips(data,'hq-edge-2','hq-dist-1','routed'); br_backup,_=link_ips(data,'br1-edge-2','br1-dist-1','routed')
         run('docker','pause',box('hq-edge-1')); paused.append('hq-edge-1'); started=time.monotonic()
-        edge_times={
-          'hq':wait_all('HQ edge failover',{'route':lambda:f'{hq_backup}' in route('hq-dist-1','10.20.0.1')}),
-          'br1':wait_all('BR1 return route failover',{'route':lambda:f'{br_backup}' in route('br1-dist-1','10.10.0.1')})}
+        wait_all('HQ edge failover',{'route':lambda:f'{hq_backup}' in route('hq-dist-1','10.20.0.1')})
+        wait_all('BR1 return route failover',{'route':lambda:f'{br_backup}' in route('br1-dist-1','10.10.0.1')})
         edge_elapsed=round(time.monotonic()-started,3)
         pair_h=next(p for p in peers if p['node']=='hq-edge-2'); pair_b=next(p for p in peers if p['node']=='br1-edge-2')
         fwd=probe('hq-edge-2',pair_h['peer_address']); rev=probe('br1-edge-2',pair_b['peer_address'])

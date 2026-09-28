@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Render site-local Kea DHCPv4 configuration from the authoritative inventory."""
 from __future__ import annotations
+
 import argparse
 import ipaddress
 import json

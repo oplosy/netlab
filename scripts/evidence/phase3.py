@@ -2,8 +2,12 @@
 """Build Branch 2 and capture static plus live Phase 3 acceptance evidence."""
 
 from __future__ import annotations
-import os, subprocess, sys, time
+
+import os
 import re
+import subprocess
+import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 

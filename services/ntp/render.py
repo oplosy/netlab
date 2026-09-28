@@ -2,6 +2,7 @@
 """Render chrony configs restricted to inventory data-plane prefixes."""
 
 from __future__ import annotations
+
 import argparse
 import ipaddress
 import json

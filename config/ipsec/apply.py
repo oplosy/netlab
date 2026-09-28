@@ -84,7 +84,6 @@ def _render_swanctl(peer: dict[str, Any], remote: dict[str, Any]) -> str:
 
 
 def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]:
-    sites = {site["id"]: site for site in data["sites"]}
     edges = {node["id"]: node for node in data["nodes"] if node.get("role") == "edge"}
     peers: list[dict[str, Any]] = []
     xfrm_links = [link for link in data["links"] if link.get("kind") == "xfrm"]

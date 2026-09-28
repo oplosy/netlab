@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-import json
 import ipaddress
+import json
 import os
 import re
 import subprocess
@@ -207,7 +207,7 @@ def relay_ownership(site: str) -> None:
 
 def denied_flow(site: str, guest: str, target: str, image: str) -> None:
     gateway = f"{site}-dist-1"
-    guest_drop = f'iifname "vlan30" ip daddr {{'
+    guest_drop = 'iifname "vlan30" ip daddr {'
     oob_drop = 'iifname "vlan30" ip daddr 172.31.255.0/24'
     before_server = counter(gateway, guest_drop)
     before_oob = counter(gateway, oob_drop)
@@ -351,7 +351,7 @@ def main() -> int:
         relay_ownership(site)
         for suffix in ("client-users-1", "server-1", "client-guest-1"):
             client = f"{site}-{suffix}"
-            output = lease_and_bootstrap(site, client, image)
+            lease_and_bootstrap(site, client, image)
             print(f"{client}: DHCP options, internal/Internet DNS, NTP query: PASS")
             if suffix == "client-guest-1":
                 # The server target is the data address from its fresh lease.

@@ -18,7 +18,8 @@ from services.aaa.render import (
 )
 from services.dhcp.render import render as render_dhcp
 from services.dns.render import render_internet_zone, render_site
-from services.ntp.render import render_internet, render_site as render_ntp
+from services.ntp.render import render_internet
+from services.ntp.render import render_site as render_ntp
 
 INVENTORY = json.loads((ROOT / "inventory/inventory.yaml").read_text(encoding="utf-8"))
 

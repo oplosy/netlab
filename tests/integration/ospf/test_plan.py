@@ -149,8 +149,8 @@ def test_apply_enables_only_frr_ospf_and_bfd_daemons_idempotently() -> None:
         encoding="utf-8"
     )
     for daemon in ("ospfd", "bfdd"):
-        assert f'grep -qx "${{daemon}}=no" "$daemons"' in script
-        assert f'grep -qx "${{daemon}}=yes" "$daemons"' in script
+        assert 'grep -qx "${daemon}=no" "$daemons"' in script
+        assert 'grep -qx "${daemon}=yes" "$daemons"' in script
         assert f"pgrep -x {daemon}" in script
     assert "vtysh -f /tmp/netlab-ospf.conf" in script
     assert "ip route del default dev eth0" in script

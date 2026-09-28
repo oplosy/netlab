@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Render OOB-only FreeRADIUS files without persisting credentials in Git."""
 from __future__ import annotations
+
 import argparse
 import ipaddress
 import json

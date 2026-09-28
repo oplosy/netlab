@@ -90,7 +90,6 @@ def _wait_route(node_id: str, peer: str, interface: str, timeout: float = 20) ->
 def test_rendered_policy_prefers_isp1_and_prepares_isp2_backup() -> None:
     data = load_inventory()
     rendered = configs(data)
-    sites = {site["id"]: site for site in data["sites"]}
     sessions = _link_sessions(data)
 
     for edge_id, peers in sessions.items():
@@ -113,9 +112,9 @@ def test_rendered_policy_prefers_isp1_and_prepares_isp2_backup() -> None:
         assert "match ip address prefix-list ISP-DEFAULT" in config
         assert "set local-preference 200" in config
         assert "set local-preference 100" in config
-        assert f"route-map ISP1-OUT permit 10" in config
+        assert "route-map ISP1-OUT permit 10" in config
         assert f"match ip address prefix-list {site_id.upper()}-ENDPOINT" in config
-        assert f"route-map ISP2-OUT permit 10" in config
+        assert "route-map ISP2-OUT permit 10" in config
         assert f"set as-path prepend {edge['asn']} {edge['asn']}" in config
         assert f"ip address {endpoint}" in config
         assert f"network {endpoint}" in config
@@ -152,7 +151,6 @@ def test_live_provider_preference_failover_and_route_leak_rejection() -> None:
     data = load_inventory()
     nodes = {node["id"]: node for node in data["nodes"]}
     sessions = _link_sessions(data)
-    site_endpoints = {node["public_endpoint"] for node in data["nodes"] if node.get("role") == "edge"}
     down_interfaces: list[tuple[str, str]] = []
     injected_routes: list[tuple[str, int, str, list[str]]] = []
 
@@ -215,7 +213,6 @@ def test_live_provider_preference_failover_and_route_leak_rejection() -> None:
 
         # Providers advertise only one default; site endpoints are the only routes they accept.
         for provider_id in (PRIMARY_PROVIDER, BACKUP_PROVIDER):
-            provider = next(node for node in data["nodes"] if node["id"] == provider_id)
             for edge_id, peers in sessions.items():
                 expected = {nodes[edge_id]["public_endpoint"]}
                 output = _vtysh(provider_id, f"show bgp ipv4 unicast neighbors {peers[provider_id]['endpoint']} routes")

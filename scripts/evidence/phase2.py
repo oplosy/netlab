@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Run TEST-240 failover checks and write a compact tracked report."""
 from __future__ import annotations
+
 import json
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
 ROOT=Path(__file__).resolve().parents[2]
 def main()->int:
     stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')

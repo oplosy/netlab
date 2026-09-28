@@ -95,7 +95,6 @@ def _drop_chain(node_id: str, chain: str, rules: list[str], hook: str) -> list[s
 
 def _render_dist(data: dict[str, Any], node: dict[str, Any]) -> str:
     site_id = node["site"]
-    site = next(item for item in data["sites"] if item["id"] == site_id)
     remote_sites = [item for item in data["sites"] if item["id"] != site_id]
     vlans = sorted(
         (item for item in data["vlans"] if item["site"] == site_id),
@@ -112,7 +111,7 @@ def _render_dist(data: dict[str, Any], node: dict[str, Any]) -> str:
     input_rules = [
         f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
         f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
-        f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
+        'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
     ]
     for vlan in vlans:
         iface = f"vlan{int(vlan['vlan_id'])}"
@@ -196,7 +195,7 @@ def _render_dist(data: dict[str, Any], node: dict[str, Any]) -> str:
             ]
         )
     lines = [
-        f"table inet netlab_sec170 {{",
+        "table inet netlab_sec170 {",
         *_drop_chain(node["id"], "input", input_rules, "input"),
         *_drop_chain(node["id"], "forward", forward_rules, "forward"),
         "  chain output { type filter hook output priority -10; policy accept; }",
@@ -208,8 +207,6 @@ def _render_dist(data: dict[str, Any], node: dict[str, Any]) -> str:
 
 def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
     site_id = node["site"]
-    site = next(item for item in data["sites"] if item["id"] == site_id)
-    remote_sites = [item for item in data["sites"] if item["id"] != site_id]
     mapping = _interface_map(node)
     public_ip = str(ipaddress.ip_interface(node["public_endpoint"]).ip)
     own_users = next(
@@ -217,11 +214,6 @@ def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
         for item in data["vlans"]
         if item["site"] == site_id and int(item["vlan_id"]) == 10
     )
-    remote_users = [
-        item["prefix"]
-        for item in data["vlans"]
-        if item["site"] != site_id and int(item["vlan_id"]) == 10
-    ]
     own_guests = next(
         item["prefix"]
         for item in data["vlans"]
@@ -248,7 +240,7 @@ def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
     input_rules = [
         f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
         f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
-        f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
+        'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
     ]
     for link in data["links"]:
         if link.get("kind") != "ebgp":
@@ -371,7 +363,7 @@ def _render_secondary_edge(data: dict[str, Any], node: dict[str, Any]) -> str:
     input_rules = [
         f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
         f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
-        f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
+        'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
     ]
     for link in data["links"]:
         if link.get("kind") != "ebgp":
@@ -416,7 +408,7 @@ def _render_isp(data: dict[str, Any], node: dict[str, Any]) -> str:
     input_rules = [
         f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
         f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
-        f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
+        'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
     ]
     for link in data["links"]:
         if link.get("kind") != "ebgp":
@@ -441,7 +433,6 @@ def _render_isp(data: dict[str, Any], node: dict[str, Any]) -> str:
         )
     forward_rules: list[str] = []
     nodes = {item["id"]: item for item in data["nodes"]}
-    site_by_id = {site["id"]: site for site in data["sites"]}
     for link in data["links"]:
         if link.get("kind") != "ebgp":
             continue
@@ -528,7 +519,7 @@ def _render_access(node: dict[str, Any]) -> str:
     rules = [
         f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
         f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
-        f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
+        'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
     ]
     return "\n".join(
         [

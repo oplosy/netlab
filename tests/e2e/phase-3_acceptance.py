@@ -2,8 +2,12 @@
 """Verify Branch 2 Area 0 summary, bidirectional routing, and isolation live."""
 
 from __future__ import annotations
-import json, subprocess, sys, time
+
+import json
 import re
+import subprocess
+import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]

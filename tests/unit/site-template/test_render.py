@@ -1,14 +1,14 @@
 from __future__ import annotations
+
 import sys
 import unittest
 from pathlib import Path
-import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 from automation.roles.site.render import (
-    TEMPLATE,
     INVENTORY,
+    TEMPLATE,
     read_yaml,
     render_site,
     validate_template,
