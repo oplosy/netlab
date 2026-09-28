@@ -415,7 +415,7 @@ tasks:
     phase: phase-5
     stretch: true
     title: Add safe change, idempotence, and drift workflows
-    status: planned
+    status: complete
     depends_on: [AUTO-520]
     acceptance:
       - "Precheck, backup, diff, apply, and postcheck stages are explicit"

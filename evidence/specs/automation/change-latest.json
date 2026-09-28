@@ -1,0 +1,36 @@
+{
+  "source": "tests/integration/automation/acceptance.py",
+  "finished_utc": "2026-09-28T16:24:10+00:00",
+  "stages": [
+    "precheck",
+    "backup",
+    "diff",
+    "apply",
+    "postcheck"
+  ],
+  "first_change": {
+    "record": "20260928T161328Z",
+    "material_change": false,
+    "sections": []
+  },
+  "second_change": {
+    "record": "20260928T161806Z",
+    "material_change": false
+  },
+  "drift_clean_after_change": "CLEAN",
+  "device_drift": {
+    "injected": "nft table netlab_auto530_drift_probe on hq-fw-1",
+    "exit_code": 3,
+    "sections": [
+      "hq-fw-1/nftables"
+    ]
+  },
+  "intent_drift": {
+    "injected": "ospf_cost +5 on hq-br1-xfrm (uncommitted copy)",
+    "exit_code": 3,
+    "golden_render_digest": "fde8395af48d4ce47304dbb925eee982c48b81b993c22362eac85e6ca68f8f85",
+    "current_render_digest": "5d4123ef362e0069dedeb89b0db5cb38b5d26d4c85d2ae43977ad2125084f36f"
+  },
+  "drift_clean_after_restore": "CLEAN",
+  "result": "PASS"
+}
