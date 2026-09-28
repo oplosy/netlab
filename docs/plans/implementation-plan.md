@@ -1,8 +1,8 @@
 # Implementation Plan
 
-This plan is execution-ready only after the repository has a real `main` base.
-Task IDs, dependencies, path ownership, and acceptance criteria are also stored
-in `plans/tasks.yaml` for machine consumption.
+Task IDs, status, dependencies, acceptance criteria, and verification commands
+are stored in `plans/tasks.yaml`. Delivery follows the
+[delivery workflow](workflow.md).
 
 ## Phase gates
 
@@ -19,7 +19,7 @@ in `plans/tasks.yaml` for machine consumption.
 
 ### GOV-001 — Repository bootstrap and protection
 
-- Owner: repository owner plus orchestrator
+- Owner: repository owner
 - Depends on: none
 - Deliver: real `main`, branch protection, PR requirement, status checks, CODEOWNERS
 - Accept: direct `main` push is rejected and a feature PR can be opened
