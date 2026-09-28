@@ -51,7 +51,10 @@ def main() -> int:
     br2 = next(site["aggregate"] for site in inventory["sites"] if site["id"] == "br2")
     hq = next(site["aggregate"] for site in inventory["sites"] if site["id"] == "hq")
     sa = run("hq-edge-1", "swanctl", "--list-sas")
-    if "site-overlay-hq_br2_xfrm" not in sa:
+    # The IKE SA shares the child's name, so require an installed child SA.
+    if not re.search(
+        r"^\s+site-overlay-hq_br2_xfrm: #\d+, reqid \d+, INSTALLED", sa, re.M
+    ):
         run("hq-edge-1", "swanctl", "--initiate", "--child", "site-overlay-hq_br2_xfrm")
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline:

@@ -172,7 +172,11 @@ def ensure_site_overlay() -> None:
     )
     overlay = next(link for link in inventory["links"] if link["id"] == "hq-br1-xfrm")
     child = "site-overlay-" + overlay["id"].replace("-", "_")
-    if child not in sas.stdout:
+    # The IKE SA shares the child's name, so require an installed child SA.
+    installed = re.search(
+        rf"^\s+{re.escape(child)}: #\d+, reqid \d+, INSTALLED", sas.stdout, re.M
+    )
+    if not installed:
         run(
             "docker",
             "exec",
@@ -195,9 +199,32 @@ def ensure_site_overlay() -> None:
             check=False,
         )
         if route.returncode == 0 and "xfrm0" in route.stdout:
+            break
+        time.sleep(1)
+    else:
+        raise RuntimeError(
+            "HQ has no OSPF 10.20.0.0/16 route over the BR1 XFRM interface"
+        )
+    # A route can outlive a torn-down SA until BFD notices, and a new SA can
+    # precede working forwarding. Require an echo reply across the tunnel
+    # before endpoint probes rely on it.
+    peer = next(
+        endpoint["address"].split("/")[0]
+        for endpoint in overlay["endpoints"]
+        if endpoint["node"] != "hq-edge-1"
+    )
+    echo = (
+        "import socket,struct; "
+        "s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM,socket.IPPROTO_ICMP); "
+        "s.setsockopt(socket.SOL_SOCKET,socket.SO_BINDTODEVICE,b'xfrm0'); s.settimeout(1); "
+        f"s.sendto(struct.pack('!BBHHH',8,0,0,0,1)+b'overlay',({json.dumps(peer)},0)); "
+        "s.recvfrom(512)"
+    )
+    while time.monotonic() < deadline:
+        if run("docker", "exec", hq_edge, "python3", "-c", echo, check=False).returncode == 0:
             return
         time.sleep(1)
-    raise RuntimeError("HQ has no OSPF 10.20.0.0/16 route over the BR1 XFRM interface")
+    raise RuntimeError(f"HQ-BR1 overlay does not forward ICMP to {peer}")
 
 
 def guest_probe(
