@@ -14,6 +14,10 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "automation" / "roles" / "observability"))
+
+from targets import snmp_nodes  # noqa: E402
+
 LAB = "netlab-phase-1"
 OBS_NODE = f"clab-{LAB}-svc-observability-1"
 ACCESS_NODE = f"clab-{LAB}-hq-access-1"
@@ -223,9 +227,13 @@ def main() -> int:
     if "ready" not in service_http(LOKI + "/ready"):
         raise RuntimeError("Loki is not ready")
 
+    expected_targets = set(snmp_nodes().values())
     snmp_targets = prom_query('up{job="snmp"}')
-    if len(snmp_targets) != 9 or any(row["value"][1] != "1" for row in snmp_targets):
-        raise RuntimeError(f"SNMP scrape targets are not all healthy ({len(snmp_targets)}/9)")
+    healthy = {row["metric"]["instance"] for row in snmp_targets if row["value"][1] == "1"}
+    if healthy != expected_targets or len(snmp_targets) != len(expected_targets):
+        missing = ", ".join(sorted(expected_targets - healthy)) or "none"
+        raise RuntimeError(f"SNMP scrape targets are not all healthy ({len(healthy)}/"
+                           f"{len(expected_targets)} healthy; missing or down: {missing})")
     goflow_targets = prom_query('up{job="goflow2"}')
     if len(goflow_targets) != 1 or goflow_targets[0]["value"][1] != "1":
         raise RuntimeError("GoFlow2 metrics target is not healthy")
@@ -236,7 +244,8 @@ def main() -> int:
     if "ifOperStatus{" not in exporter or "ifName=" not in exporter:
         raise RuntimeError("SNMPv3 exporter did not return interface metrics with ifName")
     assert_v2c_denied()
-    print("SNMPv3 authPriv metrics: 9 targets and interface labels PASS; SNMPv2c denied PASS")
+    print(f"SNMPv3 authPriv metrics: {len(expected_targets)} targets and interface labels PASS; "
+          "SNMPv2c denied PASS")
 
     client_ip, started_ns = generate_known_flows(image)
     flows = wait_for("sampled IPFIX flow from HQ client to site DNS",
