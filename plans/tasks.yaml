@@ -365,7 +365,7 @@ tasks:
   - id: EDGE-420
     phase: phase-4
     title: Add Suricata IDS and IPS behavior
-    status: planned
+    status: complete
     depends_on: [EDGE-410]
     acceptance:
       - "Curated test signatures generate deterministic alerts"

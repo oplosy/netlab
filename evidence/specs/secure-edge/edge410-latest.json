@@ -1,6 +1,6 @@
 {
   "source": "tests/security/secure_edge/acceptance.py",
-  "started_utc": "2026-09-28T07:55:14+00:00",
+  "started_utc": "2026-09-28T11:51:47+00:00",
   "no_bypass_routes": {
     "hq-dist-1->10.20.10.1": "10.10.252.12",
     "hq-dist-1->203.0.113.10": "10.10.252.12",
@@ -16,6 +16,7 @@
       "destination_site": "br1",
       "destination_ip": "10.20.10.100",
       "result": "ICMP echo reply received",
+      "attempts": "1",
       "firewall_accepts": 1,
       "firewall_denies": 0
     },
@@ -25,6 +26,7 @@
       "destination_site": "hq",
       "destination_ip": "10.10.10.100",
       "result": "ICMP echo reply received",
+      "attempts": "1",
       "firewall_accepts": 1,
       "firewall_denies": 0
     }
@@ -68,12 +70,12 @@
     }
   ],
   "fail_closed": {
-    "wan_traffic_blocked_seconds": 2.731,
-    "firewall_route_withdrawn_seconds": 0.179,
+    "wan_traffic_blocked_seconds": 2.551,
+    "firewall_route_withdrawn_seconds": 0.188,
     "outbound_blocked": true,
     "inbound_blocked": true,
     "intra_site_continues": true,
-    "recovery_seconds": 23.533
+    "recovery_seconds": 25.445
   },
   "result": "PASS"
 }
