@@ -12,8 +12,8 @@ are stored in `plans/tasks.yaml`. Delivery follows the
 | 1 HQ + Branch 1 | Complete switching, routing, VPN, services, security, telemetry | End-to-end evidence report passes |
 | 2 Dual ISP | Redundant edge and provider paths | ISP failure converges within objective |
 | 3 Branch 2 | Template-based site expansion | New site adds one summary and passes isolation tests |
-| 4 SecureEdge | Explicit security service layer and IDS/IPS | Policy and detection tests pass |
-| 5 Automation | NetBox projection, dynamic inventory, drift and CI | Clean rebuild and drift detection are automated |
+| 4 CI + SecureEdge | Static CI gate, explicit security service layer, and IDS/IPS | CI gate passes; policy and detection tests pass |
+| 5 Automation (stretch) | NetBox projection, dynamic inventory, drift, topology smoke in CI | Clean rebuild and drift detection are automated |
 
 ## Phase 0: Foundation
 
@@ -180,6 +180,9 @@ are stored in `plans/tasks.yaml`. Delivery follows the
 
 SecureEdge is a routed security service tier, not a renamed edge router.
 
+0. `CI-050` runs inventory schema validation, the topology render check, ruff,
+   yamllint, and unit tests in the required `policy` check. It needs no lab
+   runtime and lands before the SecureEdge work.
 1. `EDGE-410` introduces explicit inside, outside, guest, management, and service
    zones with fail-closed policy.
 2. `EDGE-420` adds Suricata IDS/IPS using a curated local rule set and a bypass
@@ -190,15 +193,19 @@ SecureEdge is a routed security service tier, not a renamed edge router.
 Remote-access VPN, TLS interception, and production threat feeds are outside the
 baseline SecureEdge scope unless a later ADR adds them.
 
-## Phase 5: Network automation
+## Phase 5: Network automation (stretch)
+
+Phase 5 is a stretch goal (ADR 0016); the project is complete without it.
+Before starting it, a separate ADR must reconcile ADR 0010 ("Ansible renders
+and applies") with the Python apply scripts that exist today.
 
 1. `AUTO-510` builds and seeds NetBox as a projection of Git intent.
 2. `AUTO-520` generates Ansible dynamic inventory and rendered configuration
    from validated data.
 3. `AUTO-530` adds prechecks, backups, diffs, postchecks, idempotence, and drift
    detection. An unreviewed NetBox-only change must be reported as drift.
-4. `AUTO-540` adds CI for schemas, templates, configuration lint, unit tests, and
-   a resource-bounded topology smoke test.
+4. `AUTO-540` adds render and drift checks to the `CI-050` gate and a
+   resource-bounded topology smoke test.
 
 ## Explicit non-goals for the first delivery
 

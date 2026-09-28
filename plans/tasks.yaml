@@ -337,11 +337,25 @@ tasks:
     verify:
       - "make evidence-phase-3"
 
+  - id: CI-050
+    phase: phase-4
+    title: Add the static CI quality gate
+    status: planned
+    depends_on: [SITE-330]
+    acceptance:
+      - "Inventory schema validation, topology render check, ruff, yamllint, and unit tests run on every pull request to main"
+      - "The committed-secret and runtime-path check keeps running in the same required policy job"
+      - "CI needs no lab runtime, Docker daemon, or committed credentials"
+      - "A deliberately broken inventory or failing unit test makes the check fail"
+    verify:
+      - "make ci-static"
+      - "Record the GitHub check result for the pull request"
+
   - id: EDGE-410
     phase: phase-4
     title: Add the SecureEdge zone firewall tier
     status: planned
-    depends_on: [SITE-330]
+    depends_on: [CI-050]
     acceptance:
       - "Inside, outside, guest, management, and service zones fail closed"
       - "Bypass around the security tier is not routable"
@@ -373,6 +387,7 @@ tasks:
 
   - id: AUTO-510
     phase: phase-5
+    stretch: true
     title: Build the NetBox intent projection
     status: planned
     depends_on: [EDGE-430]
@@ -385,6 +400,7 @@ tasks:
 
   - id: AUTO-520
     phase: phase-5
+    stretch: true
     title: Generate Ansible inventory and configurations
     status: planned
     depends_on: [AUTO-510]
@@ -397,6 +413,7 @@ tasks:
 
   - id: AUTO-530
     phase: phase-5
+    stretch: true
     title: Add safe change, idempotence, and drift workflows
     status: planned
     depends_on: [AUTO-520]
@@ -410,11 +427,12 @@ tasks:
 
   - id: AUTO-540
     phase: phase-5
-    title: Add CI and bounded topology smoke tests
+    stretch: true
+    title: Add a bounded topology smoke test to CI
     status: planned
     depends_on: [AUTO-530]
     acceptance:
-      - "Schema, lint, unit, render, secret, and drift checks run in CI"
+      - "Render and drift checks are added to the CI-050 quality gate"
       - "The topology smoke test has explicit time and resource bounds"
       - "CI never requires committed credentials"
     verify:
