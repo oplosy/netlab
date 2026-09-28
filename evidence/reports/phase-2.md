@@ -1,8 +1,8 @@
 # Phase 2 failover evidence
 
 - Result: **PASS**
-- Run: `artifacts/runs/phase-2/test-240-20260927T190329Z.json`
-- Finished (UTC): `2026-09-27T19:04:14+00:00`
+- Run: `artifacts/runs/phase-2/test-240-20260928T081529Z.json`
+- Finished (UTC): `2026-09-28T08:16:26+00:00`
 - Runtime: existing project WSL2 Docker Engine and Containerlab lab
 - Docker settings changed: **no**
 - Convergence limit: **10 seconds**
@@ -11,9 +11,9 @@
 
 | Failure | Convergence | Recovery | Return path evidence |
 |---|---:|---:|---|
-| provider failure | 0.772 s | 2.341 | provider route policy |
-| edge failure | 0.971 s | 12.783 | forward_received=4; reverse_received=4 |
-| tunnel failure | 0.378 s | 20.209 | forward_received=4; reverse_received=4 |
+| provider failure | 1.04 s | 2.04 | provider route policy |
+| edge failure | 0.903 s | 19.574 | forward_received=4; reverse_received=4 |
+| tunnel failure | 5.357 s | 20.143 | forward_received=4; reverse_received=4 |
 
 ## Result
 

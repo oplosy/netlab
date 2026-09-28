@@ -237,6 +237,9 @@ def main() -> int:
                 ("test-ospf-plan", PYTHON_COMMAND + ["-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/integration/ospf/test_plan.py", "tests/integration/l3/test_gateway_plan.py"]),
                 ("apply-ospf", ["bash", "automation/roles/ospf/apply.sh"]),
                 ("reapply-ospf", ["bash", "automation/roles/ospf/apply.sh"]),
+                # hq-fw-1 boots with forwarding off (ADR 0017); load its policy
+                # before transit suites. The full SEC-170 apply stays in test-security.
+                ("apply-secure-edge", PYTHON_COMMAND + ["config/security/apply.py", "--role", "firewall"]),
                 ("apply-gateway", PYTHON_COMMAND + ["config/gateway/apply.py"]),
                 ("test-l2-plan", PYTHON_COMMAND + ["-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/integration/l2/test_switching_plan.py"]),
                 ("test-l2", ["python3", "tests/integration/l2/measure.py", "--site", "all"]),

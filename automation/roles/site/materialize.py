@@ -2,13 +2,15 @@
 """Materialize declarative site fragments into the runtime inventory."""
 
 from __future__ import annotations
+
 import argparse
 import copy
-import json
 import ipaddress
+import json
 from pathlib import Path
 from typing import Any
-from render import INVENTORY, TEMPLATE, read_yaml, render_site, instantiate_site
+
+from render import INVENTORY, TEMPLATE, instantiate_site, read_yaml, render_site
 
 ROOT = Path(__file__).resolve().parents[3]
 BR2_SOURCE = ROOT / "inventory" / "sites" / "br2" / "site.yaml"

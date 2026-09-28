@@ -8,6 +8,7 @@ import ipaddress
 import json
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,9 @@ PHYSICAL_KINDS = {"routed", "ebgp", "l2", "access"}
 SIM_DNS = "203.0.113.10"
 SIM_NTP = "203.0.113.11"
 OOB_PREFIX = "172.31.255.0/24"
+IPS_QUEUE = 0
+IPS_QUEUE_VERDICT = f"counter queue num {IPS_QUEUE}"
+SURICATA_RULES = ROOT / "secure-edge" / "suricata" / "rules" / "netlab-local.rules"
 
 
 def load_inventory(path: Path = INVENTORY) -> dict[str, Any]:
@@ -80,22 +84,53 @@ def _linked_peer(
     return result
 
 
-def _drop_chain(node_id: str, chain: str, rules: list[str], hook: str) -> list[str]:
+def _oob_ipsec_guard(direction: str) -> list[str]:
+    """Drop and count IKE and ESP on the OOB interface (ADR 0008).
+
+    Overlays run only on the public underlay. The guard precedes the
+    established/related accept because the output chain accepts, so IKE or ESP
+    originated on eth0 by both ends would otherwise admit the replies.
+    """
+    match = f'{direction}name "eth0"'
+    return [
+        f"{match} udp dport {{ 500, 4500 }} counter drop",
+        f"{match} udp sport {{ 500, 4500 }} counter drop",
+        f"{match} ip protocol esp counter drop",
+    ]
+
+
+def _drop_chain(
+    node_id: str,
+    chain: str,
+    rules: list[str],
+    hook: str,
+    tag: str = "SEC170",
+    guard: list[str] | None = None,
+) -> list[str]:
     return [
         f"  chain {chain} {{",
         f"    type filter hook {hook} priority -10; policy drop;",
+        *(f"    {rule}" for rule in guard or []),
         "    ct state established,related counter accept",
         *rules,
-        f'    limit rate 10/second burst 20 packets log prefix "SEC170|{node_id}|{chain}|deny " level warn',
+        f'    limit rate 10/second burst 20 packets log prefix "{tag}|{node_id}|{chain}|deny " level warn',
         "    ct state invalid counter drop",
         "    counter drop",
         "  }",
     ]
 
 
+def _guarded_output() -> list[str]:
+    return [
+        "  chain output {",
+        "    type filter hook output priority -10; policy accept;",
+        *(f"    {rule}" for rule in _oob_ipsec_guard("oif")),
+        "  }",
+    ]
+
+
 def _render_dist(data: dict[str, Any], node: dict[str, Any]) -> str:
     site_id = node["site"]
-    site = next(item for item in data["sites"] if item["id"] == site_id)
     remote_sites = [item for item in data["sites"] if item["id"] != site_id]
     vlans = sorted(
         (item for item in data["vlans"] if item["site"] == site_id),
@@ -112,7 +147,7 @@ def _render_dist(data: dict[str, Any], node: dict[str, Any]) -> str:
     input_rules = [
         f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
         f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
-        f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
+        'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
     ]
     for vlan in vlans:
         iface = f"vlan{int(vlan['vlan_id'])}"
@@ -196,7 +231,7 @@ def _render_dist(data: dict[str, Any], node: dict[str, Any]) -> str:
             ]
         )
     lines = [
-        f"table inet netlab_sec170 {{",
+        "table inet netlab_sec170 {",
         *_drop_chain(node["id"], "input", input_rules, "input"),
         *_drop_chain(node["id"], "forward", forward_rules, "forward"),
         "  chain output { type filter hook output priority -10; policy accept; }",
@@ -208,8 +243,6 @@ def _render_dist(data: dict[str, Any], node: dict[str, Any]) -> str:
 
 def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
     site_id = node["site"]
-    site = next(item for item in data["sites"] if item["id"] == site_id)
-    remote_sites = [item for item in data["sites"] if item["id"] != site_id]
     mapping = _interface_map(node)
     public_ip = str(ipaddress.ip_interface(node["public_endpoint"]).ip)
     own_users = next(
@@ -217,11 +250,6 @@ def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
         for item in data["vlans"]
         if item["site"] == site_id and int(item["vlan_id"]) == 10
     )
-    remote_users = [
-        item["prefix"]
-        for item in data["vlans"]
-        if item["site"] != site_id and int(item["vlan_id"]) == 10
-    ]
     own_guests = next(
         item["prefix"]
         for item in data["vlans"]
@@ -248,7 +276,7 @@ def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
     input_rules = [
         f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
         f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
-        f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
+        'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
     ]
     for link in data["links"]:
         if link.get("kind") != "ebgp":
@@ -336,9 +364,11 @@ def _render_edge(data: dict[str, Any], node: dict[str, Any]) -> tuple[str, str]:
     )
     inet_table = [
         "table inet netlab_sec170 {",
-        *_drop_chain(node["id"], "input", input_rules, "input"),
+        *_drop_chain(
+            node["id"], "input", input_rules, "input", guard=_oob_ipsec_guard("iif")
+        ),
         *_drop_chain(node["id"], "forward", forward_rules, "forward"),
-        "  chain output { type filter hook output priority -10; policy accept; }",
+        *_guarded_output(),
         "}",
         "",
     ]
@@ -371,7 +401,7 @@ def _render_secondary_edge(data: dict[str, Any], node: dict[str, Any]) -> str:
     input_rules = [
         f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
         f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
-        f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
+        'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
     ]
     for link in data["links"]:
         if link.get("kind") != "ebgp":
@@ -403,9 +433,11 @@ def _render_secondary_edge(data: dict[str, Any], node: dict[str, Any]) -> str:
     return "\n".join(
         [
             "table inet netlab_sec170 {",
-            *_drop_chain(node["id"], "input", input_rules, "input"),
+            *_drop_chain(
+                node["id"], "input", input_rules, "input", guard=_oob_ipsec_guard("iif")
+            ),
             "  chain forward { type filter hook forward priority -10; policy drop; }",
-            "  chain output { type filter hook output priority -10; policy accept; }",
+            *_guarded_output(),
             "}",
             "",
         ]
@@ -416,7 +448,7 @@ def _render_isp(data: dict[str, Any], node: dict[str, Any]) -> str:
     input_rules = [
         f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
         f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
-        f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
+        'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
     ]
     for link in data["links"]:
         if link.get("kind") != "ebgp":
@@ -441,7 +473,6 @@ def _render_isp(data: dict[str, Any], node: dict[str, Any]) -> str:
         )
     forward_rules: list[str] = []
     nodes = {item["id"]: item for item in data["nodes"]}
-    site_by_id = {site["id"]: site for site in data["sites"]}
     for link in data["links"]:
         if link.get("kind") != "ebgp":
             continue
@@ -495,12 +526,105 @@ def _render_isp(data: dict[str, Any], node: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _render_firewall(data: dict[str, Any], node: dict[str, Any]) -> str:
+    """EDGE-410 SecureEdge tier (ADR 0017): zone policy between site and edges."""
+    site_id = node["site"]
+    nodes = {item["id"]: item for item in data["nodes"]}
+    mapping = _interface_map(node)
+    outside: list[str] = []
+    inside: list[str] = []
+    for link in data["links"]:
+        if link.get("kind") != "routed":
+            continue
+        local = next(
+            (item for item in link["endpoints"] if item["node"] == node["id"]), None
+        )
+        if local is None:
+            continue
+        peer = next(item for item in link["endpoints"] if item["node"] != node["id"])
+        role = nodes[peer["node"]].get("role")
+        if role == "edge":
+            outside.append(mapping[local["interface"]])
+        elif role == "dist":
+            inside.append(mapping[local["interface"]])
+        else:
+            raise ValueError(f"{node['id']} has an unexpected routed peer {peer['node']}")
+    if not outside or not inside:
+        raise ValueError(f"{node['id']} must sit between site distribution and edges")
+
+    def prefix(vlan_id: int, site: str = site_id) -> str:
+        return next(
+            item["prefix"]
+            for item in data["vlans"]
+            if item["site"] == site and int(item["vlan_id"]) == vlan_id
+        )
+
+    users, guests = prefix(10), prefix(30)
+    remote_users = sorted(
+        item["prefix"]
+        for item in data["vlans"]
+        if item["site"] != site_id and int(item["vlan_id"]) == 10
+    )
+    to_outside = f'iifname {{ {", ".join(sorted(inside))} }} oifname {{ {", ".join(sorted(outside))} }}'
+    to_inside = f'iifname {{ {", ".join(sorted(outside))} }} oifname {{ {", ".join(sorted(inside))} }}'
+    services = _site_services(data, site_id)
+
+    input_rules = [
+        f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
+        f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
+        'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
+    ]
+    for iface, address in _linked_peer(data, node["id"], "routed"):
+        input_rules.extend(
+            [
+                f'iifname "{iface}" ip saddr {address} ip protocol ospf counter accept',
+                f'iifname "{iface}" ip saddr {address} udp dport {{ 3784, 3785 }} counter accept',
+                f'iifname "{iface}" ip saddr {address} ip protocol icmp icmp type echo-request counter accept',
+            ]
+        )
+    forward_rules = [
+        # inside <-> remote corporate users: ICMP only, as on the site edges.
+        *(
+            f"{to_outside} ip saddr {users} ip daddr {remote} ip protocol icmp counter accept"
+            for remote in remote_users
+        ),
+        f"{to_inside} ip daddr {users} ip protocol icmp counter accept",
+        # guest -> simulated Internet DNS/NTP only.
+        f"{to_outside} ip saddr {guests} ip daddr {SIM_DNS} udp dport 53 counter accept",
+        f"{to_outside} ip saddr {guests} ip daddr {SIM_DNS} tcp dport 53 counter accept",
+        f"{to_outside} ip saddr {guests} ip daddr {SIM_NTP} udp dport 123 counter accept",
+        # service zone resolvers and time source -> simulated Internet.
+        f"{to_outside} ip saddr {services['dns']} ip daddr {SIM_DNS} udp dport 53 counter accept",
+        f"{to_outside} ip saddr {services['dns']} ip daddr {SIM_DNS} tcp dport 53 counter accept",
+        f"{to_outside} ip saddr {services['ntp']} ip daddr {SIM_NTP} udp dport 123 counter accept",
+    ]
+    # EDGE-420 (ADR 0018): every permitted forward verdict, including
+    # established traffic, goes to the inline Suricata on queue 0. Without the
+    # bypass flag the kernel drops queued packets when Suricata is absent.
+    forward_chain = [
+        line.replace("counter accept", IPS_QUEUE_VERDICT)
+        for line in _drop_chain(node["id"], "forward", forward_rules, "forward", "EDGE410")
+    ]
+    return "\n".join(
+        [
+            "table inet netlab_sec170 {",
+            *_drop_chain(node["id"], "input", input_rules, "input", "EDGE410"),
+            *forward_chain,
+            "  chain output { type filter hook output priority -10; policy accept; }",
+            "}",
+            "",
+        ]
+    )
+
+
 def render_plan(data: dict[str, Any]) -> dict[str, dict[str, str]]:
     result: dict[str, dict[str, str]] = {}
     for node in data["nodes"]:
         role = node.get("role")
         if role == "dist":
             result[node["id"]] = {"inet": _render_dist(data, node)}
+        elif role == "firewall":
+            result[node["id"]] = {"inet": _render_firewall(data, node)}
         elif role == "edge":
             has_xfrm = any(
                 link.get("kind") == "xfrm"
@@ -528,7 +652,7 @@ def _render_access(node: dict[str, Any]) -> str:
     rules = [
         f'iifname "eth0" ip saddr {OOB_PREFIX} tcp dport 22 counter accept',
         f'iifname "eth0" ip saddr {OOB_PREFIX} ip protocol icmp counter accept',
-        f'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
+        'iifname "eth0" ip saddr 172.31.255.14 udp dport 161 counter accept',
     ]
     return "\n".join(
         [
@@ -613,19 +737,87 @@ def _write_in_container(
             source.unlink(missing_ok=True)
 
 
+SURICATA_RULES_DEST = "/etc/netlab/suricata/netlab-local.rules"
+SURICATA_PIDFILE = "/run/suricata.pid"
+SURICATA_ARGS = [
+    "suricata",
+    "-c", "/etc/suricata/suricata.yaml",
+    "-S", SURICATA_RULES_DEST,
+    "-q", str(IPS_QUEUE),
+    "-k", "none",
+    "-l", "/var/log/suricata",
+]
+
+
+def _suricata_bound(docker: str, container: str) -> bool:
+    queues = _run(
+        docker, container, "cat", "/proc/net/netfilter/nfnetlink_queue", check=False
+    ).stdout
+    return any(line.split()[:1] == [str(IPS_QUEUE)] for line in queues.splitlines())
+
+
+def _ensure_suricata(docker: str, container: str) -> None:
+    """Run inline Suricata on the IPS queue with the curated local rules (ADR 0018).
+
+    Idempotent: an unchanged rule file on a running, bound engine is a no-op.
+    """
+    _run(docker, container, "mkdir", "-p", "/etc/netlab/suricata", "/var/log/suricata")
+    staged = "/tmp/netlab-local.rules"
+    _write_in_container(docker, container, staged, "", source=SURICATA_RULES)
+    changed = (
+        _run(docker, container, "cmp", "-s", staged, SURICATA_RULES_DEST, check=False).returncode
+        != 0
+    )
+    if changed:
+        _run(
+            docker, container,
+            "suricata", "-T", "-c", "/etc/suricata/suricata.yaml", "-S", staged, "-k", "none",
+        )
+        _run(docker, container, "cp", staged, SURICATA_RULES_DEST)
+    pid = _run(
+        docker,
+        container,
+        "sh",
+        "-c",
+        f'test -s {SURICATA_PIDFILE} && kill -0 "$(cat {SURICATA_PIDFILE})" && cat {SURICATA_PIDFILE}',
+        check=False,
+    ).stdout.strip()
+    if not pid:
+        _run(docker, container, "rm", "-f", SURICATA_PIDFILE)
+        _run(docker, container, *SURICATA_ARGS, "-D", "--pidfile", SURICATA_PIDFILE)
+    elif changed:
+        # SIGUSR2 reloads rules without detaching from the queue.
+        _run(docker, container, "kill", "-USR2", pid)
+    deadline = time.monotonic() + 60
+    while not _suricata_bound(docker, container):
+        if time.monotonic() > deadline:
+            raise RuntimeError(f"{container}: Suricata did not bind NFQUEUE {IPS_QUEUE}")
+        time.sleep(0.5)
+
+
 def apply(
-    data: dict[str, Any], docker: str = "docker", lab_name: str = "netlab-phase-1"
+    data: dict[str, Any],
+    docker: str = "docker",
+    lab_name: str = "netlab-phase-1",
+    roles: set[str] | None = None,
 ) -> None:
     nodes = {item["id"]: item for item in data["nodes"]}
     for node_id, tables in render_plan(data).items():
         container = f"clab-{lab_name}-{node_id}"
-        if nodes[node_id].get("role") in {"dist", "edge", "isp"}:
+        role = nodes[node_id].get("role")
+        if roles is not None and role not in roles:
+            continue
+        if role in {"dist", "edge", "isp"}:
             forwarding = _run(
                 docker, container, "cat", "/proc/sys/net/ipv4/ip_forward"
             ).stdout.strip()
             if forwarding != "1":
                 _run(docker, container, "sysctl", "-w", "net.ipv4.ip_forward=1")
         _run(docker, container, "mkdir", "-p", "/run/netlab")
+        if role == "firewall":
+            # The firewall policy queues permitted traffic to Suricata; start
+            # the engine first so loading the policy never blackholes HQ.
+            _ensure_suricata(docker, container)
         for family, content in tables.items():
             table_name = "netlab_sec170_nat" if family == "nat" else "netlab_sec170"
             table_family = "ip" if family == "nat" else "inet"
@@ -663,6 +855,14 @@ def apply(
             _run(docker, container, "nft", "-f", destination)
             _write_in_container(docker, container, marker, content)
         _run(docker, container, "nft", "list", "table", "inet", "netlab_sec170")
+        if role == "firewall":
+            # Fail closed (ADR 0017): forward only once the drop-by-default
+            # policy above is loaded and listed.
+            forwarding = _run(
+                docker, container, "cat", "/proc/sys/net/ipv4/ip_forward"
+            ).stdout.strip()
+            if forwarding != "1":
+                _run(docker, container, "sysctl", "-w", "net.ipv4.ip_forward=1")
 
 
 def main() -> int:
@@ -675,6 +875,12 @@ def main() -> int:
         "--check",
         action="store_true",
         help="validate against live kernels without changing policy",
+    )
+    parser.add_argument(
+        "--role",
+        action="append",
+        help="apply only to nodes with this inventory role (repeatable); "
+        "e.g. --role firewall opens the SecureEdge tier before later suites",
     )
     args = parser.parse_args()
     data = load_inventory(args.inventory)
@@ -689,7 +895,7 @@ def main() -> int:
                     content, encoding="utf-8"
                 )
     else:
-        apply(data, args.docker, args.lab_name)
+        apply(data, args.docker, args.lab_name, set(args.role) if args.role else None)
     return 0
 
 

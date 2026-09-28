@@ -8,6 +8,7 @@ import ipaddress
 import json
 import os
 import re
+import shlex
 import signal
 import subprocess
 import sys
@@ -135,11 +136,18 @@ def corporate_icmp(
             f"cannot determine DHCP user addresses for {source_site}->{destination_site}"
         )
     source_ip, destination_ip = addresses[0], addresses[1]
+    # Up to three echo requests (4 s each): a single request right after fresh
+    # DHCP leases was lost intermittently. The attempt count is reported so a
+    # retried success stays visible in the evidence.
     probe = (
         "python3 -c 'import socket,struct; "
-        "s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM,socket.IPPROTO_ICMP); s.settimeout(4); "
-        f's.sendto(struct.pack("!BBHHH",8,0,0,0,170)+b"sec170",({json.dumps(destination_ip)},0)); '
-        'r=s.recvfrom(512)[0]; assert len(r)>=8 and r[0]==0, r; print("echo-reply")\''
+        "s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM,socket.IPPROTO_ICMP); s.settimeout(4)\n"
+        "for attempt in (1,2,3):\n"
+        f' s.sendto(struct.pack("!BBHHH",8,0,0,0,170+attempt)+b"sec170",({json.dumps(destination_ip)},0))\n'
+        " try: r=s.recvfrom(512)[0]\n"
+        " except TimeoutError: continue\n"
+        ' assert len(r)>=8 and r[0]==0, r; print("echo-reply attempts=%d" % attempt); break\n'
+        "else: raise TimeoutError(\"no echo reply after 3 attempts\")'"
     )
     try:
         output = helper(source, probe, image)
@@ -158,6 +166,7 @@ def corporate_icmp(
         "destination_site": destination_site,
         "destination_ip": destination_ip,
         "result": "ICMP echo reply received",
+        "attempts": output.split("attempts=")[-1].split()[0],
     }
 
 
@@ -172,7 +181,11 @@ def ensure_site_overlay() -> None:
     )
     overlay = next(link for link in inventory["links"] if link["id"] == "hq-br1-xfrm")
     child = "site-overlay-" + overlay["id"].replace("-", "_")
-    if child not in sas.stdout:
+    # The IKE SA shares the child's name, so require an installed child SA.
+    installed = re.search(
+        rf"^\s+{re.escape(child)}: #\d+, reqid \d+, INSTALLED", sas.stdout, re.M
+    )
+    if not installed:
         run(
             "docker",
             "exec",
@@ -195,9 +208,174 @@ def ensure_site_overlay() -> None:
             check=False,
         )
         if route.returncode == 0 and "xfrm0" in route.stdout:
+            break
+        time.sleep(1)
+    else:
+        raise RuntimeError(
+            "HQ has no OSPF 10.20.0.0/16 route over the BR1 XFRM interface"
+        )
+    # A route can outlive a torn-down SA until BFD notices, and a new SA can
+    # precede working forwarding. Require an echo reply across the tunnel
+    # before endpoint probes rely on it.
+    peer = next(
+        endpoint["address"].split("/")[0]
+        for endpoint in overlay["endpoints"]
+        if endpoint["node"] != "hq-edge-1"
+    )
+    echo = (
+        "import socket,struct; "
+        "s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM,socket.IPPROTO_ICMP); "
+        "s.setsockopt(socket.SOL_SOCKET,socket.SO_BINDTODEVICE,b'xfrm0'); s.settimeout(1); "
+        f"s.sendto(struct.pack('!BBHHH',8,0,0,0,1)+b'overlay',({json.dumps(peer)},0)); "
+        "s.recvfrom(512)"
+    )
+    while time.monotonic() < deadline:
+        if run("docker", "exec", hq_edge, "python3", "-c", echo, check=False).returncode == 0:
             return
         time.sleep(1)
-    raise RuntimeError("HQ has no OSPF 10.20.0.0/16 route over the BR1 XFRM interface")
+    raise RuntimeError(f"HQ-BR1 overlay does not forward ICMP to {peer}")
+
+
+OOB_IPSEC_GUARD = (
+    "udp dport { 500, 4500 }",
+    "udp sport { 500, 4500 }",
+    "ip protocol esp",
+)
+OOB_IPSEC_PROBE = (
+    "import socket,sys; dst=sys.argv[1]; result=[]\n"
+    "for port in (500, 4500):\n"
+    " s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)\n"
+    " try: s.sendto(b'SEC170-oob-ike',(dst,port)); result.append('udp%d=sent' % port)\n"
+    " except PermissionError: result.append('udp%d=EPERM' % port)\n"
+    "e=socket.socket(socket.AF_INET,socket.SOCK_RAW,50)\n"
+    "try: e.sendto(bytes.fromhex('0000017000000001')+b'SEC170',(dst,0)); result.append('esp=sent')\n"
+    "except PermissionError: result.append('esp=EPERM')\n"
+    "print(' '.join(result))"
+)
+
+
+def oob_ipsec_guard_count(node_id: str, chain: str) -> int:
+    direction = "iifname" if chain == "input" else "oifname"
+    return sum(
+        _counter_line(
+            node_id, "inet netlab_sec170", chain, f'{direction} "eth0" {match} counter'
+        )
+        for match in OOB_IPSEC_GUARD
+    )
+
+
+def oob_ipsec_denied(inventory: dict, image: str) -> list[dict[str, str]]:
+    """Prove IKE and ESP never cross eth0 while overlays stay on the underlay.
+
+    Each overlay edge sends IKE (UDP 500/4500) and ESP to its peer's OOB
+    address: the local output guard must count them and the peer's input guard
+    must see nothing. A site distribution node, which has no output guard, then
+    sends the same probes to the edge's OOB address to exercise the input guard.
+    """
+    nodes = {node["id"]: node for node in inventory["nodes"]}
+    oob_prefix = ipaddress.ip_network("172.31.255.0/24")
+    pairs = sorted(
+        {
+            (local["node"], remote["node"])
+            for link in inventory["links"]
+            if link.get("kind") == "xfrm"
+            for local in link["endpoints"]
+            for remote in link["endpoints"]
+            if local["node"] != remote["node"]
+        }
+    )
+    if not pairs:
+        raise RuntimeError("inventory has no XFRM overlays to guard")
+    evidence = []
+    for local, remote in pairs:
+        remote_oob = str(ipaddress.ip_interface(nodes[remote]["oob"]).ip)
+        out_before = oob_ipsec_guard_count(local, "output")
+        in_before = oob_ipsec_guard_count(remote, "input")
+        sent = docker_exec(local, "python3", "-c", OOB_IPSEC_PROBE, remote_oob)
+        out_after = oob_ipsec_guard_count(local, "output")
+        in_after = oob_ipsec_guard_count(remote, "input")
+        if out_after < out_before + 3 or in_after != in_before:
+            raise RuntimeError(
+                f"{local} IKE/ESP to {remote} OOB {remote_oob} was not dropped at the "
+                f"output guard (output {out_before}->{out_after}, "
+                f"peer input {in_before}->{in_after}, probe {sent.strip()})"
+            )
+        evidence.append(
+            {
+                "site": f"OOB IPsec guard {local} -> {remote}",
+                "probe": f"{sent.strip()} to {remote_oob}",
+                "output_guard_packets_before_after": f"{out_before}->{out_after}",
+                "peer_input_guard_packets_before_after": f"{in_before}->{in_after}",
+            }
+        )
+    for edge in sorted({local for local, _ in pairs}):
+        source = next(
+            node["id"]
+            for node in inventory["nodes"]
+            if node.get("site") == nodes[edge]["site"]
+            and node.get("role") == "dist"
+            and node.get("oob")
+        )
+        edge_oob = str(ipaddress.ip_interface(nodes[edge]["oob"]).ip)
+        before = oob_ipsec_guard_count(edge, "input")
+        sent = helper(
+            source, f"python3 -c {shlex.quote(OOB_IPSEC_PROBE)} {edge_oob}", image
+        )
+        after = oob_ipsec_guard_count(edge, "input")
+        if after < before + 3:
+            raise RuntimeError(
+                f"{source} IKE/ESP to {edge} OOB {edge_oob} did not hit the input "
+                f"guard ({before}->{after}, probe {sent.strip()})"
+            )
+        sas = docker_exec(edge, "swanctl", "--list-sas")
+        endpoints = re.findall(r"^\s+(?:local|remote)\s+.*@ (\S+?)\[\d+\]", sas, re.M)
+        on_oob = [
+            address
+            for address in endpoints
+            if ipaddress.ip_address(address) in oob_prefix
+        ]
+        if on_oob:
+            raise RuntimeError(f"{edge} has IKE SAs on the OOB network: {on_oob}")
+        evidence.append(
+            {
+                "site": f"OOB IPsec guard {source} -> {edge}",
+                "probe": f"{sent.strip()} to {edge_oob}",
+                "input_guard_packets_before_after": f"{before}->{after}",
+                "ike_sa_endpoints": ",".join(sorted(set(endpoints))) or "none",
+            }
+        )
+    return evidence
+
+
+def overlay_on_underlay(inventory: dict) -> dict[str, str]:
+    """The HQ-BR1 overlay must be ESTABLISHED between the public endpoints."""
+    overlay = next(link for link in inventory["links"] if link["id"] == "hq-br1-xfrm")
+    nodes = {node["id"]: node for node in inventory["nodes"]}
+    ike = "site-overlay-" + overlay["id"].replace("-", "_")
+    peer = next(
+        item["node"] for item in overlay["endpoints"] if item["node"] != "hq-edge-1"
+    )
+    local, remote = (
+        str(ipaddress.ip_interface(nodes[node]["public_endpoint"]).ip)
+        for node in ("hq-edge-1", peer)
+    )
+    sas = docker_exec("hq-edge-1", "swanctl", "--list-sas", "--ike", ike)
+    if not re.search(rf"^{re.escape(ike)}: #\d+, ESTABLISHED", sas, re.M):
+        raise RuntimeError(f"{ike} is not ESTABLISHED on hq-edge-1:\n{sas}")
+    local_seen = re.search(r"^\s+local\s+.*@ (\S+?)\[\d+\]", sas, re.M)
+    remote_seen = re.search(r"^\s+remote\s+.*@ (\S+?)\[\d+\]", sas, re.M)
+    if (
+        not local_seen
+        or not remote_seen
+        or (local_seen.group(1), remote_seen.group(1)) != (local, remote)
+    ):
+        raise RuntimeError(
+            f"{ike} is not negotiated between {local} and {remote}:\n{sas}"
+        )
+    return {
+        "site": f"Overlay {overlay['id']} on the public underlay",
+        "ike_sa": f"ESTABLISHED {local} <-> {remote}",
+    }
 
 
 def guest_probe(
@@ -465,6 +643,8 @@ def main() -> int:
                     )
                 )
             ensure_site_overlay()
+            evidence.extend(oob_ipsec_denied(inventory, image))
+            evidence.append(overlay_on_underlay(inventory))
             evidence.append(corporate_icmp("hq", "br1", image))
             evidence.append(corporate_icmp("br1", "hq", image))
             evidence.append(corporate_icmp("hq", "br2", image))

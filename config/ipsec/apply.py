@@ -53,6 +53,9 @@ def _render_swanctl(peer: dict[str, Any], remote: dict[str, Any]) -> str:
     version = 2
     local_addrs = {peer["public_endpoint"].ip}
     remote_addrs = {remote["public_endpoint"].ip}
+    # Static site endpoints: MOBIKE would advertise the OOB address and roam
+    # the overlay onto the management network (ADR 0008).
+    mobike = no
     proposals = aes256gcm16-prfsha384-ecp384
     rekey_time = 4h
 
@@ -84,7 +87,6 @@ def _render_swanctl(peer: dict[str, Any], remote: dict[str, Any]) -> str:
 
 
 def build_plan(data: dict[str, Any], lab_name: str = LAB_NAME) -> dict[str, Any]:
-    sites = {site["id"]: site for site in data["sites"]}
     edges = {node["id"]: node for node in data["nodes"] if node.get("role") == "edge"}
     peers: list[dict[str, Any]] = []
     xfrm_links = [link for link in data["links"] if link.get("kind") == "xfrm"]

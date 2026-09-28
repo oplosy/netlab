@@ -1,0 +1,134 @@
+{
+  "source": "tests/e2e/phase-4/correlate.py",
+  "started_utc": "2026-09-28T12:06:24+00:00",
+  "run_id": "edge430-20260928t120624z",
+  "clients": {
+    "hq-client-guest-1": "10.10.30.100",
+    "hq-client-users-1": "10.10.10.100"
+  },
+  "ipfix_sampling_during_run": 1,
+  "ipfix_sampling_restored": "400",
+  "result": "PASS",
+  "cases": [
+    {
+      "case": "allowed",
+      "result": "PASS",
+      "failures": [],
+      "five_tuple": {
+        "src": "10.10.30.100",
+        "sport": 40431,
+        "dst": "203.0.113.10",
+        "dport": 53,
+        "proto": "UDP"
+      },
+      "reply": true,
+      "firewall": {
+        "trace_id": "d2970396",
+        "verdict": "queue"
+      },
+      "ids_alerts": [
+        {
+          "sid": 9420001,
+          "action": "allowed",
+          "flow_id": 1666812002637233
+        }
+      ],
+      "ids_event_types": [
+        "alert",
+        "dns"
+      ],
+      "packets_with_run_id": 1,
+      "ipfix": [
+        {
+          "sampler": "172.31.255.33",
+          "in_if": 1553,
+          "out_if": 5,
+          "packets": 1
+        },
+        {
+          "sampler": "172.31.255.33",
+          "in_if": 1553,
+          "out_if": 0,
+          "packets": 1
+        }
+      ]
+    },
+    {
+      "case": "ips-blocked",
+      "result": "PASS",
+      "failures": [],
+      "five_tuple": {
+        "src": "10.10.30.100",
+        "sport": 40432,
+        "dst": "203.0.113.10",
+        "dport": 53,
+        "proto": "UDP"
+      },
+      "reply": false,
+      "firewall": {
+        "trace_id": "227eeec6",
+        "verdict": "queue"
+      },
+      "ids_alerts": [
+        {
+          "sid": 9420002,
+          "action": "blocked",
+          "flow_id": 1914606765569320
+        }
+      ],
+      "ids_event_types": [
+        "alert",
+        "dns"
+      ],
+      "packets_with_run_id": 1,
+      "ipfix": [
+        {
+          "sampler": "172.31.255.33",
+          "in_if": 1553,
+          "out_if": 0,
+          "packets": 1
+        },
+        {
+          "sampler": "172.31.255.33",
+          "in_if": 1553,
+          "out_if": 5,
+          "packets": 1
+        }
+      ]
+    },
+    {
+      "case": "fw-blocked",
+      "result": "PASS",
+      "failures": [],
+      "five_tuple": {
+        "src": "10.10.10.100",
+        "sport": 40433,
+        "dst": "10.20.20.2",
+        "dport": 0,
+        "proto": "ICMP"
+      },
+      "reply": false,
+      "firewall": {
+        "trace_id": "2f88a107",
+        "verdict": "drop"
+      },
+      "ids_alerts": [],
+      "ids_event_types": [],
+      "packets_with_run_id": 1,
+      "ipfix": [
+        {
+          "sampler": "172.31.255.33",
+          "in_if": 1533,
+          "out_if": 0,
+          "packets": 1
+        },
+        {
+          "sampler": "172.31.255.33",
+          "in_if": 1533,
+          "out_if": 5,
+          "packets": 1
+        }
+      ]
+    }
+  ]
+}

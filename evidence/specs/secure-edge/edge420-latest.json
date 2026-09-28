@@ -1,0 +1,58 @@
+{
+  "source": "tests/security/suricata/acceptance.py",
+  "started_utc": "2026-09-28T11:52:58+00:00",
+  "engine": {
+    "pid": "477",
+    "queue_0_bound": true,
+    "version": "This is Suricata version 7.0.3 RELEASE"
+  },
+  "probe_client": {
+    "node": "hq-client-guest-1",
+    "address": "10.10.30.100/24"
+  },
+  "detection_and_prevention": [
+    {
+      "case": "benign query",
+      "reply": true,
+      "alerts": 0
+    },
+    {
+      "case": "IDS query #1",
+      "reply": true,
+      "sid": 9420001,
+      "action": "allowed",
+      "alerts": 1
+    },
+    {
+      "case": "IPS query #1",
+      "reply": false,
+      "sid": 9420002,
+      "action": "blocked",
+      "alerts": 1
+    },
+    {
+      "case": "IDS query #2",
+      "reply": true,
+      "sid": 9420001,
+      "action": "allowed",
+      "alerts": 1
+    },
+    {
+      "case": "IPS query #2",
+      "reply": false,
+      "sid": 9420002,
+      "action": "blocked",
+      "alerts": 1
+    }
+  ],
+  "fail_closed": {
+    "queue_released_seconds": 1.123,
+    "traffic_blocked_while_down": true,
+    "recovery_seconds_after_apply_start": 3.339,
+    "engine_after_restore": {
+      "pid": "2264",
+      "queue_0_bound": true
+    }
+  },
+  "result": "PASS"
+}

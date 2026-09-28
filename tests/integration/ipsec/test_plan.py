@@ -65,6 +65,10 @@ def test_swanctl_uses_certificate_ikev2_and_the_accepted_crypto_profile() -> Non
         )
         assert "0.0.0.0/0" in config
         assert "psk" not in config.lower()
+        # Overlays must stay on the public underlay: MOBIKE would advertise
+        # and roam to the OOB management address (ADR 0008).
+        assert "mobike = no" in config
+        assert f"local_addrs = {peer['public_endpoint'].ip}\n" in config
 
 
 def test_overlay_mtu_and_mss_are_derived_consistently() -> None:

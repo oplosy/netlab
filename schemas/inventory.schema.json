@@ -69,7 +69,7 @@
       "properties": {
         "id": {"$ref": "#/$defs/id"},
         "site": {"type": ["string", "null"]},
-        "role": {"enum": ["edge", "dist", "access", "client", "server", "isp", "service"]},
+        "role": {"enum": ["edge", "dist", "firewall", "access", "client", "server", "isp", "service"]},
         "asn": {"type": ["integer", "null"]},
         "public_endpoint": {"$ref": "#/$defs/cidr"},
         "oob": {"type": ["string", "null"], "anyOf": [{"$ref": "#/$defs/cidr"}, {"type": "null"}]},

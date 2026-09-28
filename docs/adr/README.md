@@ -21,6 +21,8 @@ ADR, but existing files are not edited to erase decision history.
 | [0014](0014-site-local-services-data-plane.md) | Explicit data-plane access for site services | Accepted |
 | [0015](0015-dual-provider-edge-topology.md) | Dual-provider full-mesh edge topology | Accepted |
 | [0016](0016-simplified-delivery-workflow.md) | One branch and one pull request per phase; Phase 5 is a stretch goal | Accepted |
+| [0017](0017-hq-secure-edge-firewall-tier.md) | Routed SecureEdge firewall between HQ distribution and edges | Accepted |
+| [0018](0018-inline-suricata-ips.md) | Inline Suricata IPS on the HQ firewall, fail closed | Accepted |
 
 ## Status values
 

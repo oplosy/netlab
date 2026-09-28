@@ -43,7 +43,8 @@ build_image "${NETLAB_NETWORK_IMAGE}" images/network-node \
   --build-arg "NFTABLES_VERSION=${NFTABLES_VERSION}" \
   --build-arg "ISC_DHCP_RELAY_VERSION=${ISC_DHCP_RELAY_VERSION}" \
   --build-arg "OPENSSH_SERVER_VERSION=${OPENSSH_SERVER_VERSION}" \
-  --build-arg "LIBPAM_RADIUS_AUTH_VERSION=${LIBPAM_RADIUS_AUTH_VERSION}"
+  --build-arg "LIBPAM_RADIUS_AUTH_VERSION=${LIBPAM_RADIUS_AUTH_VERSION}" \
+  --build-arg "SURICATA_VERSION=${SURICATA_VERSION}"
 build_image "${NETLAB_CLIENT_IMAGE}" images/client
 build_image "${NETLAB_SERVICE_IMAGE}" images/service \
   --build-arg "KEA_VERSION=${KEA_VERSION}" \

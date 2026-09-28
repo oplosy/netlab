@@ -11,10 +11,11 @@ ARG NFTABLES_VERSION=1.0.9-1ubuntu0.1
 ARG ISC_DHCP_RELAY_VERSION=4.4.3-P1-4ubuntu2
 ARG OPENSSH_SERVER_VERSION=1:9.6p1-3ubuntu13.19
 ARG LIBPAM_RADIUS_AUTH_VERSION=2.0.1-1
+ARG SURICATA_VERSION=1:7.0.3-1build3
 
 LABEL org.opencontainers.image.title="netlab network node" \
-      org.opencontainers.image.version="0.1.0" \
-      org.opencontainers.image.description="FRR, Open vSwitch, Keepalived, strongSwan and nftables" \
+      org.opencontainers.image.version="0.2.0" \
+      org.opencontainers.image.description="FRR, Open vSwitch, Keepalived, strongSwan, nftables and Suricata" \
       netlab.component.frr="${FRR_VERSION}" \
       netlab.component.openvswitch="${OVS_VERSION}" \
       netlab.component.keepalived="${KEEPALIVED_VERSION}" \
@@ -23,6 +24,7 @@ LABEL org.opencontainers.image.title="netlab network node" \
       netlab.component.isc-dhcp-relay="${ISC_DHCP_RELAY_VERSION}" \
       netlab.component.openssh-server="${OPENSSH_SERVER_VERSION}" \
       netlab.component.pam-radius-auth="${LIBPAM_RADIUS_AUTH_VERSION}" \
+      netlab.component.suricata="${SURICATA_VERSION}" \
       netlab.ubuntu.snapshot="${UBUNTU_SNAPSHOT}"
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -54,6 +56,7 @@ RUN rm -f /etc/apt/sources.list.d/ubuntu.sources \
        libstrongswan-standard-plugins=${STRONGSWAN_VERSION} \
        nftables=${NFTABLES_VERSION} isc-dhcp-relay=${ISC_DHCP_RELAY_VERSION} \
        openssh-server=${OPENSSH_SERVER_VERSION} libpam-radius-auth=${LIBPAM_RADIUS_AUTH_VERSION} \
+       suricata=${SURICATA_VERSION} \
     && test "$(dpkg-query -W -f='${Version}' frr)" = "${FRR_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' openvswitch-switch)" = "${OVS_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' keepalived)" = "${KEEPALIVED_VERSION}" \
@@ -63,6 +66,7 @@ RUN rm -f /etc/apt/sources.list.d/ubuntu.sources \
     && test "$(dpkg-query -W -f='${Version}' isc-dhcp-relay)" = "${ISC_DHCP_RELAY_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' openssh-server)" = "${OPENSSH_SERVER_VERSION}" \
     && test "$(dpkg-query -W -f='${Version}' libpam-radius-auth)" = "${LIBPAM_RADIUS_AUTH_VERSION}" \
+    && test "$(dpkg-query -W -f='${Version}' suricata)" = "${SURICATA_VERSION}" \
     && mkdir -p /run/netlab /var/log/netlab /usr/share/netlab \
     && { \
          printf 'frr=%s\n' "$(dpkg-query -W -f='${Version}' frr)"; \
@@ -74,6 +78,7 @@ RUN rm -f /etc/apt/sources.list.d/ubuntu.sources \
          printf 'isc-dhcp-relay=%s\n' "$(dpkg-query -W -f='${Version}' isc-dhcp-relay)"; \
          printf 'openssh-server=%s\n' "$(dpkg-query -W -f='${Version}' openssh-server)"; \
          printf 'libpam-radius-auth=%s\n' "$(dpkg-query -W -f='${Version}' libpam-radius-auth)"; \
+         printf 'suricata=%s\n' "$(dpkg-query -W -f='${Version}' suricata)"; \
        } > /usr/share/netlab/component-versions \
     && rm -rf /var/lib/apt/lists/*
 

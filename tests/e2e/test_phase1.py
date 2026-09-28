@@ -6,9 +6,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "evidence"))
 import phase1
-from phase1 import EvidenceRun, evaluate_ipsec, evaluate_ospf, evaluate_ospf_repeatability
-from wait_ospf_routes import route_is_present
+from phase1 import (
+    EvidenceRun,
+    evaluate_ipsec,
+    evaluate_ospf,
+    evaluate_ospf_repeatability,
+)
 from wait_observability_ready import body_is_ready
+from wait_ospf_routes import route_is_present
 
 
 def ospf_result(*, gap: float = 1.2, continuity: bool = True, vrrp: bool = True) -> dict:

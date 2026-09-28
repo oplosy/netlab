@@ -20,12 +20,14 @@ def test_all_infrastructure_nodes_default_deny_and_correlated_rate_limited_logs(
     assert set(plan) == {
         node["id"]
         for node in data["nodes"]
-        if node.get("role") in {"dist", "edge", "access", "isp"}
+        if node.get("role") in {"dist", "edge", "firewall", "access", "isp"}
     }
+    roles = {node["id"]: node.get("role") for node in data["nodes"]}
     for node_id, tables in plan.items():
         policy = tables["inet"]
         assert policy.count("policy drop") >= 2, node_id
-        assert f"SEC170|{node_id}|" in policy
+        tag = "EDGE410" if roles[node_id] == "firewall" else "SEC170"
+        assert f"{tag}|{node_id}|" in policy
         assert "limit rate 10/second burst 20 packets log" in policy
         assert "ct state established,related" in policy
 
@@ -76,16 +78,15 @@ def test_guest_nat_is_exactly_scoped_to_simulated_dns_and_ntp() -> None:
 def test_control_plane_is_interface_and_peer_scoped_and_ssh_is_oob_only() -> None:
     plan = sec170.render_plan(sec170.load_inventory())
     hq_edge = plan["hq-edge-1"]["inet"]
-    assert 'iifname "eth3" ip saddr 192.0.2.1 tcp dport 179 counter accept' in hq_edge
+    # HQ edge-1 has one internal OSPF peer, hq-fw-1 (ADR 0017), then its ISPs.
+    assert 'iifname "eth2" ip saddr 192.0.2.1 tcp dport 179 counter accept' in hq_edge
     assert (
-        'iifname "eth4" ip saddr 198.51.100.1 tcp dport 179 counter accept' in hq_edge
+        'iifname "eth3" ip saddr 198.51.100.1 tcp dport 179 counter accept' in hq_edge
     )
     assert (
-        'iifname "eth1" ip saddr 10.10.252.1 ip protocol ospf counter accept' in hq_edge
+        'iifname "eth1" ip saddr 10.10.252.9 ip protocol ospf counter accept' in hq_edge
     )
-    assert (
-        'iifname "eth2" ip saddr 10.10.252.3 ip protocol ospf counter accept' in hq_edge
-    )
+    assert hq_edge.count("ip protocol ospf counter accept") == 3
     assert (
         'iifname "xfrm0" ip saddr 10.255.0.1 ip protocol ospf counter accept' in hq_edge
     )
@@ -147,7 +148,9 @@ def test_secondary_edges_enforce_the_same_tunnel_policy_with_edge_specific_endpo
     ):
         policy = plan[node_id]["inet"]
         assert policy.count("tcp dport 179 counter accept") == 2
-        assert policy.count("ip protocol ospf counter accept") >= 3
+        # Internal OSPF peers plus the XFRM peer; HQ has one internal peer.
+        minimum = 2 if node_id.startswith("hq-") else 3
+        assert policy.count("ip protocol ospf counter accept") >= minimum
         assert f"ip saddr {remote} udp dport {{ 500, 4500 }} counter accept" in policy
         assert 'iifname "xfrm0"' in policy
         assert "NAT" not in plan[node_id]
@@ -307,3 +310,63 @@ def test_explicit_permits_precede_invalid_default_deny_and_denials_remain_logged
     assert forward.index("ct state invalid counter drop") < forward.rindex(
         "counter drop"
     )
+
+
+def _chain(policy: str, name: str) -> list[str]:
+    body = policy.split(f"chain {name} {{", 1)[1].split("\n  }", 1)[0]
+    return [line.strip() for line in body.splitlines() if line.strip()]
+
+
+def test_edges_drop_and_count_ike_and_esp_on_oob_before_established_accept() -> None:
+    data = sec170.load_inventory()
+    plan = sec170.render_plan(data)
+    edges = [node["id"] for node in data["nodes"] if node.get("role") == "edge"]
+    assert edges
+    for node_id in edges:
+        policy = plan[node_id]["inet"]
+        for chain, direction in (("input", "iifname"), ("output", "oifname")):
+            rules = _chain(policy, chain)
+            guard = [
+                f'{direction} "eth0" udp dport {{ 500, 4500 }} counter drop',
+                f'{direction} "eth0" udp sport {{ 500, 4500 }} counter drop',
+                f'{direction} "eth0" ip protocol esp counter drop',
+            ]
+            assert rules[1 : 1 + len(guard)] == guard, (node_id, chain)
+            if chain == "input":
+                # Replies to IKE/ESP originated on eth0 must not match
+                # established,related before the guard.
+                assert rules.index(guard[-1]) < rules.index(
+                    "ct state established,related counter accept"
+                ), node_id
+            else:
+                assert "policy accept" in rules[0], node_id
+
+
+def test_edges_never_accept_ike_or_esp_on_the_oob_interface() -> None:
+    data = sec170.load_inventory()
+    plan = sec170.render_plan(data)
+    for node in data["nodes"]:
+        if node.get("role") != "edge":
+            continue
+        accepts = [
+            line
+            for chain in ("input", "forward", "output")
+            if f"chain {chain} {{" in plan[node["id"]]["inet"]
+            for line in _chain(plan[node["id"]]["inet"], chain)
+            if line.endswith("accept")
+            and ("500, 4500" in line or "ip protocol esp" in line)
+        ]
+        assert all('"eth0"' not in line for line in accepts), node["id"]
+        assert all(sec170.OOB_PREFIX not in line for line in accepts), node["id"]
+
+
+def test_public_underlay_overlays_still_accept_ike_and_esp_from_their_peers() -> None:
+    policy = sec170.render_plan(sec170.load_inventory())["hq-edge-1"]["inet"]
+    rules = _chain(policy, "input")
+    established = rules.index("ct state established,related counter accept")
+    for rule in (
+        'iifname "eth2" ip saddr 203.0.113.130 udp dport { 500, 4500 } counter accept',
+        'iifname "eth2" ip saddr 203.0.113.130 ip protocol esp counter accept',
+    ):
+        assert rules.index(rule) > established
+    assert 'oifname "eth2"' not in "\n".join(_chain(policy, "output"))

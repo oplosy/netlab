@@ -27,7 +27,9 @@ def test_plan_has_areas_passive_vlans_and_only_routed_bfd_adjacencies() -> None:
     plan = ospf_render.build_plan(data)["nodes"]
 
     assert set(plan) == {
-        node["id"] for node in data["nodes"] if node.get("role") in {"edge", "dist"}
+        node["id"]
+        for node in data["nodes"]
+        if node.get("role") in {"edge", "dist", "firewall"}
     }
     assert plan["hq-edge-1"]["area"] == 10
     assert plan["br1-edge-1"]["area"] == 20
@@ -86,10 +88,20 @@ def test_edge_default_is_conditional_and_site_summary_is_only_aggregate() -> Non
 
 
 def test_config_does_not_run_ospf_on_oob_or_isp_interfaces() -> None:
-    configs = ospf_render.configs(ospf_render.load_inventory())
-    for config in configs.values():
+    data = ospf_render.load_inventory()
+    nodes = {node["id"]: node for node in data["nodes"]}
+    configs = ospf_render.configs(data)
+    for node_id, config in configs.items():
         assert "interface eth0" not in config
-        assert "interface eth3" not in config
+        isp_interfaces = {
+            ospf_render._interface_map(nodes[node_id])[endpoint["interface"]]
+            for link in data["links"]
+            if link.get("kind") == "ebgp"
+            for endpoint in link["endpoints"]
+            if endpoint["node"] == node_id
+        }
+        for interface in isp_interfaces:
+            assert f"interface {interface}\n" not in config, (node_id, interface)
 
 
 def test_router_ids_must_be_unique() -> None:
@@ -103,8 +115,14 @@ def test_router_ids_must_be_unique() -> None:
 
 def test_secondary_edge_and_distribution_adjacencies_are_inventory_driven() -> None:
     plan = ospf_render.build_plan(ospf_render.load_inventory())["nodes"]
+    def internal_links(node_id: str) -> int:
+        # HQ edges and distribution routers peer only with hq-fw-1 (ADR 0017).
+        return 1 if node_id.startswith("hq-") else 2
+
     for edge_id in ("hq-edge-1", "br1-edge-1", "br2-edge-1"):
-        assert sum("address" in link for link in plan[edge_id]["interfaces"]) == 2
+        assert sum("address" in link for link in plan[edge_id]["interfaces"]) == (
+            internal_links(edge_id)
+        )
         xfrms = [link for link in plan[edge_id]["interfaces"] if link["area"] == 0]
         assert xfrms and all(link["cost"] == 10 and link["bfd"] for link in xfrms)
     assert (
@@ -112,12 +130,14 @@ def test_secondary_edge_and_distribution_adjacencies_are_inventory_driven() -> N
         == 2
     )
     for edge_id in ("hq-edge-2", "br1-edge-2"):
-        assert sum("address" in link for link in plan[edge_id]["interfaces"]) == 2
+        assert sum("address" in link for link in plan[edge_id]["interfaces"]) == (
+            internal_links(edge_id)
+        )
         xfrm = next(link for link in plan[edge_id]["interfaces"] if link["area"] == 0)
         assert xfrm["area"] == 0 and xfrm["cost"] == 100 and xfrm["bfd"]
-        assert (
-            len([link for link in plan[edge_id]["interfaces"] if link.get("bfd")]) == 3
-        )
+        assert len(
+            [link for link in plan[edge_id]["interfaces"] if link.get("bfd")]
+        ) == (internal_links(edge_id) + 1)
         config = ospf_render.render_node(plan[edge_id])
         assert "ip ospf cost 100" in config
     assert not any(link["area"] == 0 for link in plan["br2-edge-2"]["interfaces"])
@@ -129,9 +149,14 @@ def test_secondary_edge_and_distribution_adjacencies_are_inventory_driven() -> N
         "br2-dist-1",
         "br2-dist-2",
     ):
-        assert (
-            len([link for link in plan[dist_id]["interfaces"] if link.get("bfd")]) == 2
-        )
+        assert len(
+            [link for link in plan[dist_id]["interfaces"] if link.get("bfd")]
+        ) == internal_links(dist_id)
+    firewall = plan["hq-fw-1"]
+    assert firewall["area"] == 10
+    assert len(firewall["interfaces"]) == 4
+    assert all(link["bfd"] and link["area"] == 10 for link in firewall["interfaces"])
+    assert "default-information originate" not in ospf_render.render_node(firewall)
 
 
 def test_all_gateway_vrrp_peers_use_the_one_advert_failover_timer() -> None:
@@ -149,8 +174,8 @@ def test_apply_enables_only_frr_ospf_and_bfd_daemons_idempotently() -> None:
         encoding="utf-8"
     )
     for daemon in ("ospfd", "bfdd"):
-        assert f'grep -qx "${{daemon}}=no" "$daemons"' in script
-        assert f'grep -qx "${{daemon}}=yes" "$daemons"' in script
+        assert 'grep -qx "${daemon}=no" "$daemons"' in script
+        assert 'grep -qx "${daemon}=yes" "$daemons"' in script
         assert f"pgrep -x {daemon}" in script
     assert "vtysh -f /tmp/netlab-ospf.conf" in script
     assert "ip route del default dev eth0" in script

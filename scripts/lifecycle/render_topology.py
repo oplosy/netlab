@@ -71,7 +71,7 @@ def _interface_maps(data: dict[str, Any]) -> dict[str, dict[str, str]]:
 
 def _image_for(node: dict[str, Any], versions: dict[str, str]) -> tuple[str, str]:
     role = node.get("role")
-    if role in {"edge", "dist", "access", "isp"}:
+    if role in {"edge", "dist", "firewall", "access", "isp"}:
         return versions["NETLAB_NETWORK_IMAGE"], "network-node"
     if role in {"client", "server"}:
         return versions["NETLAB_CLIENT_IMAGE"], "client"
@@ -103,11 +103,16 @@ def _node_entry(node: dict[str, Any], versions: dict[str, str], mappings: dict[s
         # network node in the skeleton; WAN-140 adds its FRR policy later.
         entry["env"] = {
             "NETLAB_NODE_ROLE": (
-                "router" if node["role"] == "isp" else {"dist": "distribution"}.get(node["role"], node["role"])
+                "router" if node["role"] in {"isp", "firewall"} else {"dist": "distribution"}.get(node["role"], node["role"])
             ),
             "OVS_DATAPATH_MODE": "kernel",
             "NETLAB_INVENTORY_ROLE": node["role"],
         }
+        if node["role"] == "firewall":
+            # Fail closed (ADR 0017): a new netns inherits the host's forwarding
+            # setting, so the firewall boots with forwarding off. The security
+            # apply enables it only after the drop-by-default policy is loaded.
+            entry["sysctls"] = {"net.ipv4.ip_forward": 0}
     elif image_role == "service":
         entry["env"] = {"NETLAB_SERVICE": str(node.get("service", ""))}
     return entry

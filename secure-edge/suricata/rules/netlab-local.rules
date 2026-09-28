@@ -1,0 +1,11 @@
+# EDGE-420 curated local rules (ADR 0018). The only rule file Suricata loads
+# on hq-fw-1; no external feed is used. SIDs 9420000-9420999 are reserved.
+# Test traffic uses a flow the firewall already permits (guest DNS to the
+# simulated Internet resolver), so detection and prevention are exercised
+# without widening the firewall policy.
+
+# Detection: the query is alerted on and still forwarded.
+alert dns $HOME_NET any -> any 53 (msg:"NETLAB EDGE-420 IDS test query"; dns.query; content:"ids-test.netlab"; nocase; classtype:policy-violation; sid:9420001; rev:1;)
+
+# Prevention: the query is dropped inline and never reaches the resolver.
+drop dns $HOME_NET any -> any 53 (msg:"NETLAB EDGE-420 IPS blocked query"; dns.query; content:"ips-block.netlab"; nocase; classtype:policy-violation; sid:9420002; rev:1;)

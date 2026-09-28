@@ -16,9 +16,6 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
-from services.dhcp.render import render as render_dhcp
-from services.dns.render import render_internet_zone, render_site as render_dns
-from services.ntp.render import render_internet, render_site as render_ntp
 from services.aaa.render import (
     render_authorize,
     render_clients,
@@ -26,6 +23,11 @@ from services.aaa.render import (
     render_sshd_config,
     render_sshd_pam,
 )
+from services.dhcp.render import render as render_dhcp
+from services.dns.render import render_internet_zone
+from services.dns.render import render_site as render_dns
+from services.ntp.render import render_internet
+from services.ntp.render import render_site as render_ntp
 
 LAB = "netlab-phase-1"
 AAA_NODE = "svc-aaa-1"
@@ -244,7 +246,7 @@ def build_plan(data: dict[str, Any]) -> dict[str, Any]:
     network_nodes = [
         {"id": node["id"], "oob": node["oob"]}
         for node in data["nodes"]
-        if node.get("role") in {"edge", "dist", "isp", "router"}
+        if node.get("role") in {"edge", "dist", "firewall", "isp", "router"}
     ]
     service_egress_nat = []
     for site in data["sites"]:

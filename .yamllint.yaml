@@ -1,0 +1,22 @@
+# CI-050: YAML lint policy. Generated topology files and the vendored
+# snmp_exporter module are excluded; their sources are checked instead.
+extends: default
+
+ignore: |
+  .venv/
+  .venv-*/
+  artifacts/
+  clab-*/
+  lab/clab-*/
+  lab/*.clab.yml
+  observability/snmp-if_mib.yml
+
+rules:
+  document-start: disable
+  line-length: disable
+  truthy:
+    check-keys: false
+  indentation:
+    indent-sequences: whatever
+  comments:
+    min-spaces-from-content: 1
