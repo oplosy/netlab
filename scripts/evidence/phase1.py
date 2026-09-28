@@ -234,6 +234,9 @@ def main() -> int:
                 ("test-bgp", ["make", "test-bgp"]),
                 ("apply-ipsec-overlay", ["bash", "automation/roles/ipsec/apply.sh"]),
                 ("test-ipsec", ["make", "test-ipsec"]),
+                # OSPF expects adjacencies on every XFRM link (WAN-230); the
+                # overlays have no start_action, so bring up each one here.
+                ("establish-ipsec-overlays", PYTHON_COMMAND + ["tests/integration/ipsec/establish.py"]),
                 ("test-ospf-plan", PYTHON_COMMAND + ["-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/integration/ospf/test_plan.py", "tests/integration/l3/test_gateway_plan.py"]),
                 ("apply-ospf", ["bash", "automation/roles/ospf/apply.sh"]),
                 ("reapply-ospf", ["bash", "automation/roles/ospf/apply.sh"]),

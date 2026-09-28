@@ -141,3 +141,16 @@ def test_sa_state_requires_an_installed_child_of_the_named_connection() -> None:
     assert sa_state(ike_only, connection) == (True, False)
     assert sa_state(other, connection) == (False, False)
     assert sa_state("", connection) == (False, False)
+
+
+def test_every_overlay_is_initiated_once_from_its_hq_edge() -> None:
+    from establish import initiators
+
+    plan = build_plan(load_inventory())
+    pairs = {(peer["node"], peer["connection"]) for peer in initiators(plan)}
+
+    assert pairs == {
+        ("hq-edge-1", "site-overlay-hq_br1_xfrm"),
+        ("hq-edge-2", "site-overlay-hq_br1_edge2_xfrm"),
+        ("hq-edge-1", "site-overlay-hq_br2_xfrm"),
+    }
