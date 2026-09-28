@@ -12,3 +12,4 @@ help:
 	@printf '%s\n' 'netlab targets:'
 	@printf '%s\n' '  make preflight  Read-only WSL2/toolchain/resource checks'
 	@printf '%s\n' '  make preflight-self-check  Read-only preflight implementation checks'
+	@printf '%s\n' '  make ci-static  Static CI gate: inventory, topology, lint, offline tests'

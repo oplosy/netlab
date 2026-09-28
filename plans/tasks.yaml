@@ -340,7 +340,7 @@ tasks:
   - id: CI-050
     phase: phase-4
     title: Add the static CI quality gate
-    status: planned
+    status: complete
     depends_on: [SITE-330]
     acceptance:
       - "Inventory schema validation, topology render check, ruff, yamllint, and unit tests run on every pull request to main"

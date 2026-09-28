@@ -36,3 +36,16 @@ jobs:
           test -s .editorconfig
           test -s .github/pull_request_template.md
           test -s .github/repository-policy.yml
+
+      # CI-050: static quality gate, kept in the required `policy` job.
+      - name: Install pinned uv
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv_version=$(sed -n 's/^UV_VERSION=//p' versions.env)
+          pipx install "uv==${uv_version}"
+          uv --version
+
+      - name: Run static quality gate
+        shell: bash
+        run: make ci-static
