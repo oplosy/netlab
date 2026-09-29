@@ -132,9 +132,20 @@ def test_stage_python_environment_is_an_executable_path(tmp_path: Path, monkeypa
         return phase1.subprocess.CompletedProcess(args[0], 0, "", "")
 
     monkeypatch.setattr(phase1.subprocess, "run", successful)
+    monkeypatch.setattr(phase1, "_CHILD_PYTHON", "/opt/venv/bin/python")
     EvidenceRun(tmp_path).run("python-env", ["make", "lab-up"])
 
-    assert captured["env"]["PYTHON"] == phase1.PYTHON_COMMAND[-1]
+    assert captured["env"]["PYTHON"] == "/opt/venv/bin/python"
+
+
+def test_child_python_resolves_an_absolute_interpreter(monkeypatch) -> None:
+    monkeypatch.setattr(phase1, "_CHILD_PYTHON", None)
+    monkeypatch.setattr(phase1, "PYTHON_COMMAND", [sys.executable])
+
+    resolved = phase1.child_python()
+
+    assert Path(resolved).is_absolute()
+    assert Path(resolved).exists()
 
 
 def test_ospf_route_probe_rejects_network_not_in_table() -> None:
