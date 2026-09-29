@@ -22,6 +22,25 @@ RUNTIME_OUTPUTS = (
 )
 TIMEOUT_SECONDS = 900
 PYTHON_COMMAND = shlex.split(os.environ.get("NETLAB_CHILD_PYTHON", "uv run --locked python"))
+_CHILD_PYTHON: str | None = None
+
+
+def child_python() -> str:
+    """Absolute path of the interpreter PYTHON_COMMAND runs.
+
+    Stages get PYTHON as one executable: bash apply scripts exec it and make
+    targets use it as $(PYTHON). A bare "python" is often not on PATH (WSL
+    ships only python3), so resolve it once through PYTHON_COMMAND itself.
+    """
+    global _CHILD_PYTHON
+    if _CHILD_PYTHON is None:
+        probe = subprocess.run(
+            PYTHON_COMMAND + ["-c", "import sys; print(sys.executable)"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        resolved = probe.stdout.strip() if probe.returncode == 0 else ""
+        _CHILD_PYTHON = resolved or shutil.which(PYTHON_COMMAND[-1]) or PYTHON_COMMAND[-1]
+    return _CHILD_PYTHON
 
 
 def utc_now() -> str:
@@ -66,8 +85,8 @@ class EvidenceRun:
         }
         try:
             env = os.environ.copy()
-            # Bash apply scripts treat PYTHON as one executable path, not a shell command.
-            env["PYTHON"] = PYTHON_COMMAND[-1]
+            # Bash apply scripts and make treat PYTHON as one executable path.
+            env["PYTHON"] = child_python()
             env.update(extra_env or {})
             result = subprocess.run(command, cwd=ROOT, env=env, text=True, capture_output=True, timeout=timeout, check=False)
             stdout, stderr, returncode = result.stdout, result.stderr, result.returncode
