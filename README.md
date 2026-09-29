@@ -37,12 +37,17 @@ documented `make` target.
 ## Topology
 
 ```mermaid
-flowchart LR
-    svc[Simulated Internet services<br/>DNS · NTP]
-    isp1[ISP-1<br/>AS 65000]
-    isp2[ISP-2<br/>AS 65001]
+flowchart TB
+    subgraph inet[Simulated Internet]
+      direction LR
+      isp1[ISP-1<br/>AS 65000]
+      isp2[ISP-2<br/>AS 65001]
+      svc[DNS · NTP services]
+      svc --- isp1
+    end
 
     subgraph hq[HQ · 10.10.0.0/16 · AS 65100 · OSPF area 10]
+      direction TB
       he[hq-edge-1 / hq-edge-2]
       fw[hq-fw-1<br/>nftables + Suricata IPS]
       hd[hq-dist-1 / hq-dist-2<br/>VRRP · RSTP]
@@ -52,6 +57,7 @@ flowchart LR
     end
 
     subgraph br1[Branch 1 · 10.20.0.0/16 · AS 65101 · area 20]
+      direction TB
       b1e[br1-edge-1 / br1-edge-2]
       b1d[br1-dist-1 / br1-dist-2]
       b1a[br1-access-1]
@@ -59,19 +65,16 @@ flowchart LR
     end
 
     subgraph br2[Branch 2 · 10.30.0.0/16 · AS 65102 · area 30]
+      direction TB
       b2e[br2-edge-1 / br2-edge-2]
       b2d[br2-dist-1 / br2-dist-2]
       b2a[br2-access-1]
       b2e --- b2d == LACP ==> b2a
     end
 
-    svc --- isp1
-    isp1 -- eBGP --- he
-    isp1 -- eBGP --- b1e
-    isp1 -- eBGP --- b2e
-    isp2 -- eBGP --- he
-    isp2 -- eBGP --- b1e
-    isp2 -- eBGP --- b2e
+    inet -- dual-homed eBGP --- he
+    inet -- dual-homed eBGP --- b1e
+    inet -- dual-homed eBGP --- b2e
     he == IKEv2 / XFRM · OSPF area 0 ==> b1e
     he == IKEv2 / XFRM · OSPF area 0 ==> b2e
 ```
